@@ -8,6 +8,7 @@ import HtmlEditor from "../ui/HtmlEditorLazy";
 import { SheetImport } from "../ui/SheetImport";
 import { SHEETS } from "../ui/sheets";
 import { saveConfig, clearConfigCache, CONFIG_SERVICE, fileUrl } from "../api/config";
+import JSZip from "jszip";
 
 // 인증 포함 blob 다운로드(내보내기)
 async function downloadBlob(path: string, filename: string) {
@@ -365,29 +366,64 @@ export default function Admin() {
     }
   }, [tab]);
 
+  // 백업 = ZIP(data.json + uploads/<service>/<파일>). DB 데이터 + 첨부파일 전체.
   async function doExport() {
     setBusy(true); setMsg("내보내는 중…");
     try {
       const out: any = { app: "LabMate", version: 1, exported_at: new Date().toISOString(), services: {} };
       for (const s of SERVICES) out.services[s] = (await api.get(`/${s}/admin/data/export`)).data;
-      const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+      const zip = new JSZip();
+      zip.file("data.json", JSON.stringify(out, null, 2));
+      let fileCount = 0;
+      for (const s of SERVICES) {
+        try {
+          const { files } = (await api.get<{ files: string[] }>(`/${s}/admin/data/files`)).data;
+          for (const name of files) {
+            const res = await fetch(`/uploads/${s}/${name}`);
+            if (res.ok) { zip.file(`uploads/${s}/${name}`, await res.blob()); fileCount++; }
+          }
+        } catch { /* 업로드 없는 서비스 */ }
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = `labmate-backup-${todayKST()}.json`; a.click();
+      const a = document.createElement("a"); a.href = url; a.download = `labmate-backup-${todayKST()}.zip`; a.click();
       URL.revokeObjectURL(url);
       const total = Object.values(out.services).reduce((n: number, sv: any) => n + Object.values(sv.tables || {}).reduce((m: number, r: any) => m + r.length, 0), 0);
-      setMsg(`백업 완료 — 총 ${total}건을 파일로 내려받았습니다.`);
+      setMsg(`백업 완료 — DB ${total}건 + 첨부 ${fileCount}개를 ZIP으로 내려받았습니다.`);
     } catch (e) { setMsg(apiError(e)); } finally { setBusy(false); }
   }
   async function doImport(file: File) {
     if (!await confirmDialog("⚠ 현재 모든 데이터를 백업본으로 덮어씁니다(되돌릴 수 없음). 계속할까요?")) return;
     setBusy(true); setMsg("복구 중…");
     try {
-      const data = JSON.parse(await file.text());
+      let data: any; let zip: JSZip | null = null;
+      if (file.name.toLowerCase().endsWith(".zip")) {
+        zip = await JSZip.loadAsync(file);
+        const dj = zip.file("data.json");
+        if (!dj) throw new Error("ZIP에 data.json이 없습니다");
+        data = JSON.parse(await dj.async("string"));
+      } else {
+        data = JSON.parse(await file.text());   // 구 JSON 백업 호환
+      }
       if (data.app !== "LabMate" || !data.services) throw new Error("LabMate 백업 파일이 아닙니다");
-      const done: string[] = [];
-      for (const s of Object.keys(data.services)) { await api.post(`/${s}/admin/data/import`, data.services[s]); done.push(s); }
-      setMsg(`복구 완료: ${done.join(", ")}. 변경 반영을 위해 새로고침하세요.`);
+      for (const s of Object.keys(data.services)) await api.post(`/${s}/admin/data/import`, data.services[s]);
+      let fileCount = 0, quarantined = 0;
+      if (zip) {   // 첨부파일 복구(저장명 보존) — 백업에 없는 기존 파일은 서비스별 격리
+        const byService: Record<string, { name: string; blob: Blob }[]> = {};
+        for (const p of Object.keys(zip.files)) {
+          if (!p.startsWith("uploads/") || zip.files[p].dir) continue;
+          const [, s, ...rest] = p.split("/"); const name = rest.join("/");
+          if (s && name) (byService[s] ||= []).push({ name, blob: await zip.files[p].async("blob") });
+        }
+        for (const s of SERVICES) {
+          const list = byService[s] || [];
+          const fd = new FormData();
+          list.forEach((f) => fd.append("files", f.blob, f.name));
+          const r = await api.post<{ restored: number; quarantined: number }>(`/${s}/admin/data/files`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+          fileCount += list.length; quarantined += r.data?.quarantined || 0;
+        }
+      }
+      setMsg(`복구 완료 — ${Object.keys(data.services).length}개 서비스${zip ? `, 첨부 ${fileCount}개 복구${quarantined ? `, 고아 ${quarantined}개 격리` : ""}` : ""}. 변경 반영을 위해 새로고침하세요.`);
     } catch (e: any) { setMsg(e?.message?.includes("JSON") ? "JSON 파싱 오류 — 올바른 백업 파일인지 확인하세요" : apiError(e)); }
     finally { setBusy(false); }
   }
@@ -417,13 +453,13 @@ export default function Admin() {
           {isAdmin && (
             <div className="g2">
               <Card title="📦 백업 (내보내기)" testid="data-backup">
-                <div className="muted small" style={{ marginBottom: 10 }}>전체 데이터를 파일 1개로 저장합니다. 정기 백업·이전용으로 안전합니다.</div>
+                <div className="muted small" style={{ marginBottom: 10 }}>DB 데이터 + 첨부파일 전체를 ZIP 1개로 저장합니다. 정기 백업·이전용으로 안전합니다.</div>
                 <button className="btn primary" data-testid="data-export" disabled={busy} onClick={doExport}>⬇ 데이터 내보내기</button>
-                <div className="muted small" style={{ marginTop: 8 }}>파일명: <code>labmate-backup-날짜.json</code></div>
+                <div className="muted small" style={{ marginTop: 8 }}>파일명: <code>labmate-backup-날짜.zip</code> (<code>data.json</code> + <code>uploads/</code>)</div>
               </Card>
               <Card title="♻ 복구 (가져오기)" testid="data-restore">
                 <div className="callout-danger" style={{ marginBottom: 10 }}>⚠ 백업 파일로 <b>현재 데이터를 전부 대체</b>합니다. <b>되돌릴 수 없습니다.</b></div>
-                <input type="file" accept="application/json,.json" data-testid="data-import" disabled={busy}
+                <input type="file" accept=".zip,application/zip,application/json,.json" data-testid="data-import" disabled={busy}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) doImport(f); e.target.value = ""; }} />
               </Card>
               {msg && <div className="io" style={{ gridColumn: "1 / -1", marginBottom: 0 }} data-testid="data-msg">{msg}</div>}

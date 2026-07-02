@@ -1,18 +1,20 @@
-"""관리자 데이터 백업/복구 — 서비스 DB 전체를 JSON으로 내보내고(export) 되돌린다(import).
+"""관리자 데이터 백업/복구 — 각 서비스의 DB(테이블 JSON)와 첨부파일(uploads)을 내보내고 되돌린다.
 
-각 서비스가 자기 DB의 모든 테이블을 덤프/복원한다. 프론트(관리자 화면)가 6개 서비스의
-export 를 모아 하나의 백업 파일로 저장하고, import 시 서비스별로 분배해 호출한다.
+프론트(관리자 화면)가 6개 서비스의 DB export(data.json)와 첨부파일을 ZIP으로 묶어 저장하고,
+복구 시 서비스별로 DB import(전체 대체) + 첨부 복구(저장명 보존)를 호출한다.
 """
 from __future__ import annotations
 
 import datetime
+import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import Date, DateTime, delete, select
 from sqlalchemy.orm import Session
 
 from .audit import record
+from .config import settings
 from .db import Base, get_db
 from .deps import CurrentUser, require_roles
 
@@ -74,5 +76,33 @@ def make_data_admin_router(service_name: str) -> APIRouter:
             db.rollback()
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"복구 실패: {e}")
         return {"detail": f"{service_name} 복구 완료", "restored": {n: len(v) for n, v in tables.items()}}
+
+    @r.get("/files")
+    def list_files(_: CurrentUser = Depends(require_roles("admin"))) -> dict:
+        """이 서비스 첨부파일(uploads) 목록 — 완전 백업용."""
+        d = settings.upload_dir
+        names = [f for f in os.listdir(d) if os.path.isfile(os.path.join(d, f))] if os.path.isdir(d) else []
+        return {"service": service_name, "files": names}
+
+    @r.post("/files")
+    async def restore_files(files: list[UploadFile] = File(default=[]), _: CurrentUser = Depends(require_roles("admin"))) -> dict:
+        """첨부파일 복구 — 저장명 그대로 기록(DB url 참조 보존). 백업에 없는 기존 파일은 격리 폴더로 이동(보존)."""
+        d = settings.upload_dir
+        os.makedirs(d, exist_ok=True)
+        incoming: set[str] = set()
+        for f in files:
+            name = os.path.basename(f.filename or "")
+            if not name:
+                continue
+            with open(os.path.join(d, name), "wb") as w:
+                w.write(await f.read())
+            incoming.add(name)
+        orphans = [f for f in os.listdir(d) if f not in incoming and os.path.isfile(os.path.join(d, f))]
+        if orphans:   # 삭제 대신 _orphan-<시각>/ 로 이동
+            qdir = os.path.join(d, "_orphan-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+            os.makedirs(qdir, exist_ok=True)
+            for f in orphans:
+                os.replace(os.path.join(d, f), os.path.join(qdir, f))
+        return {"restored": len(incoming), "quarantined": len(orphans)}
 
     return r

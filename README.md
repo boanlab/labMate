@@ -127,7 +127,7 @@ make restore FILE=data/backups/labmate_<시각>.tar.gz   # 복구(현재 DB·첨
 ```
 
 - `restore`는 앱 서비스 정지 → DB 재적재 → 첨부파일 복원 → 재기동 순으로 진행합니다(되돌릴 수 없음).
-- 관리자 화면(환경설정 › 데이터 백업)의 JSON 백업/복구는 **DB 데이터만** 다룹니다(첨부파일 미포함). 첨부파일까지 포함한 완전 백업은 `make backup`을 사용하세요.
+- 관리자 화면(환경설정 › 데이터 백업)은 **DB 데이터 + 첨부파일**을 ZIP(`data.json` + `uploads/`)으로 백업·복구합니다. CLI `make backup`(tar.gz)과 동일 범위이며, 구 `.json` 백업 파일도 복구 가능합니다(DB만).
 
 ---
 
