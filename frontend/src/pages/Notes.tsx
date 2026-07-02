@@ -65,14 +65,14 @@ export default function Notes() {
   async function load() { try { setPages((await api.get<Note[]>("/projects/notes")).data); } catch (e) { setErr(apiError(e)); } }
   useEffect(() => {
     load();
-    api.get<any[]>("/projects/projects?kind=grant").then((r) => setProjects(r.data)).catch(() => {});
+    api.get<any[]>("/projects/projects").then((r) => setProjects(r.data)).catch(() => {});   // 과제·프로젝트 모두
     api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {});
   }, []);
 
   const cur = pages.find((p) => p.id === sel) || null;
   const canEdit = (p: Note | null) => !!p && !!me && (p.owner_id === me.id || ["prof", "admin"].includes(me.role) || !!me.delegated_admin);
 
-  // 과제 연결 후보 — 본인 관련(책임자·담당자·참여) + 진행중. 이미 연결된 과제는 필터 제외돼도 유지.
+  // 과제·프로젝트 연결 후보 — 본인 관련(책임자·담당자·참여) + 진행중. 이미 연결된 것은 필터 제외돼도 유지.
   const today = new Date().toLocaleDateString("sv-SE");
   // 과제 기간 — 해당 연도 기간(meta) 우선, 없으면 전체 기간 폴백
   const period = (p: any): [string, string] =>
@@ -217,8 +217,18 @@ export default function Notes() {
                       onChange={(e) => upLocal(cur.id, { title: e.target.value })} onBlur={() => editable && patch(cur.id, { title: cur.title || "제목 없음" })} />
                   </div>
                   <div className="note-meta">
-                    <label>과제</label>
-                    <select value={cur.project_id} disabled={!editable} onChange={(e) => patch(cur.id, { project_id: e.target.value })}><option value="">(연결 없음)</option>{projOpts(cur.project_id).map((p) => <option key={p.id} value={p.id}>{p.code}</option>)}</select>
+                    <label>과제·프로젝트</label>
+                    <select value={cur.project_id} disabled={!editable} data-testid="note-project" onChange={(e) => patch(cur.id, { project_id: e.target.value })}>
+                      <option value="">(연결 없음)</option>
+                      {(() => {
+                        const o = projOpts(cur.project_id); const label = (p: any) => [p.code, p.name].filter(Boolean).join(" · ");
+                        const g = o.filter((p: any) => p.kind === "grant"); const a = o.filter((p: any) => p.kind !== "grant");
+                        return <>
+                          {g.length > 0 && <optgroup label="연구과제">{g.map((p: any) => <option key={p.id} value={p.id}>{label(p)}</option>)}</optgroup>}
+                          {a.length > 0 && <optgroup label="프로젝트">{a.map((p: any) => <option key={p.id} value={p.id}>{label(p)}</option>)}</optgroup>}
+                        </>;
+                      })()}
+                    </select>
                     <label>공유</label>
                     <SharePicker value={cur.share_uids || []} all={users} excludeIds={[me?.id, cur.owner_id].filter(Boolean) as string[]} disabled={!editable}
                       onChange={(uids) => patch(cur.id, { share_uids: uids })} />

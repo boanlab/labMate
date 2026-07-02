@@ -7,13 +7,13 @@ LabMate에 기여해 주셔서 감사합니다. 이 문서는 개발 환경 구�
 전제: Docker / Docker Compose, `make`.
 
 ```bash
-make up        # .env 생성 → 빌드 → 기동
-make health    # 서비스 상태 확인
+make dev-up     # .env 생성 → 소스 빌드 → 기동(소스 마운트·리로드)
+make health     # 서비스 상태 확인
 make logs S=members-service   # 개별 서비스 로그
 ```
 
-- 백엔드는 `docker-compose.override.yml`로 소스가 마운트되어 `--reload`로 즉시 반영됩니다.
-- 프론트엔드 변경은 `make build && make up`으로 반영합니다.
+- 개발은 `make dev-up`으로 기동합니다. `docker-compose.override.yml`이 백엔드 소스를 마운트해 `--reload`로 즉시 반영합니다. (`make up`은 레지스트리 이미지를 pull해 기동하는 운영 기본값입니다.)
+- 프론트엔드 변경은 `docker compose build frontend && docker compose up -d frontend`로 반영합니다.
 
 ## 프로젝트 구조
 
@@ -36,6 +36,6 @@ make logs S=members-service   # 개별 서비스 로그
 ## 변경 절차
 
 1. 브랜치 생성 후 작업합니다.
-2. 백엔드 변경 시 `make up && make health`로 정상 기동을 확인합니다.
+2. 백엔드 변경 시 `make dev-up && make health`로 정상 기동을 확인합니다.
 3. 게이트웨이가 옛 컨테이너 IP를 캐시하면 `make gateway-restart`.
 4. PR에 변경 의도와 영향 범위를 간략히 적습니다.
