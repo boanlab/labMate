@@ -15,7 +15,8 @@
 전제: Docker / Docker Compose, `make`.
 
 ```bash
-make up        # .env 자동 생성(없으면) → 빌드 → 기동 → 게이트웨이 갱신
+make up        # .env 자동 생성(없으면) → 레지스트리 이미지 pull → 기동 → 게이트웨이 갱신
+make dev-up    # 소스에서 빌드해 기동(개발 — 소스 마운트·리로드)
 ```
 
 기동 후 브라우저에서 **http://localhost:8090** 접속.
@@ -53,7 +54,8 @@ make help      # 전체 명령 목록
 
 | 명령 | 설명 |
 |---|---|
-| `make up` / `make deploy` | 빌드 + 백그라운드 기동 + 게이트웨이 갱신 |
+| `make up` / `make deploy` | 레지스트리 이미지 pull + 기동 + 게이트웨이 갱신(기본) |
+| `make dev-up` | 소스에서 빌드해 기동(개발 — 소스 마운트·리로드) |
 | `make build` | 이미지 빌드만 |
 | `make stop` | 컨테이너 중지(데이터 유지) |
 | `make down` | 컨테이너 제거(데이터 유지) |
@@ -72,15 +74,15 @@ make help      # 전체 명령 목록
 | `make push-images` | 이미지 레지스트리 푸시(`v0.1`+`latest`, `docker login` 필요) |
 | `make release` | 이미지 빌드 + 푸시 |
 | `make pull` | 레지스트리에서 이미지 받기 |
-| `make prod-up` | 푸시한 이미지로 배포(빌드 없이 pull → 기동) |
+| `make prod-up` | `make up` 별칭(하위호환) |
 | `make prod-down` | 레지스트리 배포 중지/제거 |
 
-이미지 조직/버전은 변수로 덮어쓸 수 있습니다: `make build-images ORG=myorg VERSION=v0.2`, `make prod-up VERSION=latest`.
+이미지 조직/버전은 변수로 덮어쓸 수 있습니다: `make build-images ORG=myorg VERSION=v0.2`, `make up VERSION=latest`.
 
 ### 배포 방식 두 가지
 
-- **소스 빌드(개발)**: `make up` — `build:`로 소스에서 빌드, 소스 마운트 + `--reload`.
-- **레지스트리 배포(운영)**: `make prod-up` — `boanlab/labmate-*:v0.1` 이미지를 받아 그대로 기동(소스/빌드 불필요). `docker-compose.yml`의 각 서비스는 `image:`로 푸시 이미지를 참조합니다.
+- **레지스트리 배포(기본)**: `make up` — `boanlab/labmate-*:v0.1` 이미지를 받아 그대로 기동(소스/빌드 불필요). `docker-compose.yml`의 각 서비스는 `image:`로 푸시 이미지를 참조합니다.
+- **소스 빌드(개발)**: `make dev-up` — `build:`로 소스에서 빌드, 소스 마운트 + `--reload`.
 
 ---
 
@@ -131,7 +133,7 @@ make restore FILE=data/backups/labmate_<시각>.tar.gz   # 복구(현재 DB·첨
 
 ## 개발
 
-`docker-compose.override.yml`이 백엔드 소스를 컨테이너에 마운트하고 `--reload`로 즉시 반영합니다. 백엔드 코드는 저장 시 자동 리로드되며, 프론트엔드 변경은 `make build && make up`(또는 `docker compose build frontend && docker compose up -d frontend`)로 반영합니다.
+개발은 `make dev-up`으로 기동합니다. `docker-compose.override.yml`이 백엔드 소스를 컨테이너에 마운트하고 `--reload`로 즉시 반영합니다. 백엔드 코드는 저장 시 자동 리로드되며, 프론트엔드 변경은 `docker compose build frontend && docker compose up -d frontend`로 반영합니다.
 
 스키마 변경(컬럼 추가/개명)은 각 서비스 `main.py` lifespan의 `Base.metadata.create_all` + `rename_columns` 멱등 마이그레이션으로 적용됩니다.
 

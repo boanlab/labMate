@@ -394,3 +394,9 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .ck-preview { min-height: 60px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; cursor: text; font-size: 14px; background: var(--panel); overflow-wrap: break-word; }
 .ck-preview:hover { border-color: var(--brand); }
 .ck-preview img { max-width: 100%; height: auto; }
+
+/* 대시보드 오늘 일정 — 클릭 가능 행 + 오늘/다가오는 구분선 */
+.dash-ev { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--line2); cursor: pointer; }
+.dash-ev:hover { color: var(--brand); }
+.dash-ev-div { display: flex; align-items: center; gap: 6px; margin: 5px 0 3px; color: var(--sub); font-size: 10px; }
+.dash-ev-div::before, .dash-ev-div::after { content: ""; flex: 1; height: 1px; background: var(--line); }

@@ -16,7 +16,8 @@ const TCOL: Record<string, string> = {
   "휴가": "#caa53d", "예약": "#2e9e6b",
 };
 
-function ymd(d: Date) { return d.toISOString().slice(0, 10); }
+// 로컬 날짜 기준 yyyy-mm-dd (toISOString의 UTC 변환은 KST에서 하루 밀림)
+function ymd(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function eachDay(start: string, end: string): string[] {
   const out: string[] = []; const s = new Date(start); const e = new Date(end);
   for (let d = new Date(s); d <= e && out.length < 92; d.setDate(d.getDate() + 1)) out.push(ymd(new Date(d)));

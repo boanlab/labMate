@@ -74,6 +74,7 @@ export default function Dashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [bal, setBal] = useState<{ granted: number; used: number } | null>(null);
   const [events, setEvents] = useState<any[]>([]);
+  const [selEv, setSelEv] = useState<any>(null);
   const [myAppr, setMyAppr] = useState<any[]>([]);
   const [myMeetings, setMyMeetings] = useState<any[]>([]);
   const [myLeaves, setMyLeaves] = useState<any[]>([]);
@@ -153,7 +154,8 @@ export default function Dashboard() {
   const myPendingAppr = myAppr.filter((a: any) => a.status === "진행");
   const todoCount = myActions.length + myPendingAppr.length;
   const today0 = todayKST();
-  const upcoming = events.filter((e: any) => e.date >= today0).sort((a: any, b: any) => a.date.localeCompare(b.date)).slice(0, 6);
+  const todayEvents = events.filter((e: any) => e.date === today0).sort((a: any, b: any) => (a.time || "").localeCompare(b.time || ""));
+  const futureEvents = events.filter((e: any) => e.date > today0).sort((a: any, b: any) => a.date.localeCompare(b.date)).slice(0, 4);
 
   // 프로젝트(활동)·세부 업무 현황
   const projCode = (pid: string) => [...projects, ...activities].find((p) => p.id === pid)?.code || pid.slice(0, 6);
@@ -263,12 +265,23 @@ export default function Dashboard() {
         )}
         <div className="kpi dash-today" style={{ gridColumn: "span 2" }} data-testid="dash-today">
           <div className="l" style={{ marginBottom: 6 }}>오늘 일정 <a className="lnk" style={{ float: "right", fontSize: 11, fontWeight: 400 }} onClick={() => nav("/calendar")}>캘린더 →</a></div>
-          {upcoming.length ? upcoming.slice(0, 5).map((e: any, i: number) => (
-            <div key={i} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "3px 0", borderBottom: "1px solid var(--line2)" }}>
-              <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.recurring ? "🔁 " : ""}{e.title}</span>
-              <span className="muted" style={{ flexShrink: 0 }}>{e.date === today0 ? (e.time || "오늘") : e.date.slice(5)}</span>
-            </div>
-          )) : <div className="muted small">예정된 일정 없음</div>}
+          {(todayEvents.length || futureEvents.length) ? (
+            <>
+              {todayEvents.length ? todayEvents.map((e: any, i: number) => (
+                <div key={"t" + i} className="small dash-ev" onClick={() => setSelEv(e)} data-testid={`dash-ev-${i}`}>
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.recurring ? "🔁 " : ""}{e.title}</span>
+                  <span className="muted" style={{ flexShrink: 0 }}>{e.time || "오늘"}</span>
+                </div>
+              )) : <div className="muted small" style={{ padding: "3px 0" }}>오늘 일정 없음</div>}
+              {futureEvents.length > 0 && <div className="dash-ev-div"><span>다가오는 일정</span></div>}
+              {futureEvents.map((e: any, i: number) => (
+                <div key={"f" + i} className="small dash-ev" onClick={() => setSelEv(e)} data-testid={`dash-ev-f-${i}`}>
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.recurring ? "🔁 " : ""}{e.title}</span>
+                  <span className="muted" style={{ flexShrink: 0 }}>{e.date.slice(5)}</span>
+                </div>
+              ))}
+            </>
+          ) : <div className="muted small">예정된 일정 없음</div>}
         </div>
         {isMgr ? (
           <div className="dash-rs" style={{ gridColumn: "span 6" }}>
@@ -317,14 +330,14 @@ export default function Dashboard() {
 
       <Card title="과제 포트폴리오" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/grants")}>과제관리 →</a>}>
         <div className="card scroll" style={{ margin: 0, border: "none" }}>
-          <table className="tbl" data-testid="dash-portfolio">
-            <thead><tr><th>과제</th><th>기관</th>{canBudget && <th>예산 집행률</th>}<th title="SCI / KCI / 국제학술대회 / 국내학술대회 / 국제특허 / 국내특허">성과</th><th>기한</th></tr></thead>
+          <table className="tbl" data-testid="dash-portfolio" style={{ tableLayout: "fixed", width: "100%" }}>
+            <thead><tr><th>과제</th><th style={{ width: 84 }}>기관</th>{canBudget && <th style={{ width: 150 }}>예산 집행률</th>}<th style={{ width: 150 }} title="SCI / KCI / 국제학술대회 / 국내학술대회 / 국제특허 / 국내특허">성과</th><th style={{ width: 72 }}>기한</th></tr></thead>
             <tbody>
               {ps.map((p) => {
                 const ex = budgetOf(p.id); const ach = achievedOf(p); const dd = dday(grantEnd(p));
                 return (
                   <tr key={p.id}>
-                    <td><a className="lnk" style={{ cursor: "pointer", fontWeight: 700 }} onClick={() => nav(`/grants?open=${p.id}`)}>{p.code}</a><div className="muted small" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.name}>{p.name}</div></td>
+                    <td style={{ overflow: "hidden" }}><a className="lnk" style={{ cursor: "pointer", fontWeight: 700, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => nav(`/grants?open=${p.id}`)}>{p.code}</a><div className="muted small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.name}>{p.name}</div></td>
                     <td>{p.agency}</td>
                     {canBudget && <td><div className="bar" style={{ width: 110, display: "inline-block", verticalAlign: "middle" }}><i style={{ width: `${Math.min(ex, 100)}%`, background: ex > 90 ? "var(--bad)" : ex > 75 ? "var(--warn)" : "var(--brand)" }} /></div> <span className="small muted">{ex}%</span></td>}
                     <td style={{ whiteSpace: "nowrap" }} title={PORT_INDS.map(([, l]) => l).join(" / ")}>
@@ -383,6 +396,24 @@ export default function Dashboard() {
               </tbody>
             </table>
           </Card>
+        </div>
+      )}
+      {selEv && (
+        <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) setSelEv(null); }}>
+          <div className="modal" style={{ width: 460, maxWidth: "94%" }} data-testid="dash-ev-modal">
+            <div className="modal-h"><b>{selEv.recurring ? "🔁 " : ""}{selEv.title}</b><button className="btn ghost sm" onClick={() => setSelEv(null)}>✕</button></div>
+            <div className="modal-b">
+              <table className="metatbl"><tbody>
+                <tr><th>일시</th><td>{selEv.date}{selEv.end_date && selEv.end_date !== selEv.date ? ` ~ ${selEv.end_date}` : ""}{selEv.time ? ` · ${selEv.time}` : ""}</td></tr>
+                {selEv.type && <tr><th>유형</th><td>{selEv.type}</td></tr>}
+                {selEv.repeat && selEv.repeat !== "없음" && <tr><th>반복</th><td>{selEv.repeat}{selEv.until ? ` (~${selEv.until})` : ""}</td></tr>}
+                {selEv.attendees?.length ? <tr><th>참석</th><td>{selEv.attendees.map((uid: string) => users.find((u) => u.id === uid)?.name || uid).join(", ")}</td></tr> : null}
+                {selEv.link && <tr><th>링크</th><td><a className="lnk" href={selEv.link} target="_blank" rel="noreferrer">{selEv.link}</a></td></tr>}
+              </tbody></table>
+              {selEv.detail && <div style={{ marginTop: 10, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: selEv.detail }} />}
+            </div>
+            <div className="modal-f"><button className="btn ghost" onClick={() => { setSelEv(null); nav("/calendar"); }}>캘린더에서 보기</button><button className="btn primary" onClick={() => setSelEv(null)}>닫기</button></div>
+          </div>
         </div>
       )}
     </div>

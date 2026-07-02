@@ -33,13 +33,20 @@ build: env ## 모든 이미지 빌드
 	$(COMPOSE) build
 
 .PHONY: up
-up: env ## 빌드 후 백그라운드 기동 + 게이트웨이 갱신
+up: env ## 레지스트리 이미지 pull 후 기동(기본, VERSION 지정 가능)
+	$(COMPOSE_PROD) pull
+	$(COMPOSE_PROD) up -d --remove-orphans
+	@$(COMPOSE_PROD) restart gateway >/dev/null 2>&1 && echo "gateway 재시작됨"
+	@echo "기동 완료 → $(BASE)  (이미지: $(ORG)/labmate-*:$(or $(VERSION),latest))"
+
+.PHONY: dev-up
+dev-up: env ## 소스에서 빌드 후 기동(개발 — 소스 마운트·리로드)
 	$(COMPOSE) up -d --build --remove-orphans
 	@$(MAKE) --no-print-directory gateway-restart
-	@echo "기동 완료 → $(BASE)"
+	@echo "개발 기동 완료 → $(BASE)"
 
 .PHONY: deploy
-deploy: up ## up 의 별칭(빌드+배포)
+deploy: up ## up 별칭(pull 배포)
 
 .PHONY: gateway-restart
 gateway-restart: ## 게이트웨이 재시작(백엔드 재빌드 후 stale-IP 해소)
@@ -76,11 +83,7 @@ pull: ## 레지스트리에서 푸시한 이미지 받기(VERSION 기본 latest)
 	$(COMPOSE_PROD) pull
 
 .PHONY: prod-up
-prod-up: env ## 푸시한 이미지로 배포(빌드 없이 pull → 기동, VERSION 지정 가능)
-	$(COMPOSE_PROD) pull
-	$(COMPOSE_PROD) up -d --remove-orphans
-	@$(COMPOSE_PROD) restart gateway >/dev/null 2>&1 && echo "gateway 재시작됨"
-	@echo "배포 완료 → $(BASE)  (이미지: $(ORG)/labmate-*:$(or $(VERSION),latest))"
+prod-up: up ## up 별칭(하위호환)
 
 .PHONY: prod-down
 prod-down: ## 레지스트리 배포 중지/제거(데이터 유지)
