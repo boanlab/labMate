@@ -113,21 +113,25 @@ export const SHEETS: Record<string, SheetEntity> = {
     },
   },
   payroll: {
-    label: "인건비 참여율", create: "/funds/participations/set", required: ["code", "member", "year", "month", "rate_pct"],
-    cols: [["code", "관리코드"], ["member", "구성원(이메일/이름)"], ["year", "연도"], ["month", "월"], ["rate_pct", "참여율(%)"]],
-    example: ["2025-0001", "hong@labmate.io", "2025", "3", "50"],
-    intFields: ["year", "month", "rate_pct"],
+    label: "인건비 참여율", create: "/funds/participations/set", required: ["code", "member", "year", "month"],
+    // 참여율·금액 중 하나만 입력하면 나머지를 등급 월단가로 자동 계산(참여율 우선)
+    cols: [["code", "관리코드"], ["member", "구성원(이메일/이름)"], ["year", "연도"], ["month", "월"], ["rate_pct", "참여율(%)"], ["amount", "금액(원)"]],
+    example: ["2025-0001", "hong@labmate.io", "2025", "3", "50", ""],
+    intFields: ["year", "month", "amount"],
     exportList: "/funds/participations/all",
-    exportResolve: async (rows) => {   // {project_id,uid,month,rate_pct} → 관리코드·구성원·연도·월
-      const [grants, users] = await Promise.all([api.get<any[]>("/projects/projects?kind=grant"), api.get<any[]>("/members/users")]);
+    exportResolve: async (rows) => {   // {project_id,uid,month,rate_pct} → 관리코드·구성원·연월 + 금액(등급단가×참여율)
+      const [grants, users, cfg] = await Promise.all([api.get<any[]>("/projects/projects?kind=grant"), api.get<any[]>("/members/users"), api.get<any>("/funds/config")]);
       const codeById: Record<string, string> = Object.fromEntries(grants.data.map((g) => [g.id, g.code]));
       const userById: Record<string, any> = Object.fromEntries(users.data.map((u) => [u.id, u]));
+      const rates: Record<string, number> = (cfg.data && cfg.data.grade_rates) || {};
+      const gradeOf = (u: any) => u?.grade || (u?.role === "phd" ? "박사과정" : u?.role === "master" ? "석사과정" : "학사과정");
       return rows.map((p) => ({
         code: codeById[p.project_id] || "",
         member: userById[p.uid]?.email || userById[p.uid]?.name || "",
         year: String(p.month || "").slice(0, 4),
         month: Number(String(p.month || "").slice(5, 7)) || "",
         rate_pct: p.rate_pct,
+        amount: Math.round((rates[gradeOf(userById[p.uid])] || 0) * (p.rate_pct || 0) / 100),
       }));
     },
     resolver: async () => {
@@ -142,8 +146,12 @@ export const SHEETS: Record<string, SheetEntity> = {
       return (r: any) => {
         const pid = codeMap[r.code]; const u = userMap[r.member]; if (!pid || !u) return null;
         const month = `${r.year}-${String(r.month).padStart(2, "0")}`;
-        const rate_pct = Number(r.rate_pct) || 0;
-        const amount = Math.round((rates[gradeOf(u)] || 0) * rate_pct / 100);
+        const base = rates[gradeOf(u)] || 0;
+        const rateIn = Number(r.rate_pct) || 0; const amtIn = Number(r.amount) || 0;
+        let rate_pct: number, amount: number;
+        if (rateIn > 0) { rate_pct = rateIn; amount = Math.round(base * rate_pct / 100); }               // 참여율 → 금액
+        else if (amtIn > 0) { amount = amtIn; rate_pct = base > 0 ? Math.round(amtIn / base * 10000) / 100 : 0; }   // 금액 → 참여율
+        else return null;   // 둘 다 없음 → 건너뜀
         return { uid: u.id, project_id: pid, month, rate_pct, amount };
       };
     },

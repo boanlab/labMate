@@ -187,7 +187,7 @@ export default function Dashboard() {
         <div className="grid g3" style={{ marginBottom: 12 }}>
           <Kpi label="전체 구성원" value={mem.length} sub="관리자 제외" onClick={() => nav("/members")} />
           <Kpi label="재직" value={activeN} sub={`휴직/비활성 ${mem.length - activeN}`} tone="green" />
-          <Kpi label="감사 로그" value={audit.length} sub="최근 활동" onClick={() => nav("/admin")} />
+          <Kpi label="감사 로그" value={audit.length} sub="최근 활동" onClick={() => nav("/audit")} />
         </div>
         <div className="grid g2">
           <Card title="구성원 현황" extra={<button className="btn ghost sm" onClick={() => nav("/members")}>구성원 관리</button>}>
@@ -201,7 +201,7 @@ export default function Dashboard() {
               </tbody>
             </table>
           </Card>
-          <Card title="최근 감사 로그" extra={<button className="btn ghost sm" onClick={() => nav("/admin")}>전체 보기</button>}>
+          <Card title="최근 감사 로그" extra={<button className="btn ghost sm" onClick={() => nav("/audit")}>전체 보기</button>}>
             <table className="tbl">
               <thead><tr><th>시각</th><th>행위자</th><th>행위</th><th>대상</th><th>서비스</th></tr></thead>
               <tbody>
