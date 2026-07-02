@@ -7,7 +7,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, Chips, statusClass } from "../ui/kit";
 import { Gauge, HBars } from "../ui/Charts";
 import { useConfig, names } from "../api/config";
-import { RichText } from "../ui/RichText";
+import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface TFile { name: string; url: string; }
 
@@ -95,7 +95,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const [taskForm, setTaskForm] = useState<any | null>(null);
   const [allInfo, setAllInfo] = useState(false);
   const [filter, setFilter] = useState("진행 중");
-  const taskBodyRef = useRef<HTMLDivElement>(null);
+  const [taskBody, setTaskBody] = useState("");
   const kanbanRef = useRef<HTMLDivElement>(null);
   const [kbMax, setKbMax] = useState(420);
   const AGENCIES = names(useConfig("agencies", ["NRF", "IITP", "KEIT", "KIAT", "지자체", "교내", "기타"]));
@@ -215,7 +215,6 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
     try { await api.delete(`/projects/projects/${open.id}`); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
   }
   async function reloadTasks() { if (open) try { setTasks((await api.get<Task[]>(`/projects/projects/${open.id}/tasks`)).data); } catch { /* */ } }
-  function setTaskBody(html: string) { setTimeout(() => { if (taskBodyRef.current) taskBodyRef.current.innerHTML = html; }, 0); }
   function newTask() { setTaskOpen(null); setTaskForm({ title: "", assignee_id: "", status: "예정", start: "", due: "", done_date: "", link: "", files: [] }); setTaskBody(""); }
   function editTask(t: Task) { setTaskOpen(null); setTaskForm({ id: t.id, title: t.title, assignee_id: t.assignee_id || "", status: t.status, start: t.start || "", due: t.due || "", done_date: t.done_date || "", link: t.link || "", files: t.files || [] }); setTaskBody(t.body || ""); }
   async function uploadTaskFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -231,7 +230,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
     e.preventDefault(); if (!open || !taskForm) return;
     // 실제 마감일: 입력값 우선, 미입력+완료면 오늘 자동
     const done_date = (taskForm.done_date || (taskForm.status === "완료" ? todayKST() : "")) || null;
-    const payload = { title: taskForm.title, assignee_id: taskForm.assignee_id, status: taskForm.status, start: taskForm.start || null, due: taskForm.due || null, done_date, body: taskBodyRef.current?.innerHTML || "", link: taskForm.link, files: taskForm.files || [] };
+    const payload = { title: taskForm.title, assignee_id: taskForm.assignee_id, status: taskForm.status, start: taskForm.start || null, due: taskForm.due || null, done_date, body: taskBody, link: taskForm.link, files: taskForm.files || [] };
     try {
       if (taskForm.id) await api.patch(`/projects/tasks/${taskForm.id}`, payload);
       else await api.post(`/projects/projects/${open.id}/tasks`, payload);
@@ -446,7 +445,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
                 <label>링크 (선택)</label>
                 <input type="url" placeholder="https://…" value={taskForm.link} onChange={(e) => setTaskForm({ ...taskForm, link: e.target.value })} />
                 <label>내용</label>
-                <RichText innerRef={taskBodyRef} testid="tf-body" placeholder="업무 내용을 입력하세요" minHeight={120} />
+                <HtmlEditor value={taskBody} onChange={setTaskBody} testid="tf-body" minHeight={120} />
                 <label>첨부파일 (선택)</label>
                 <input type="file" multiple data-testid="tf-files" onChange={uploadTaskFiles} />
                 {!!(taskForm.files && taskForm.files.length) && (

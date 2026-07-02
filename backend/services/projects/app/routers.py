@@ -15,7 +15,7 @@ from labmate_common.db import get_db
 from labmate_common.deps import CurrentUser, get_current_user
 
 from . import schemas
-from .models import Milestone, Project, Publication, Task
+from .models import Milestone, NotePage, Project, Publication, Task
 
 router = APIRouter()
 MANAGER_ROLES = ("prof", "staff")
@@ -275,3 +275,63 @@ def delete_pub(uid: str, user: CurrentUser = Depends(get_current_user), db: Sess
     if p:
         p.deleted_at = datetime.now(timezone.utc)
         db.commit()
+
+
+# ── 연구노트(트리형 문서) ──
+def _note_visible(user: CurrentUser, p: NotePage) -> bool:
+    """소유자 또는 공유 대상 사용자만 열람."""
+    return p.owner_id == user.id or user.id in (p.share_uids or [])
+
+
+def _note_can_edit(user: CurrentUser, p: NotePage) -> bool:
+    return p.owner_id == user.id or user.role in ("prof", "admin") or bool(user.delegated_admin)
+
+
+@router.get("/notes", response_model=list[schemas.NotePageOut])
+def list_notes(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """열람 가능한 전체 노트(트리는 프론트에서 parent_id로 구성)."""
+    return [p for p in db.scalars(select(NotePage).order_by(NotePage.sort)) if _note_visible(user, p)]
+
+
+@router.post("/notes", response_model=schemas.NotePageOut, status_code=201)
+def create_note(body: schemas.NotePageIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    data = body.model_dump()
+    if data.get("sort") is None:                                   # 형제 마지막에 배치
+        sibs = list(db.scalars(select(NotePage).where(NotePage.parent_id == data["parent_id"])))
+        data["sort"] = (max((s.sort for s in sibs), default=0) + 1)
+    p = NotePage(owner_id=user.id, **data)
+    db.add(p); db.commit(); db.refresh(p)
+    return p
+
+
+@router.patch("/notes/{nid}", response_model=schemas.NotePageOut)
+def update_note(nid: str, body: schemas.NotePagePatch, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    p = db.get(NotePage, nid)
+    if not p:
+        raise HTTPException(404, "노트 없음")
+    if not _note_can_edit(user, p):
+        raise HTTPException(403, "수정 권한이 없습니다")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(p, k, v)
+    db.commit(); db.refresh(p)
+    return p
+
+
+@router.delete("/notes/{nid}", status_code=204)
+def delete_note(nid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    p = db.get(NotePage, nid)
+    if not p:
+        return
+    if not _note_can_edit(user, p):
+        raise HTTPException(403, "삭제 권한이 없습니다")
+    now = datetime.now(timezone.utc)
+    ids = {nid}                                                    # 하위 트리 전체 소프트 삭제
+    while True:
+        children = list(db.scalars(select(NotePage).where(NotePage.parent_id.in_(ids))))
+        new = {c.id for c in children} - ids
+        if not new:
+            break
+        ids |= new
+    for x in db.scalars(select(NotePage).where(NotePage.id.in_(ids))):
+        x.deleted_at = now
+    db.commit()

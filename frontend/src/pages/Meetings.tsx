@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card } from "../ui/kit";
-import { RichText } from "../ui/RichText";
+import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface Action { id?: string; title: string; assignee_id: string; due: string; done: boolean; task_id?: string; }
 interface Meeting { id: string; date: string; title: string; by_id: string; decisions: string; actions: Action[]; attendees: string[]; project_id?: string; }
@@ -32,8 +32,7 @@ export default function Meetings() {
   const [q, setQ] = useState("");
   const today = todayKST();
   const [form, setForm] = useState({ date: today, title: "", project_id: "", decisions: "", attendees: [] as string[], actions: [] as Action[] });
-  const decRef = useRef<HTMLDivElement>(null);
-  const setDec = (html: string) => setTimeout(() => { if (decRef.current) decRef.current.innerHTML = html; }, 0);
+  const [dec, setDec] = useState("");
 
   const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
   const taskById: Record<string, any> = Object.fromEntries(tasks.map((t: any) => [t.id, t]));
@@ -82,7 +81,7 @@ export default function Meetings() {
         }
       }
     }
-    const payload = { ...form, actions, decisions: decRef.current?.innerHTML || "" };
+    const payload = { ...form, actions, decisions: dec };
     try {
       if (editing?.id) await api.put(`/boards/meetings/${editing.id}`, payload);
       else await api.post("/boards/meetings", payload);
@@ -120,7 +119,7 @@ export default function Meetings() {
             {users.filter((u) => u.role !== "admin" && u.active !== false).map((u) => <button type="button" key={u.id} className={"chip" + (form.attendees.includes(u.id) ? " on" : "")} onClick={() => toggleAttendee(u.id)}>{u.name}</button>)}
           </div>
           <label>결정사항</label>
-          <RichText innerRef={decRef} testid="mt-decisions" placeholder="회의 결정사항을 입력하세요" minHeight={120} />
+          <HtmlEditor value={dec} onChange={setDec} testid="mt-decisions" minHeight={120} />
           <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>액션아이템
             <button type="button" className="btn ghost sm" data-testid="mt-action-add" onClick={addAction}>+ 추가</button>
           </label>

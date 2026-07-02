@@ -154,7 +154,6 @@ export default function Dashboard() {
   const todoCount = myActions.length + myPendingAppr.length;
   const today0 = todayKST();
   const upcoming = events.filter((e: any) => e.date >= today0).sort((a: any, b: any) => a.date.localeCompare(b.date)).slice(0, 6);
-  const myApprovedLeaves = myLeaves.filter((l: any) => l.status === "승인" && l.end_date >= today0).slice(0, 3);
 
   // 프로젝트(활동)·세부 업무 현황
   const projCode = (pid: string) => [...projects, ...activities].find((p) => p.id === pid)?.code || pid.slice(0, 6);

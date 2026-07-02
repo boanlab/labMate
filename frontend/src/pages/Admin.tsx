@@ -4,7 +4,7 @@ import { PageHeader, Card } from "../ui/kit";
 import { useAuth } from "../auth/AuthContext";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
-import { RichText } from "../ui/RichText";
+import HtmlEditor from "../ui/HtmlEditorLazy";
 import { SheetImport } from "../ui/SheetImport";
 import { SHEETS } from "../ui/sheets";
 import { saveConfig, clearConfigCache, CONFIG_SERVICE, fileUrl } from "../api/config";
@@ -134,8 +134,7 @@ function ApprovalEditor() {
   const nextK = useRef(0);
   const [sel, setSel] = useState(0);
   const [msg, setMsg] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-  const setEditor = (html: string) => setTimeout(() => { if (ref.current) ref.current.innerHTML = html || ""; }, 0);
+  const [tpl, setEditor] = useState("");
 
   async function load() {
     clearConfigCache("boards");
@@ -151,7 +150,7 @@ function ApprovalEditor() {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
-  function commit() { const cur = types[sel]; if (cur && ref.current) tpls.current[cur._k] = ref.current.innerHTML; }
+  function commit() { const cur = types[sel]; if (cur) tpls.current[cur._k] = tpl; }
   function pick(i: number) { commit(); setSel(i); setEditor(types[i] ? tpls.current[types[i]._k] : ""); }
   function upd(i: number, f: string, v: string) { setTypes(types.map((t, j) => (j === i ? { ...t, [f]: v } : t))); }
   function add() { commit(); const k = nextK.current++; tpls.current[k] = ""; const nt = [...types, { name: "새 유형", prefix: "DOC", _k: k }]; setTypes(nt); setSel(nt.length - 1); setEditor(""); }
@@ -187,7 +186,7 @@ function ApprovalEditor() {
                 <div><label className="muted small">문서번호 접두</label><input data-testid="appr-prefix" value={types[sel].prefix || ""} onChange={(e) => upd(sel, "prefix", e.target.value)} /></div>
               </div>
               <label className="muted small">문서 양식 <span className="muted">(기안 시 본문에 채워질 기본 양식)</span></label>
-              <RichText innerRef={ref} testid="appr-tpl" placeholder="문서 양식을 입력하세요" minHeight={140} />
+              <HtmlEditor value={tpl} onChange={setEditor} testid="appr-tpl" minHeight={140} />
             </>
           ) : <div className="muted small">유형을 추가하세요.</div>}
         </div>

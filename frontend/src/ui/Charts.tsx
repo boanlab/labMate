@@ -30,25 +30,6 @@ export function Donut({ segs, size = 132, center }: { segs: Seg[]; size?: number
   );
 }
 
-export function DonutLegend({ segs, size = 128, center }: { segs: Seg[]; size?: number; center?: string }) {
-  const total = segs.reduce((t, s) => t + s.value, 0) || 1;
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-      <Donut segs={segs} size={size} center={center} />
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {segs.map((s, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-            <span style={{ width: 11, height: 11, borderRadius: 3, background: s.color || CHART_PAL[i % CHART_PAL.length] }} />
-            <b style={{ minWidth: 60 }}>{s.label}</b>
-            <span>{s.value}</span>
-            <span className="muted small">{Math.round((s.value / total) * 100)}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function Gauge({ pct, label, size = 120, color }: { pct: number; label?: string; size?: number; color?: string }) {
   const p = Math.max(0, Math.min(pct, 100));
   const col = color || (p > 100 ? "var(--bad)" : p > 90 ? "var(--warn)" : "var(--brand)");

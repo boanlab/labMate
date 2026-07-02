@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { RichText, stripHtml } from "../ui/RichText";
+import { stripHtml } from "../ui/html";
+import HtmlEditor from "../ui/HtmlEditorLazy";
 import { PageHeader, Card } from "../ui/kit";
 
 interface TFile { name: string; url: string; }
@@ -21,7 +22,7 @@ export default function Notices() {
   const [q, setQ] = useState("");
   const emptyForm = { title: "", required: false, due: "", link: "", files: [] as TFile[], targetMode: "all" as "all" | "select", target_user_ids: [] as string[], by_id: "" };
   const [form, setForm] = useState(emptyForm);
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const [body, setBody] = useState("");
   const today = todayKST();
   const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
   const members = users.filter((u) => u.active !== false && u.role !== "admin");
@@ -34,7 +35,6 @@ export default function Notices() {
   }
   useEffect(() => { load(); }, []);
 
-  function setBody(html: string) { setTimeout(() => { if (bodyRef.current) bodyRef.current.innerHTML = html; }, 0); }
   function openForm() { setEditId(""); setForm({ ...emptyForm, by_id: me?.id || "" }); setAdding(true); setBody(""); }
   function editNotice(n: Notice) {
     setEditId(n.id);
@@ -54,7 +54,7 @@ export default function Notices() {
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
     const payload = {
-      title: form.title, body: bodyRef.current?.innerHTML || "", required: form.required, due: form.due || null,
+      title: form.title, body, required: form.required, due: form.due || null,
       link: form.link, files: form.files, target_user_ids: form.targetMode === "select" ? form.target_user_ids : [],
     };
     try {
@@ -168,7 +168,7 @@ export default function Notices() {
                 {members.map((u) => <button type="button" key={u.id} className={"chip" + (form.target_user_ids.includes(u.id) ? " on" : "")} onClick={() => toggleTarget(u.id)}>{u.name}</button>)}
               </div>
             )}
-            <label>내용</label><RichText innerRef={bodyRef} testid="n-body" placeholder="공지 내용을 입력하세요" />
+            <label>내용</label><HtmlEditor value={body} onChange={setBody} testid="n-body" minHeight={200} />
             <label>링크(선택)</label>
             <input data-testid="n-link" type="url" placeholder="https://…" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
             <label>첨부파일(선택)</label>

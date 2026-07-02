@@ -167,7 +167,6 @@ export function SheetImport({ entity, onDone, onResult, testid = "sheet" }: { en
     finally { setBusy(false); if (fileRef.current) fileRef.current.value = ""; }
   }
 
-  const colSummary = (entity.tabs || entity.buildTabs) ? "종류별 시트(탭)로 구성됩니다." : (entity.cols || []).map(([, ko]) => ko).join(" · ");
 
   return (
     <>
@@ -185,9 +184,8 @@ export function SheetImport({ entity, onDone, onResult, testid = "sheet" }: { en
                 <button type="button" className="btn ghost sm" data-testid={`${testid}-tpl`} disabled={busy} onClick={downloadTemplate}>⬇ 엑셀 양식(XLSX)</button>
                 {(entity.exportList || entity.list) && <button type="button" className="btn ghost sm" data-testid={`${testid}-export`} disabled={busy} onClick={downloadData}>⬆ 현재 데이터 내보내기</button>}
                 <input ref={fileRef} type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-testid={`${testid}-file`} disabled={busy}
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+                  style={{ minWidth: 0, maxWidth: "100%" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
               </div>
-              <div className="muted small" style={{ marginTop: 8 }}>필수: {entity.required.join(", ")} · {colSummary}</div>
               {msg && <div className="io" style={{ marginTop: 10 }} data-testid={`${testid}-msg`}>{msg}</div>}
               {!!errors.length && (
                 <div className="form-err" style={{ marginTop: 8, maxHeight: 160, overflow: "auto" }}>

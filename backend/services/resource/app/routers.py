@@ -23,7 +23,7 @@ LIB_MNG = ("prof", "phd", "staff", "admin")  # 파일·영상·강좌 관리
 
 
 def _has(u: CurrentUser, roles) -> bool:
-    # 인프라담당(infra_manager)은 자산·인프라(ASSET_ADMIN) 관리 허용.
+    # 인프라담당은 자산·인프라(ASSET_ADMIN) 관리 허용
     return u.role in roles or (u.delegated_admin and roles in (ASSET_ADMIN, LIB_MNG)) or (u.infra_manager and roles == ASSET_ADMIN)
 
 

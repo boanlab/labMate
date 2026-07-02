@@ -28,10 +28,6 @@ export function PageHeader({ crumb, title, action, testid }: { crumb?: string; t
   );
 }
 
-export function Badge({ kind, children }: { kind?: string; children: ReactNode }) {
-  return <span className={"badge" + (kind ? ` ${kind}` : "")}>{children}</span>;
-}
-
 export const won = (n: number) => (n || 0).toLocaleString() + "원";
 
 // 진행 상태 배지 색 규칙(진행 중=녹색·예정=대기·완료=회색)

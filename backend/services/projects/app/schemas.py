@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 
@@ -77,4 +77,41 @@ class PublicationIn(BaseModel):
 
 class PublicationOut(PublicationIn):
     id: str
+    model_config = {"from_attributes": True}
+
+
+class NotePageIn(BaseModel):
+    parent_id: str = ""
+    title: str = "제목 없음"
+    icon: str = "📄"
+    content: str = ""
+    project_id: str = ""
+    tags: list[str] = Field(default_factory=list)
+    share_uids: list[str] = Field(default_factory=list)
+    sort: float | None = None
+
+
+class NotePagePatch(BaseModel):
+    parent_id: str | None = None
+    title: str | None = None
+    icon: str | None = None
+    content: str | None = None
+    project_id: str | None = None
+    tags: list[str] | None = None
+    share_uids: list[str] | None = None
+    sort: float | None = None
+
+
+class NotePageOut(BaseModel):
+    id: str
+    parent_id: str
+    sort: float
+    title: str
+    icon: str
+    content: str
+    project_id: str
+    tags: list[str]
+    owner_id: str
+    share_uids: list[str] = Field(default_factory=list)
+    updated_at: datetime | None = None
     model_config = {"from_attributes": True}

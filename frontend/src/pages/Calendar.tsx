@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card } from "../ui/kit";
 import { useConfig, names } from "../api/config";
-import { RichText } from "../ui/RichText";
+import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface Item { id: string; title: string; date: string; time?: string; type: string; scope?: string; detail?: string; link?: string; attendees?: string[]; start?: string; end?: string; src: string; recurring?: boolean; by_id?: string; }
 const SCOPES = ["개인", "전체 구성원", "구성원 선택"];
@@ -48,9 +48,8 @@ export default function Calendar() {
   const [adding, setAdding] = useState(false);
   const empty = { id: "", title: "", date: ymd(today), end: "", time: "", type: "업무", scope: "개인", attendees: [] as string[], link: "", repeat: "없음", until: "" };
   const [form, setForm] = useState(empty);
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const [detail, setDetail] = useState("");
 
-  function clearBody(html = "") { setTimeout(() => { if (bodyRef.current) bodyRef.current.innerHTML = html; }, 0); }
   function toggleAttendee(uid: string) {
     setForm((f) => ({ ...f, attendees: f.attendees.includes(uid) ? f.attendees.filter((x) => x !== uid) : [...f.attendees, uid] }));
   }
@@ -80,7 +79,7 @@ export default function Calendar() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
-    const payload = { title: form.title, date: form.date, end_date: form.end && form.end > form.date ? form.end : null, time: form.time, type: form.type, scope: form.scope, detail: bodyRef.current?.innerHTML || "", link: form.link, repeat: form.repeat, until: form.until || null, attendees: form.scope === "구성원 선택" ? form.attendees : [] };
+    const payload = { title: form.title, date: form.date, end_date: form.end && form.end > form.date ? form.end : null, time: form.time, type: form.type, scope: form.scope, detail, link: form.link, repeat: form.repeat, until: form.until || null, attendees: form.scope === "구성원 선택" ? form.attendees : [] };
     try {
       if (form.id) await api.put(`/boards/events/${form.id}`, payload);
       else await api.post("/boards/events", payload);
@@ -91,10 +90,10 @@ export default function Calendar() {
     if (!await confirmDialog("일정을 삭제할까요?")) return;
     try { await api.delete(`/boards/events/${id}`); setDayModal(null); load(); } catch (e) { setErr(apiError(e)); }
   }
-  function openNew(date?: string) { setForm({ ...empty, date: date || empty.date }); setDayModal(null); setAdding(true); clearBody(""); }
+  function openNew(date?: string) { setForm({ ...empty, date: date || empty.date }); setDayModal(null); setAdding(true); setDetail(""); }
   function editEvent(it: Item) {
     setForm({ id: it.id, title: it.title, date: it.start || it.date, end: it.end || "", time: it.time || "", type: it.type, scope: it.scope || "개인", attendees: it.attendees || [], link: it.link || "", repeat: "없음", until: "" });
-    setDayModal(null); setAdding(true); clearBody(it.detail || "");
+    setDayModal(null); setAdding(true); setDetail(it.detail || "");
   }
 
   const visible = items.filter((e) => !hidden[e.type]);
@@ -138,7 +137,7 @@ export default function Calendar() {
               </div>
             )}
             <div style={{ gridColumn: "1 / -1" }}><label>링크(선택)</label><input data-testid="ev-link" type="url" placeholder="https://… 관련 자료·회의 링크" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>상세(선택)</label><RichText innerRef={bodyRef} testid="ev-detail" placeholder="일정 상세 내용을 입력하세요" minHeight={120} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label>상세(선택)</label><HtmlEditor value={detail} onChange={setDetail} testid="ev-detail" minHeight={120} /></div>
           </div>
           <div className="bd" style={{ display: "flex", gap: 6 }}>
             <button className="btn primary" data-testid="event-add-submit">{form.id ? "저장" : "추가"}</button>

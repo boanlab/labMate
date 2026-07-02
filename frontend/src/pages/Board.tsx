@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card } from "../ui/kit";
-import { RichText, stripHtml } from "../ui/RichText";
+import { stripHtml } from "../ui/html";
+import HtmlEditor from "../ui/HtmlEditorLazy";
 import { useConfig } from "../api/config";
 
 interface TFile { name: string; url: string; }
@@ -32,18 +33,18 @@ export default function Board() {
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState("");
   const [form, setForm] = useState({ cat: "정보공유", title: "", link: "", min_role: "", files: [] as TFile[] });
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const [body, setBody] = useState("");
 
   async function load() {
     try { setItems((await api.get<Post[]>("/boards/posts")).data); api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {}); } catch (e) { setErr(apiError(e)); }
   }
   useEffect(() => { load(); }, []);
 
-  function openForm() { setEditId(""); setAdding((v) => !v); setForm({ cat: "정보공유", title: "", link: "", min_role: "", files: [] }); setTimeout(() => { if (bodyRef.current) bodyRef.current.innerHTML = ""; }, 0); }
+  function openForm() { setEditId(""); setAdding((v) => !v); setForm({ cat: "정보공유", title: "", link: "", min_role: "", files: [] }); setBody(""); }
   function editPost(p: Post) {
     setForm({ cat: p.cat, title: p.title, link: p.link || "", min_role: p.min_role || "", files: p.files || [] });
     setEditId(p.id); setAdding(true); setOpen(null);
-    setTimeout(() => { if (bodyRef.current) bodyRef.current.innerHTML = p.body || ""; }, 0);
+    setBody(p.body || "");
   }
   function closeForm() { setAdding(false); setEditId(""); setForm({ cat: "정보공유", title: "", link: "", min_role: "", files: [] }); }
   async function uploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -57,7 +58,6 @@ export default function Board() {
   }
   async function add(e: React.FormEvent) {
     e.preventDefault(); setErr("");
-    const body = bodyRef.current?.innerHTML || "";
     try {
       if (editId) await api.put(`/boards/posts/${editId}`, { ...form, body });
       else await api.post("/boards/posts", { ...form, body });
@@ -193,7 +193,7 @@ export default function Board() {
             <div style={{ gridColumn: "1 / -1" }}><label>제목</label><input data-testid="b-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div><label>분류</label><select data-testid="b-cat" value={form.cat} onChange={(e) => setForm({ ...form, cat: e.target.value })}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
             <div><label>공개 범위</label><select data-testid="b-minrole" value={form.min_role} onChange={(e) => setForm({ ...form, min_role: e.target.value })}>{MIN_ROLE_OPTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>본문</label><RichText innerRef={bodyRef} testid="b-body" placeholder="본문을 입력하세요" /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label>본문</label><HtmlEditor value={body} onChange={setBody} testid="b-body" minHeight={200} /></div>
             <div style={{ gridColumn: "1 / -1" }}><label>링크(선택)</label><input data-testid="b-link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label>첨부파일(선택)</label>

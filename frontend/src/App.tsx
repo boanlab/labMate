@@ -19,6 +19,7 @@ import AttendanceAdmin from "./pages/AttendanceAdmin";
 import Leave from "./pages/Leave";
 import Notices from "./pages/Notices";
 import Board from "./pages/Board";
+import Notes from "./pages/Notes";
 import Library from "./pages/Library";
 import Meetings from "./pages/Meetings";
 import CalendarPage from "./pages/Calendar";
@@ -58,6 +59,7 @@ function App() {
           <Route path="/" element={<Protected><Dashboard /></Protected>} />
           <Route path="/grants" element={<Protected roles={STUDENT5}><Projects key="grant" kind="grant" /></Protected>} />
           <Route path="/projects" element={<Protected roles={NO_STAFF}><Projects key="activity" kind="activity" /></Protected>} />
+          <Route path="/notes" element={<Protected roles={NO_STAFF}><Notes /></Protected>} />
           <Route path="/publications" element={<Protected roles={STUDENT5}><Publications /></Protected>} />
           <Route path="/expenses" element={<Protected roles={["prof", "staff"]}><Expenses /></Protected>} />
           <Route path="/payroll" element={<Protected roles={STUDENT5}><Payroll /></Protected>} />

@@ -53,9 +53,9 @@ class User(OrgScoped, SoftDelete, Base):
     note: Mapped[str] = mapped_column(Text, default="")
 
     password_hash: Mapped[str] = mapped_column(String(255))
-    # 첫 로그인(또는 관리자 초기화 후) 강제 비밀번호 변경
+    # 강제 비밀번호 변경 플래그
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=True)
-    # 행정 권한 위임(랩장 등) — staff 권한 일부를 위임받음
+    # 행정 권한 위임(랩장 등)
     delegated_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     infra_manager: Mapped[bool] = mapped_column(Boolean, default=False)   # 인프라(자산·장비) 관리 위임
     active: Mapped[bool] = mapped_column(Boolean, default=True)

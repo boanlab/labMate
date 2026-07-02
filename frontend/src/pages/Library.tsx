@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef, createRef, RefObject } from "react";
+import { useEffect, useState, useRef } from "react";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card } from "../ui/kit";
 import { useConfig, names } from "../api/config";
-import { RichText } from "../ui/RichText";
+import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface Lesson { title: string; type: string; dur?: string; ref: string; body?: string; id?: string; _k?: number; }
 interface Course { id: string; cat: string; title: string; desc: string; lessons: any[]; required?: boolean; due?: string | null; owner_id?: string; }
@@ -24,8 +24,7 @@ export default function Library() {
   const COURSE_CATS = names(useConfig<any[]>("course_types", ["온보딩", "보안·윤리", "연구방법", "장비교육", "기타"]));
   const LESSON_TYPES = useConfig<string[]>("lesson_types", ["영상", "문서", "실습", "퀴즈"]);
   const nextK = useRef(1);
-  const refMap = useRef<Map<number, RefObject<HTMLDivElement>>>(new Map());
-  const lref = (k: number) => { if (!refMap.current.has(k)) refMap.current.set(k, createRef<HTMLDivElement>()); return refMap.current.get(k)!; };
+  const [activeLesson, setActiveLesson] = useState<number | null>(null);   // 편집 중인 강의 행만 에디터 마운트(성능)
   const newLesson = (): Lesson => ({ title: "", type: LESSON_TYPES[0] || "영상", ref: "", body: "", _k: nextK.current++ });
   const [cf, setCf] = useState<{ cat: string; title: string; desc: string; required: boolean; lessons: Lesson[] }>({ cat: "온보딩", title: "", desc: "", required: false, lessons: [] });
 
@@ -39,16 +38,15 @@ export default function Library() {
 
   function setLesson(i: number, patch: Partial<Lesson>) { setCf((c) => ({ ...c, lessons: c.lessons.map((l, j) => j === i ? { ...l, ...patch } : l) })); }
   function addLesson() { setCf((c) => ({ ...c, lessons: [...c.lessons, newLesson()] })); }
-  function delLesson(i: number) { setCf((c) => ({ ...c, lessons: c.lessons.filter((_, j) => j !== i) })); }
-  function openNew() { refMap.current.clear(); setEditId(null); setCf({ cat: COURSE_CATS[0] || "온보딩", title: "", desc: "", required: false, lessons: [newLesson()] }); setAdding(true); }
+  function delLesson(i: number) { setActiveLesson(null); setCf((c) => ({ ...c, lessons: c.lessons.filter((_, j) => j !== i) })); }
+  function openNew() { setActiveLesson(null); setEditId(null); setCf({ cat: COURSE_CATS[0] || "온보딩", title: "", desc: "", required: false, lessons: [newLesson()] }); setAdding(true); }
   function closeForm() { setAdding(false); setEditId(null); }
   function startEditCourse(c: Course) {
-    refMap.current.clear();
+    setActiveLesson(null);
     const lessons: Lesson[] = (c.lessons || []).map((l: any) => ({ title: l.title, type: l.type, dur: l.dur, ref: l.ref || "", body: l.body || "", id: l.id, _k: nextK.current++ }));
     setEditId(c.id);
     setCf({ cat: c.cat, title: c.title, desc: c.desc, required: !!c.required, lessons });
     setAdding(true);
-    setTimeout(() => lessons.forEach((l) => { const r = lref(l._k!); if (r.current) r.current.innerHTML = l.body || ""; }), 0);
   }
   async function addCourse(e: React.FormEvent) {
     e.preventDefault(); setErr("");
@@ -57,7 +55,7 @@ export default function Library() {
         const { _k, ...rest } = l;
         const isVid = l.type === "영상";
         // 영상=링크만(본문 비움) / 그 외=텍스트 에디터 본문만(링크 비움)
-        const body = isVid ? "" : ((_k != null ? lref(_k).current?.innerHTML : "") || rest.body || "");
+        const body = isVid ? "" : (rest.body || "");
         return { ...rest, ref: isVid ? (rest.ref || "") : "", body };
       })
       .filter((l) => l.title.trim());
@@ -130,7 +128,11 @@ export default function Library() {
                   <button type="button" className="btn ghost sm" onClick={() => delLesson(i)} disabled={cf.lessons.length === 1}>✕</button>
                 </div>
                 <input placeholder="영상 링크 (YouTube 주소 등)" value={l.ref} onChange={(e) => setLesson(i, { ref: e.target.value })} style={{ margin: "6px 0 0", display: l.type === "영상" ? "block" : "none" }} />
-                <div style={{ marginTop: 6, display: l.type === "영상" ? "none" : "block" }}><RichText innerRef={lref(l._k!)} testid={`c-body-${i}`} placeholder="강의 내용·설명" minHeight={90} /></div>
+                <div style={{ marginTop: 6, display: l.type === "영상" ? "none" : "block" }}>
+                  {activeLesson === i
+                    ? <HtmlEditor value={l.body || ""} onChange={(html) => setLesson(i, { body: html })} testid={`c-body-${i}`} minHeight={90} />
+                    : <div className="ck-preview" data-testid={`c-body-${i}`} onClick={() => setActiveLesson(i)} dangerouslySetInnerHTML={{ __html: l.body || "<span class='muted'>클릭해 내용 입력…</span>" }} />}
+                </div>
               </div>
             ))}
           </div>

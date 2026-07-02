@@ -91,7 +91,7 @@ make help      # 전체 명령 목록
 | 서비스 | 라우트 | 담당 도메인 |
 |---|---|---|
 | **members** | `/api/members` | 인증·계정·구성원·권한위임 |
-| **projects** | `/api/projects` | 연구과제·실적·세부업무·마일스톤 |
+| **projects** | `/api/projects` | 연구과제·실적·세부업무·마일스톤·연구노트 |
 | **funds** | `/api/funds` | 예산 편성·연구비 집행·인건비 |
 | **attendance** | `/api/attendance` | 출퇴근·휴가·근태정정 |
 | **boards** | `/api/boards` | 공지·게시판·회의록·전자결재 |

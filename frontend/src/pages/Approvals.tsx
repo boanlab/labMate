@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
-import { RichText } from "../ui/RichText";
+import HtmlEditor from "../ui/HtmlEditorLazy";
 import { printDoc } from "../ui/pdf";
 import { todayKST } from "../lib/date";
 
@@ -55,7 +55,7 @@ export default function Approvals() {
   const [rejectMsg, setRejectMsg] = useState("");
   const [addApprover, setAddApprover] = useState("");
   const [form, setForm] = useState({ type: "구매", title: "", project_id: "", approver_ids: [] as string[] });
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const [body, setBody] = useState("");
 
   const approverPool = users.filter((u) => ["prof", "staff"].includes(u.role) || u.delegated_admin || u.role === "admin");
   const uname = (id: string) => users.find((u) => u.id === id)?.name || "?";
@@ -85,12 +85,12 @@ export default function Approvals() {
     const t0 = TYPES[0] || "구매";
     setForm({ type: t0, title: "", project_id: "", approver_ids: defaultLine() });
     setEditing({}); setAddApprover(""); setErr("");
-    setTimeout(() => { if (bodyRef.current) bodyRef.current.innerHTML = TEMPLATES[t0] || ""; }, 0);
+    setBody(TEMPLATES[t0] || "");
   }
   function openEdit(a: Appr, resubmit = false) {
     setForm({ type: a.type, title: a.title, project_id: a.project_id, approver_ids: a.steps.map((s) => s.uid) });
     setEditing({ id: a.id, resubmit, status: a.status }); setAddApprover(""); setErr("");
-    setTimeout(() => { if (bodyRef.current) bodyRef.current.innerHTML = a.content || ""; }, 0);
+    setBody(a.content || "");
   }
   function addStep() {
     if (addApprover && !form.approver_ids.includes(addApprover) && addApprover !== me?.id)
@@ -104,13 +104,13 @@ export default function Approvals() {
     [ids[i], ids[j]] = [ids[j], ids[i]];
     setForm({ ...form, approver_ids: ids });
   }
-  function loadTemplate() { if (bodyRef.current) bodyRef.current.innerHTML = TEMPLATES[form.type] || ""; bodyRef.current?.focus(); }
+  function loadTemplate() { setBody(TEMPLATES[form.type] || ""); }
 
   async function save(draft = false) {
     setErr("");
     if (!form.title.trim()) { setErr("제목을 입력하세요"); return; }
     if (!draft && !form.approver_ids.length) { setErr("결재선에 최소 1명의 결재자를 지정하세요"); return; }
-    const content = bodyRef.current?.innerHTML || "";
+    const content = body;
     const payload = { type: form.type, title: form.title, project_id: form.project_id, amount: 0, deduct_account: "", content, draft, approver_ids: form.approver_ids };
     try {
       if (editing?.resubmit && editing.id) await api.post(`/boards/approvals/${editing.id}/resubmit`, payload);
@@ -216,7 +216,7 @@ export default function Approvals() {
             <label style={{ display: "flex", alignItems: "center", gap: 8 }}>결재 문서 본문
               <button type="button" className="btn ghost sm" data-testid="a-template" onClick={loadTemplate} style={{ fontWeight: 400, marginLeft: "auto" }}>문서유형 양식 불러오기</button>
             </label>
-            <RichText innerRef={bodyRef} testid="a-doc" minHeight={300} placeholder="본문을 입력하거나 ‘문서유형 양식 불러오기’를 누르세요" />
+            <HtmlEditor value={body} onChange={setBody} testid="a-doc" minHeight={300} />
           </div>
           <div className="bd" style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--line2)" }}>
             <button className="btn ghost" onClick={() => setEditing(null)}>취소</button>

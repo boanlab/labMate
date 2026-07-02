@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from labmate_common.db import Base
@@ -84,3 +84,20 @@ class Publication(OrgScoped, SoftDelete, Base):
     meta: Mapped[dict] = mapped_column(JSON, default=dict)            # 종류별 상세필드
     files: Mapped[list] = mapped_column(JSON, default=list)           # 첨부파일 [{name,url}]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NotePage(OrgScoped, SoftDelete, Base):
+    """연구노트 페이지 — 자기참조 트리(parent_id+sort). 개인/공유 문서."""
+    __tablename__ = "note_pages"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    parent_id: Mapped[str] = mapped_column(String(32), default="", index=True)   # ""=루트
+    sort: Mapped[float] = mapped_column(Float, default=0)                        # 형제 정렬
+    title: Mapped[str] = mapped_column(String(200), default="제목 없음")
+    icon: Mapped[str] = mapped_column(String(8), default="📄")
+    content: Mapped[str] = mapped_column(Text, default="")                       # 본문(HTML)
+    project_id: Mapped[str] = mapped_column(String(32), default="", index=True)  # 과제 연결(선택)
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    owner_id: Mapped[str] = mapped_column(String(32), default="", index=True)
+    share_uids: Mapped[list] = mapped_column(JSON, default=list)                 # 공유 대상 사용자 id
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
