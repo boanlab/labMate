@@ -21,6 +21,7 @@ import Notices from "./pages/Notices";
 import Board from "./pages/Board";
 import Notes from "./pages/Notes";
 import Library from "./pages/Library";
+import Archive from "./pages/Archive";
 import Meetings from "./pages/Meetings";
 import CalendarPage from "./pages/Calendar";
 import Approvals from "./pages/Approvals";
@@ -75,6 +76,7 @@ function App() {
           <Route path="/meetings" element={<Protected roles={NO_STAFF}><Meetings /></Protected>} />
           <Route path="/approvals" element={<Protected roles={NO_STAFF}><Approvals /></Protected>} />
           <Route path="/library" element={<Protected roles={NO_STAFF}><Library /></Protected>} />
+          <Route path="/archive" element={<Protected roles={STUDENT5}><Archive /></Protected>} />
           <Route path="/assets" element={<Protected><Assets /></Protected>} />
           <Route path="/infra" element={<Protected><Infra /></Protected>} />
           <Route path="/booking" element={<Protected roles={NO_STAFF}><Booking /></Protected>} />

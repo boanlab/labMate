@@ -9,6 +9,14 @@ import { SheetImport } from "../ui/SheetImport";
 import { SHEETS } from "../ui/sheets";
 import { saveConfig, clearConfigCache, CONFIG_SERVICE, fileUrl } from "../api/config";
 
+// 인증 포함 blob 다운로드(내보내기)
+async function downloadBlob(path: string, filename: string) {
+  const r = await api.get(path, { responseType: "blob" });
+  const url = URL.createObjectURL(r.data as Blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // 역할별 모듈 접근 매트릭스(프론트 표현용 — 실제 권한은 각 서비스가 강제)
 const MODULES = ["대시보드", "캘린더", "연구과제", "프로젝트", "전자결재", "자원예약", "공지", "게시판", "회의록", "연구비집행", "예산", "학생인건비", "근태", "휴가", "구성원", "실적", "교육", "자산", "인프라"];
 function perm(role: string, mod: string): "rw" | "r" | "-" {
@@ -489,6 +497,15 @@ export default function Admin() {
                   )}
                 </div>
               )}
+            </Card>
+          )}
+          {isAdmin && (
+            <Card title="문서 내보내기 (ZIP)" testid="docs-export">
+              <div className="muted small" style={{ marginBottom: 12 }}>연구노트·자료실은 트리 문서라 시트 대신 <b>ZIP</b>으로 내보냅니다. (트리=폴더, 페이지=HTML, 자료실은 첨부파일 포함)</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="btn ghost" data-testid="export-notes-zip" onClick={() => downloadBlob("/projects/notes/export", "labmate-연구노트.zip").catch((e) => setSheetResult({ label: "연구노트", msg: apiError(e), errors: [] }))}>⬇ 연구노트 ZIP</button>
+                <button className="btn ghost" data-testid="export-archive-zip" onClick={() => downloadBlob("/projects/archive/export", "labmate-자료실.zip").catch((e) => setSheetResult({ label: "자료실", msg: apiError(e), errors: [] }))}>⬇ 자료실 ZIP</button>
+              </div>
             </Card>
           )}
         </>

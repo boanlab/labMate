@@ -331,7 +331,7 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .notif-badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 999px; background: var(--bad); color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 
 /* 연구노트 — 트리 사이드바 + 에디터 (뷰포트 높이 채움, 내부 스크롤) */
-[data-testid="page-notes"] { display: flex; flex-direction: column; height: calc(100vh - 86px); }
+[data-testid="page-notes"], [data-testid="page-archive"] { display: flex; flex-direction: column; height: calc(100vh - 86px); }
 .notes-layout { display: grid; grid-template-columns: 260px 1fr; gap: 14px; flex: 1; min-height: 0; }
 .notes-tree { padding: 8px 4px; overflow: auto; }
 .notes-editor { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }   /* grid 아이템 가로 넘침 방지 */
@@ -388,7 +388,7 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .note-meta input[type=checkbox] { width: auto; margin: 0; }
 .note-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .note-tag-in { width: 72px; margin: 0; padding: 4px 7px; font-size: 12px; }
-@media (max-width: 860px) { [data-testid="page-notes"] { height: auto; } .notes-layout { grid-template-columns: 1fr !important; } .notes-tree { max-height: 300px; } .notes-editor { overflow: visible; } .notes-editor-doc { min-height: 60vh; } }
+@media (max-width: 860px) { [data-testid="page-notes"], [data-testid="page-archive"] { height: auto; } .notes-layout { grid-template-columns: 1fr !important; } .notes-tree { max-height: 300px; } .notes-editor { overflow: visible; } .notes-editor-doc { min-height: 60vh; } }
 
 /* 교육 강의 본문 — 편집 전 클릭 미리보기(에디터는 편집 행만 마운트) */
 .ck-preview { min-height: 60px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; cursor: text; font-size: 14px; background: var(--panel); overflow-wrap: break-word; }
@@ -400,3 +400,9 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .dash-ev:hover { color: var(--brand); }
 .dash-ev-div { display: flex; align-items: center; gap: 6px; margin: 5px 0 3px; color: var(--sub); font-size: 10px; }
 .dash-ev-div::before, .dash-ev-div::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+/* 자료실 첨부파일 — 에디터 하단 고정 */
+.notes-arch-files { flex-shrink: 0; border-top: 1px solid var(--line2); padding: 8px 18px; max-height: 140px; overflow: auto; }
+.arch-files-h { display: flex; align-items: center; font-size: 12px; font-weight: 600; color: var(--sub); margin-bottom: 6px; }
+.arch-files-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.arch-file { padding: 5px 10px; }

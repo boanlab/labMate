@@ -14,7 +14,7 @@ const ROLE_LABEL: Record<string, string> = {
 // 관리자(admin)는 대시보드·구성원·환경설정만 사용 — ALL 에서 admin 제외.
 const ALL = ["prof", "phd", "master", "under", "staff"];
 const EVERYONE = [...ALL, "admin"];
-// 행정(staff) 차단 모듈 — 프로젝트·전자결재·자원예약·게시판·회의록·자료실. 위임 학생은 본인 역할로 접근.
+// 행정(staff) 차단 모듈 — 프로젝트·전자결재·자원예약·게시판·회의록. 위임 학생은 본인 역할로 접근.
 const NO_STAFF = ["prof", "phd", "master", "under"];
 interface MenuItem { to: string; label: string; icon: string; roles: string[]; }
 const GROUPS: { title: string; items: MenuItem[] }[] = [
@@ -48,6 +48,7 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
   { title: "연구실", items: [
     { to: "/publications", label: "실적", icon: "award", roles: ALL },
     { to: "/library", label: "교육", icon: "book", roles: NO_STAFF },
+    { to: "/archive", label: "자료실", icon: "folder", roles: ALL },
     { to: "/assets", label: "자산", icon: "desktop", roles: ALL },
     { to: "/infra", label: "인프라", icon: "server", roles: ALL },
   ] },

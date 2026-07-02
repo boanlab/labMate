@@ -3,10 +3,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import io
 import os
+import re
 import uuid as _uuid
+import zipfile
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,7 +19,7 @@ from labmate_common.db import get_db
 from labmate_common.deps import CurrentUser, get_current_user
 
 from . import schemas
-from .models import Milestone, NotePage, Project, Publication, Task
+from .models import ArchivePage, Milestone, NotePage, Project, Publication, Task
 
 router = APIRouter()
 MANAGER_ROLES = ("prof", "staff")
@@ -293,6 +297,8 @@ def list_notes(user: CurrentUser = Depends(get_current_user), db: Session = Depe
     return [p for p in db.scalars(select(NotePage).order_by(NotePage.sort)) if _note_visible(user, p)]
 
 
+
+
 @router.post("/notes", response_model=schemas.NotePageOut, status_code=201)
 def create_note(body: schemas.NotePageIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     data = body.model_dump()
@@ -335,3 +341,110 @@ def delete_note(nid: str, user: CurrentUser = Depends(get_current_user), db: Ses
     for x in db.scalars(select(NotePage).where(NotePage.id.in_(ids))):
         x.deleted_at = now
     db.commit()
+
+
+# ── 자료실(트리형 문서) ── 전 구성원 열람·작성·수정, 삭제는 작성자·교수
+def _arch_can_delete(user: CurrentUser, p: ArchivePage) -> bool:
+    return p.owner_id == user.id or user.role in ("prof", "admin") or bool(user.delegated_admin)
+
+
+@router.get("/archive", response_model=list[schemas.ArchiveOut])
+def list_archive(_: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    return list(db.scalars(select(ArchivePage).order_by(ArchivePage.sort)))
+
+
+@router.post("/archive", response_model=schemas.ArchiveOut, status_code=201)
+def create_archive(body: schemas.ArchiveIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    data = body.model_dump()
+    if data.get("sort") is None:                                   # 형제 마지막에 배치
+        sibs = list(db.scalars(select(ArchivePage).where(ArchivePage.parent_id == data["parent_id"])))
+        data["sort"] = (max((s.sort for s in sibs), default=0) + 1)
+    p = ArchivePage(owner_id=user.id, **data)
+    db.add(p); db.commit(); db.refresh(p)
+    return p
+
+
+@router.patch("/archive/{aid}", response_model=schemas.ArchiveOut)
+def update_archive(aid: str, body: schemas.ArchivePatch, _: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    p = db.get(ArchivePage, aid)
+    if not p:
+        raise HTTPException(404, "자료 없음")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(p, k, v)
+    db.commit(); db.refresh(p)
+    return p
+
+
+@router.delete("/archive/{aid}", status_code=204)
+def delete_archive(aid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    p = db.get(ArchivePage, aid)
+    if not p:
+        return
+    if not _arch_can_delete(user, p):
+        raise HTTPException(403, "삭제 권한이 없습니다 (작성자·교수만)")
+    now = datetime.now(timezone.utc)
+    ids = {aid}                                                    # 하위 트리 전체 소프트 삭제
+    while True:
+        children = list(db.scalars(select(ArchivePage).where(ArchivePage.parent_id.in_(ids))))
+        new = {c.id for c in children} - ids
+        if not new:
+            break
+        ids |= new
+    for x in db.scalars(select(ArchivePage).where(ArchivePage.id.in_(ids))):
+        x.deleted_at = now
+    db.commit()
+
+
+# ── 문서 ZIP 내보내기 ── 트리=폴더, 페이지=<제목>.html, 자료실은 첨부 포함
+def _safe_name(name: str) -> str:
+    n = re.sub(r'[\\/:*?"<>|\r\n]+', "_", (name or "").strip())
+    return n or "무제"
+
+
+def _tree_path(page, by_id: dict) -> str:
+    parts, c, seen = [], page, set()
+    while c and c.parent_id and c.parent_id in by_id and c.id not in seen:
+        seen.add(c.id)
+        c = by_id[c.parent_id]
+        parts.append(_safe_name(c.title))
+    return "/".join(reversed(parts))
+
+
+def _docs_zip(pages, with_files: bool) -> io.BytesIO:
+    by_id = {p.id: p for p in pages}
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        used: set[str] = set()
+        for p in pages:
+            folder = _tree_path(p, by_id)
+            base = (folder + "/" if folder else "") + _safe_name(p.title)
+            name = base + ".html"; i = 2
+            while name in used:
+                name = f"{base} ({i}).html"; i += 1
+            used.add(name)
+            z.writestr(name, f"<!doctype html><html><head><meta charset=\"utf-8\"><title>{p.title}</title></head><body>{p.content or ''}</body></html>")
+            for f in (getattr(p, "files", None) or []) if with_files else []:
+                url, fn = f.get("url", ""), _safe_name(f.get("name", "file"))
+                local = os.path.join(settings.upload_dir, os.path.basename(url))
+                if url and os.path.isfile(local):
+                    z.write(local, base + "_첨부/" + fn)
+    buf.seek(0)
+    return buf
+
+
+@router.get("/notes/export")
+def export_notes(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """연구실 전체 연구노트 → ZIP. 교수·행정·위임·관리자."""
+    if not _is_work_admin(user):
+        raise HTTPException(403, "권한이 없습니다")
+    buf = _docs_zip(list(db.scalars(select(NotePage).order_by(NotePage.sort))), with_files=False)
+    return StreamingResponse(buf, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=labmate-notes.zip"})
+
+
+@router.get("/archive/export")
+def export_archive(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """연구실 전체 자료실 → ZIP(첨부 포함). 교수·행정·위임·관리자."""
+    if not _is_work_admin(user):
+        raise HTTPException(403, "권한이 없습니다")
+    buf = _docs_zip(list(db.scalars(select(ArchivePage).order_by(ArchivePage.sort))), with_files=True)
+    return StreamingResponse(buf, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=labmate-archive.zip"})

@@ -115,3 +115,37 @@ class NotePageOut(BaseModel):
     share_uids: list[str] = Field(default_factory=list)
     updated_at: datetime | None = None
     model_config = {"from_attributes": True}
+
+
+class ArchiveIn(BaseModel):
+    parent_id: str = ""
+    title: str = "제목 없음"
+    icon: str = "📄"
+    content: str = ""
+    tags: list[str] = Field(default_factory=list)
+    files: list[dict] = Field(default_factory=list)
+    sort: float | None = None
+
+
+class ArchivePatch(BaseModel):
+    parent_id: str | None = None
+    title: str | None = None
+    icon: str | None = None
+    content: str | None = None
+    tags: list[str] | None = None
+    files: list[dict] | None = None
+    sort: float | None = None
+
+
+class ArchiveOut(BaseModel):
+    id: str
+    parent_id: str
+    sort: float
+    title: str
+    icon: str
+    content: str
+    tags: list[str]
+    files: list[dict]
+    owner_id: str
+    updated_at: datetime | None = None
+    model_config = {"from_attributes": True}

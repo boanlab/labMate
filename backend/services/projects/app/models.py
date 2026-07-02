@@ -101,3 +101,19 @@ class NotePage(OrgScoped, SoftDelete, Base):
     share_uids: Mapped[list] = mapped_column(JSON, default=list)                 # 공유 대상 사용자 id
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ArchivePage(OrgScoped, SoftDelete, Base):
+    """자료실 페이지 — 자기참조 트리. 전 구성원 열람·작성·수정, 삭제는 작성자·교수."""
+    __tablename__ = "archive_pages"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    parent_id: Mapped[str] = mapped_column(String(32), default="", index=True)   # ""=루트
+    sort: Mapped[float] = mapped_column(Float, default=0)                        # 형제 정렬
+    title: Mapped[str] = mapped_column(String(200), default="제목 없음")
+    icon: Mapped[str] = mapped_column(String(8), default="📄")
+    content: Mapped[str] = mapped_column(Text, default="")                       # 본문(HTML)
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    files: Mapped[list] = mapped_column(JSON, default=list)                      # 첨부 [{name,url}]
+    owner_id: Mapped[str] = mapped_column(String(32), default="", index=True)    # 작성자
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
