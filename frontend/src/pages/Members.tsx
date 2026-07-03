@@ -12,6 +12,15 @@ interface User {
 }
 const ROLES = ["prof", "phd", "master", "under", "staff", "admin"];
 const ROLE_KO: Record<string, string> = { prof: "지도교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리자" };
+
+// 구성원 기본 정렬: 직급(ROLES 순) → 입실일(선임 먼저·미입력 뒤) → 이름
+export function sortMembers<T extends { role: string; join_date?: string | null; name: string }>(a: T, b: T): number {
+  const r = ROLES.indexOf(a.role) - ROLES.indexOf(b.role);
+  if (r) return r;
+  const j = (a.join_date || "9999").localeCompare(b.join_date || "9999");
+  if (j) return j;
+  return a.name.localeCompare(b.name, "ko");
+}
 const EMPTY = {
   email: "", name: "", role: "under", position: "", grade: "", name_en: "", birth: "", gender: "",
   join_date: "", exit_date: "", master_start: "", phd_start: "", phone: "", dept: "", student_id: "", researcher_no: "", degree: "", major: "", grad_year: "", bank_account: "", note: "",
@@ -89,7 +98,8 @@ export default function Members() {
   const visible = users
     .filter((u) => u.role !== "admin")
     .filter((u) => (statusFilter === "all" ? true : statusFilter === "active" ? u.active : !u.active))
-    .filter((u) => !q || [u.name, u.name_en, u.email, u.dept, u.student_id, u.major, u.phone].some((f) => (f || "").toLowerCase().includes(q)));
+    .filter((u) => !q || [u.name, u.name_en, u.email, u.dept, u.student_id, u.major, u.phone].some((f) => (f || "").toLowerCase().includes(q)))
+    .sort(sortMembers);
 
   return (
     <div data-testid="page-members">

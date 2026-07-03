@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Kpi, Card, statusClass } from "../ui/kit";
+import { sortMembers } from "./Members";
 
 
 interface Project { id: string; code: string; name: string; agency: string; status: string; goals: Record<string, number>; start: string | null; end: string | null; lead_id: string; pm_id: string; members: string[]; meta?: Record<string, any>; }
@@ -39,7 +40,7 @@ const grantEnd = (p: Project): string | null => (p.meta?.year_end) || p.end;
 interface DTask { id: string; project_id: string; title: string; status: string; due: string | null; assignee_id: string; }
 interface Att { uid: string; status: string; check_in: string; check_out: string; }
 interface Appr { id: string; doc_no: string; type: string; title: string; by_id: string; amount: number; steps: any[]; status: string; }
-interface User { id: string; name: string; role: string; active: boolean; }
+interface User { id: string; name: string; role: string; active: boolean; join_date?: string | null; }
 
 const STCOL: Record<string, string> = { "업무 중": "#2e9e6b", "외근": "#7b66c4", "출장": "#3a9b9b", "휴가": "#c2891b", "퇴근": "#5a6478", "미체크": "#d8584f" };
 const ROLE_KO: Record<string, string> = { prof: "교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리" };
@@ -136,7 +137,7 @@ export default function Dashboard() {
 
   // 연구원 근태 — 분포는 본인(교수 포함) 전체 기준, 아래 카드 목록만 본인 제외
   const attBy = (uid: string) => att.find((a) => a.uid === uid);
-  const members = users.filter((u) => u.active !== false && u.role !== "admin");
+  const members = users.filter((u) => u.active !== false && u.role !== "admin").sort(sortMembers);
   const attCount: Record<string, number> = {};
   att.forEach((a) => { attCount[a.status] = (attCount[a.status] || 0) + 1; });
   const attSegs = Object.keys(attCount).map((s) => ({ label: s, value: attCount[s], color: STCOL[s] || "#9aa3ad" }));
