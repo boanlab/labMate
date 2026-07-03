@@ -297,8 +297,6 @@ def list_notes(user: CurrentUser = Depends(get_current_user), db: Session = Depe
     return [p for p in db.scalars(select(NotePage).order_by(NotePage.sort)) if _note_visible(user, p)]
 
 
-
-
 @router.post("/notes", response_model=schemas.NotePageOut, status_code=201)
 def create_note(body: schemas.NotePageIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     data = body.model_dump()

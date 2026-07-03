@@ -34,7 +34,7 @@ def ensure_admin() -> bool:
 def run() -> None:
     Base.metadata.create_all(bind=engine)
     if not ensure_admin():
-        print(f"[seed] 관리자 계정이 이미 있어 건너뜀")
+        print("[seed] 관리자 계정이 이미 있어 건너뜀")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,3 @@ export function todayKST(): string {
 export function yearKST(): number {
   return Number(todayKST().slice(0, 4));
 }
-export function monthKST(): string {
-  return todayKST().slice(0, 7);
-}

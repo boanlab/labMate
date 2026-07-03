@@ -19,7 +19,6 @@ from .models import Approval, Event, Meeting, Notice, Post
 router = APIRouter()
 MANAGER = ("prof", "staff")
 
-# KST(UTC+9) 기준 날짜
 KST = timezone(timedelta(hours=9))
 
 
@@ -105,7 +104,6 @@ def ack_notice(nid: str, user: CurrentUser = Depends(get_current_user), db: Sess
     n = db.get(Notice, nid)
     if not n:
         raise HTTPException(404, "공지 없음")
-    # 확인 토글
     if user.id in n.acked_user_ids:
         n.acked_user_ids = [x for x in n.acked_user_ids if x != user.id]
     else:

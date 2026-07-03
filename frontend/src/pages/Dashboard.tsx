@@ -72,12 +72,10 @@ export default function Dashboard() {
   const [att, setAtt] = useState<Att[]>([]);
   const [inbox, setInbox] = useState<Appr[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [bal, setBal] = useState<{ granted: number; used: number } | null>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [selEv, setSelEv] = useState<any>(null);
   const [myAppr, setMyAppr] = useState<any[]>([]);
   const [myMeetings, setMyMeetings] = useState<any[]>([]);
-  const [myLeaves, setMyLeaves] = useState<any[]>([]);
   const [audit, setAudit] = useState<any[]>([]);
 
   async function reloadAtt() { try { setAtt((await api.get("/attendance/attendance/today")).data); } catch { /* */ } }
@@ -104,11 +102,9 @@ export default function Dashboard() {
     api.get("/projects/publications").then((r) => setPubs(r.data)).catch(() => {});
     if (canBudget) api.get("/funds/budgets").then((r) => setBudgets(r.data)).catch(() => {});
     api.get("/attendance/attendance/today").then((r) => setAtt(r.data)).catch(() => {});
-    api.get("/attendance/leaves/balance").then((r) => setBal(r.data)).catch(() => {});
     api.get("/boards/events").then((r) => setEvents(r.data)).catch(() => {});
     api.get("/boards/approvals/mine").then((r) => setMyAppr(r.data)).catch(() => {});
     api.get("/boards/meetings").then((r) => setMyMeetings(r.data)).catch(() => {});
-    api.get("/attendance/leaves/me").then((r) => setMyLeaves(r.data)).catch(() => {});
     if (isMgr) {
       api.get("/boards/approvals/inbox").then((r) => setInbox(r.data)).catch(() => {});
       api.get("/members/users").then((r) => setUsers(r.data)).catch(() => {});
@@ -141,7 +137,6 @@ export default function Dashboard() {
   // 연구원 근태 — 분포는 본인(교수 포함) 전체 기준, 아래 카드 목록만 본인 제외
   const attBy = (uid: string) => att.find((a) => a.uid === uid);
   const members = users.filter((u) => u.active !== false && u.role !== "admin");
-  const presentCount = att.filter((a) => a.status && !["미체크", "퇴근"].includes(a.status)).length;
   const attCount: Record<string, number> = {};
   att.forEach((a) => { attCount[a.status] = (attCount[a.status] || 0) + 1; });
   const attSegs = Object.keys(attCount).map((s) => ({ label: s, value: attCount[s], color: STCOL[s] || "#9aa3ad" }));

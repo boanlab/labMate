@@ -73,7 +73,6 @@ export default function Payroll() {
   };
   const rateAt = (u: User, mm: string) => GRADE_RATES[gradeAt(u, `${year}-${mm}`)] || 0;   // 월별 단가
   const codeOf = (id: string) => projects.find((p) => p.id === id)?.code || "—";
-  const projName = (id: string) => projects.find((p) => p.id === id)?.name || "";
   const nameOf = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
   // 재직 기간 밖 월은 잠금
   const active = (u: User, mm: string) => { const ym = `${year}-${mm}`; if (u.join_date && ym < u.join_date.slice(0, 7)) return false; if (u.exit_date && ym > u.exit_date.slice(0, 7)) return false; return true; };

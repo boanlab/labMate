@@ -264,7 +264,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
       return { label: k, pct, text: `달성 ${av} / 목표 ${tg}${tg > 0 && ac >= tg ? " ✓" : ""}`, color: tg === 0 ? "#3a9b9b" : ac >= tg ? "#2e9e6b" : pct >= 50 ? "#3f5d7d" : "#c2891b" };
     });
   }
-  const progress = (p: Project) => { const ts = tasks; if (!ts.length) return 0; return Math.round(ts.filter((t) => t.status === "완료").length / ts.length * 100); };
+  const progress = () => { if (!tasks.length) return 0; return Math.round(tasks.filter((t) => t.status === "완료").length / tasks.length * 100); };
   const canTasks = canManageWork || (!!open && !!me && [open.lead_id, open.pm_id, ...(open.members || [])].includes(me.id));
   // 수정·삭제·이동: 교수·행정·위임·책임자·담당자, 참여 연구원은 본인이 추가한 업무만
   const canEditTask = (t: Task) => canManageWork || (!!open && !!me && [open.lead_id, open.pm_id].includes(me.id)) || t.by_id === me?.id;
@@ -308,7 +308,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
                   <KV k="참여 구성원" v={(open.members && open.members.length) ? open.members.map(uname).join(", ") : "—"} />
                 </>}
               </div>
-              <Gauge pct={progress(open)} label="진척률" size={92} />
+              <Gauge pct={progress()} label="진척률" size={92} />
             </div>
             {isGrant && (m.ack_ko || m.ack_en) && (
               <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--line2)" }}>

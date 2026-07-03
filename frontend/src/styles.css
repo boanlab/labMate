@@ -260,17 +260,16 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 /* 다크모드 토글 */
 .theme-toggle { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; width: 36px; height: 34px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
 
-/* ── 반응형 오버플로우 보정(전역) ─────────────────────────────
-   A. 표가 든 카드는 어느 폭에서도 카드 안에서 가로 스크롤 → 페이지 전체가 오른쪽으로 밀리는 것 방지.
-      (:has로 표를 포함한 카드만 타겟 — 칸반/차트 등 다른 카드는 영향 없음) */
+/* 반응형 오버플로우 보정(전역) */
+/* 표 포함 카드만 가로 스크롤 — 페이지 전체 밀림 방지 */
 .card:has(table) { overflow-x: auto; }
-/* B·C. 팝업/상세 표·메타표·모달 본문: 긴 값(이메일·URL·비고·코드)이 줄바꿈되도록 nowrap 해제 + 강제 줄바꿈 */
-.modal .tbl { min-width: 0; }   /* 전역 .tbl min-width:480 해제 → 표가 팝업 폭에 맞아 우측 여백(셀·모달 패딩) 유지 */
+/* 팝업·모달 본문: 긴 값(이메일·URL·코드) 강제 줄바꿈 */
+.modal .tbl { min-width: 0; }
 .modal .tbl td, .metatbl td { white-space: normal; overflow-wrap: anywhere; }
 .modal-b { overflow-wrap: anywhere; }
 .modal-b img { max-width: 100%; height: auto; }
 .modal-b table { max-width: 100%; }
-/* E. 2·3열 폼: 자식이 내용 너비만큼 안 줄어 넘치는 것 방지(그리드 기본 min-width:auto 보정) */
+/* 다열 폼: 자식 min-width:auto 보정으로 넘침 방지 */
 .grid2 > *, .grid3 > * { min-width: 0; }
 
 /* 모바일 상단바/드로어 */
