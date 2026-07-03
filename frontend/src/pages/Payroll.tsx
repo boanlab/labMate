@@ -7,7 +7,7 @@ import { useConfig } from "../api/config";
 
 
 interface User { id: string; name: string; role: string; grade: string; join_date: string | null; exit_date: string | null; master_start?: string | null; phd_start?: string | null; active?: boolean; }
-interface Project { id: string; code: string; name?: string; category: string; agency: string; start: string | null; end: string | null; lead_id?: string; meta?: Record<string, any>; }
+interface Project { id: string; code: string; name?: string; category: string; agency: string; start: string | null; end: string | null; meta?: Record<string, any>; }
 interface Part { uid: string; project_id: string; rate_pct: number; month: string; }
 interface Slip { id: string; uid: string; project_id: string; month: string; amount: number; status: string; }
 interface Budget { project_id: string; category: string; allocated: number; spent: number; }
@@ -297,16 +297,6 @@ export default function Payroll() {
       {/* ===== 탭3: 과제별 집행(예산 연동) ===== */}
       {tab === "exec" && (
         <Card title={`${year}년 과제별 학생인건비 집행`} extra={<span className="muted small">예산 학생인건비 비목과 연동</span>}>
-          {(() => {
-            // 내가 연구책임(PI)이고 선택 연도가 해당 회계연도인 과제 학생인건비 합계
-            // (해당 연도 기간 시작연도 = 선택 연도. 없으면 코드 연도 → 총기간 시작연도)
-            const fiscalYear = (p: Project) => (p.meta?.year_start || "").slice(0, 4) || p.code.match(/\((\d{4})\)/)?.[1] || (p.start || "").slice(0, 4) || "";
-            const mine = projects.filter((p) => p.lead_id === me?.id && fiscalYear(p) === year);
-            if (!mine.length) return null;
-            const alloc = mine.reduce((a, p) => a + stuBudget(p.id).allocated, 0);
-            const spent = mine.reduce((a, p) => a + stuBudget(p.id).spent, 0);
-            return <div className="io" data-testid="my-payroll-sum" style={{ marginBottom: 12 }}>연구 책임 과제 {mine.length}개 · {year}년 학생인건비 — 편성 <b>{won(alloc)}</b> / 집행 <b>{won(spent)}</b> · 집행률 <b>{alloc ? Math.round(spent / alloc * 100) : 0}%</b></div>;
-          })()}
           {(() => {
             // 통합학생인건비 누적 — 선택 연도까지 시작된 과제만 합산
             const groups: Record<string, Project[]> = {};
