@@ -161,6 +161,8 @@ body.dark .kpi.k-red { background: #2c1816; border-color: #4f2e2a; } body.dark .
 .tbl { width: 100%; border-collapse: collapse; min-width: 480px; }
 .tbl th, .tbl td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line2); font-size: 13.5px; white-space: nowrap; }
 .tbl td { line-height: 1.55; }
+/* 남는 폭 흡수 후 초과분 자동 말줄임(브라우저 폭 반응) */
+.tbl td.ell { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* 학생별 과제 지급 팝업 — 14열(관리코드+12개월+합계)을 한 팝업에 담기 위한 콤팩트 표 */
 .pay-detail-tbl { min-width: 0; }
 .pay-detail-tbl th, .pay-detail-tbl td { padding: 4px 7px; font-size: 10.5px; line-height: 1.4; }

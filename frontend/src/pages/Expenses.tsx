@@ -212,7 +212,7 @@ export default function Expenses() {
                 <td className="small muted">{x.claim_date || "—"}</td>
                 <td>{code(x.project_id)}</td>
                 <td>{x.category}{x.subcategory ? <span className="muted small"> · {x.subcategory}</span> : ""}</td>
-                <td>{x.title}</td>
+                <td className="ell" title={x.title}>{x.title}</td>
                 {isAdmin && <td className="muted">{uname(x.by_id)}</td>}
                 <td>{x.amount.toLocaleString()}원</td>
                 <td className="small">{x.files?.length ? x.files.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noreferrer" title={f.name} style={{ marginRight: 6 }}>📎{x.files!.length > 1 ? i + 1 : ""}</a>) : <span className="muted">—</span>}</td>
