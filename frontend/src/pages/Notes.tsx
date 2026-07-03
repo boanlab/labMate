@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader } from "../ui/kit";
+import { PageHeader, AuthorMeta } from "../ui/kit";
 import { confirmDialog } from "../ui/dialog";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 const ROLE_KO: Record<string, string> = { prof: "교수", phd: "박사과정", master: "석사과정", under: "학부", staff: "행정", admin: "관리자" };
-interface Note { id: string; parent_id: string; sort: number; title: string; icon: string; content: string; project_id: string; tags: string[]; owner_id: string; share_uids: string[]; updated_at?: string; }
+interface Note { id: string; parent_id: string; sort: number; title: string; icon: string; content: string; project_id: string; tags: string[]; owner_id: string; updated_by?: string; share_uids: string[]; created_at?: string; updated_at?: string; }
 
 // 여러 구성원 다중 선택 공유 — 체크박스 목록 팝오버(이름 검색)
 function SharePicker({ value, all, excludeIds, disabled, onChange }: { value: string[]; all: any[]; excludeIds: string[]; disabled: boolean; onChange: (uids: string[]) => void }) {
@@ -236,6 +236,7 @@ export default function Notes() {
                       {cur.tags.map((t, i) => <span key={i} className="badge s-info">#{t}{editable && <button onClick={() => patch(cur.id, { tags: cur.tags.filter((_, j) => j !== i) })} style={{ marginLeft: 3, border: "none", background: "none", cursor: "pointer", color: "inherit" }}>✕</button>}</span>)}
                       {editable && <input className="note-tag-in" placeholder="+태그" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && tagInput.trim()) { patch(cur.id, { tags: [...cur.tags, tagInput.trim()] }); setTagInput(""); } }} />}
                     </span>
+                    <AuthorMeta by={cur.owner_id} updatedBy={cur.updated_by} createdAt={cur.created_at} updatedAt={cur.updated_at} nameOf={(id) => users.find((u) => u.id === id)?.name || "—"} />
                     {saved && <span className="muted small" style={{ marginLeft: "auto" }}>저장됨 {saved}</span>}
                   </div>
                   {!editable && <div className="muted small" style={{ marginTop: 4 }}>읽기 전용(소유자·관리자만 편집)</div>}

@@ -1,17 +1,18 @@
 import { useRef, useState, useEffect } from "react";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader } from "../ui/kit";
+import { PageHeader, AuthorMeta } from "../ui/kit";
 import { confirmDialog } from "../ui/dialog";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface TFile { name: string; url: string; }
-interface Doc { id: string; parent_id: string; sort: number; title: string; icon: string; content: string; tags: string[]; files: TFile[]; owner_id: string; updated_at?: string; }
+interface Doc { id: string; parent_id: string; sort: number; title: string; icon: string; content: string; tags: string[]; files: TFile[]; owner_id: string; updated_by?: string; created_at?: string; updated_at?: string; }
 
 // 자료실 — 트리형 문서. 전 구성원 열람·작성·수정, 삭제는 작성자·교수. 기본 읽기 전용(수정 버튼으로 편집).
 export default function Archive() {
   const { me } = useAuth();
   const [pages, setPages] = useState<Doc[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [sel, setSel] = useState("");
   const [edit, setEdit] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -23,7 +24,7 @@ export default function Archive() {
   const [dropHint, setDropHint] = useState<{ id: string; pos: string } | null>(null);
 
   async function load() { try { setPages((await api.get<Doc[]>("/projects/archive")).data); } catch (e) { setErr(apiError(e)); } }
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {}); }, []);
 
   const cur = pages.find((p) => p.id === sel) || null;
   const canDelete = (p: Doc | null) => !!p && !!me && (p.owner_id === me.id || ["prof", "admin"].includes(me.role) || !!me.delegated_admin);
@@ -154,6 +155,7 @@ export default function Archive() {
                     {edit && <input className="note-tag-in" placeholder="+태그" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && tagInput.trim()) { patch(cur.id, { tags: [...cur.tags, tagInput.trim()] }); setTagInput(""); } }} />}
                     {!edit && !cur.tags.length && <span className="muted small">—</span>}
                   </span>
+                  <AuthorMeta by={cur.owner_id} updatedBy={cur.updated_by} createdAt={cur.created_at} updatedAt={cur.updated_at} nameOf={(id) => users.find((u) => u.id === id)?.name || "—"} />
                   {saved && <span className="muted small" style={{ marginLeft: "auto" }}>저장됨 {saved}</span>}
                 </div>
               </div>

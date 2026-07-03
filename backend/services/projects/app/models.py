@@ -97,7 +97,8 @@ class NotePage(OrgScoped, SoftDelete, Base):
     content: Mapped[str] = mapped_column(Text, default="")                       # 본문(HTML)
     project_id: Mapped[str] = mapped_column(String(32), default="", index=True)  # 과제 연결(선택)
     tags: Mapped[list] = mapped_column(JSON, default=list)
-    owner_id: Mapped[str] = mapped_column(String(32), default="", index=True)
+    owner_id: Mapped[str] = mapped_column(String(32), default="", index=True)    # 작성자
+    updated_by: Mapped[str] = mapped_column(String(32), default="")              # 마지막 수정자
     share_uids: Mapped[list] = mapped_column(JSON, default=list)                 # 공유 대상 사용자 id
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -115,5 +116,6 @@ class ArchivePage(OrgScoped, SoftDelete, Base):
     tags: Mapped[list] = mapped_column(JSON, default=list)
     files: Mapped[list] = mapped_column(JSON, default=list)                      # 첨부 [{name,url}]
     owner_id: Mapped[str] = mapped_column(String(32), default="", index=True)    # 작성자
+    updated_by: Mapped[str] = mapped_column(String(32), default="")              # 마지막 수정자
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

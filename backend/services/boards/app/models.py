@@ -28,7 +28,9 @@ class Notice(OrgScoped, SoftDelete, Base):
     link: Mapped[str] = mapped_column(String(400), default="")
     files: Mapped[list] = mapped_column(JSON, default=list)          # 첨부 [{name,url}]
     target_user_ids: Mapped[list] = mapped_column(JSON, default=list)        # 확인 대상 user id (비면 전체)
+    updated_by: Mapped[str] = mapped_column(String(32), default="")           # 마지막 수정자
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Post(OrgScoped, SoftDelete, Base):
@@ -43,7 +45,9 @@ class Post(OrgScoped, SoftDelete, Base):
     views: Mapped[int] = mapped_column(default=0)
     comments: Mapped[list] = mapped_column(JSON, default=list)        # [{by,at,text}]
     files: Mapped[list] = mapped_column(JSON, default=list)           # 첨부 [{name,url}]
+    updated_by: Mapped[str] = mapped_column(String(32), default="")   # 마지막 수정자
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Meeting(OrgScoped, SoftDelete, Base):
@@ -56,6 +60,9 @@ class Meeting(OrgScoped, SoftDelete, Base):
     decisions: Mapped[str] = mapped_column(Text, default="")
     actions: Mapped[list] = mapped_column(JSON, default=list)         # [{task,who,due,done,task_id}]
     project_id: Mapped[str] = mapped_column(String(32), default="")   # 관련 연구과제/프로젝트(액션→세부업무 연동)
+    updated_by: Mapped[str] = mapped_column(String(32), default="")   # 마지막 수정자
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Event(OrgScoped, SoftDelete, Base):

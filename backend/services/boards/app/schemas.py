@@ -18,7 +18,10 @@ class NoticeIn(BaseModel):
 class NoticeOut(NoticeIn):
     id: str
     by_id: str
+    updated_by: str = ""
     acked_user_ids: list[str] = Field(default_factory=list)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     model_config = {"from_attributes": True}
 
 
@@ -35,9 +38,11 @@ class PostIn(BaseModel):
 class PostOut(PostIn):
     id: str
     by_id: str
+    updated_by: str = ""
     views: int
     comments: list[dict] = Field(default_factory=list)
     created_at: datetime | None = None
+    updated_at: datetime | None = None
     model_config = {"from_attributes": True}
 
 
@@ -59,6 +64,9 @@ class MeetingIn(BaseModel):
 class MeetingOut(MeetingIn):
     id: str
     by_id: str
+    updated_by: str = ""
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     model_config = {"from_attributes": True}
 
 

@@ -305,7 +305,7 @@ def create_note(body: schemas.NotePageIn, user: CurrentUser = Depends(get_curren
     if data.get("sort") is None:                                   # 형제 마지막에 배치
         sibs = list(db.scalars(select(NotePage).where(NotePage.parent_id == data["parent_id"])))
         data["sort"] = (max((s.sort for s in sibs), default=0) + 1)
-    p = NotePage(owner_id=user.id, **data)
+    p = NotePage(owner_id=user.id, updated_by=user.id, **data)
     db.add(p); db.commit(); db.refresh(p)
     return p
 
@@ -319,6 +319,7 @@ def update_note(nid: str, body: schemas.NotePagePatch, user: CurrentUser = Depen
         raise HTTPException(403, "수정 권한이 없습니다")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(p, k, v)
+    p.updated_by = user.id
     db.commit(); db.refresh(p)
     return p
 
@@ -359,18 +360,19 @@ def create_archive(body: schemas.ArchiveIn, user: CurrentUser = Depends(get_curr
     if data.get("sort") is None:                                   # 형제 마지막에 배치
         sibs = list(db.scalars(select(ArchivePage).where(ArchivePage.parent_id == data["parent_id"])))
         data["sort"] = (max((s.sort for s in sibs), default=0) + 1)
-    p = ArchivePage(owner_id=user.id, **data)
+    p = ArchivePage(owner_id=user.id, updated_by=user.id, **data)
     db.add(p); db.commit(); db.refresh(p)
     return p
 
 
 @router.patch("/archive/{aid}", response_model=schemas.ArchiveOut)
-def update_archive(aid: str, body: schemas.ArchivePatch, _: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_archive(aid: str, body: schemas.ArchivePatch, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     p = db.get(ArchivePage, aid)
     if not p:
         raise HTTPException(404, "자료 없음")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(p, k, v)
+    p.updated_by = user.id
     db.commit(); db.refresh(p)
     return p
 

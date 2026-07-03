@@ -112,7 +112,9 @@ class NotePageOut(BaseModel):
     project_id: str
     tags: list[str]
     owner_id: str
+    updated_by: str = ""
     share_uids: list[str] = Field(default_factory=list)
+    created_at: datetime | None = None
     updated_at: datetime | None = None
     model_config = {"from_attributes": True}
 
@@ -147,5 +149,7 @@ class ArchiveOut(BaseModel):
     tags: list[str]
     files: list[dict]
     owner_id: str
+    updated_by: str = ""
+    created_at: datetime | None = None
     updated_at: datetime | None = None
     model_config = {"from_attributes": True}

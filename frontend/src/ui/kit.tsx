@@ -30,6 +30,20 @@ export function PageHeader({ crumb, title, action, testid }: { crumb?: string; t
 
 export const won = (n: number) => (n || 0).toLocaleString() + "원";
 
+// 작성/수정 이력 표시 — 작성자·작성일 (+ 수정됐으면 수정자·수정일)
+export function AuthorMeta({ by, updatedBy, createdAt, updatedAt, nameOf, className = "muted small" }: {
+  by?: string; updatedBy?: string; createdAt?: string | null; updatedAt?: string | null; nameOf: (id: string) => string; className?: string;
+}) {
+  const c = (createdAt || "").slice(0, 10), u = (updatedAt || "").slice(0, 10);
+  const edited = (!!updatedBy && updatedBy !== by) || (!!u && !!c && u !== c);
+  return (
+    <span className={className}>
+      작성 {nameOf(by || "")}{c ? ` · ${c}` : ""}
+      {edited ? ` · 수정 ${nameOf(updatedBy || by || "")}${u ? ` · ${u}` : ""}` : ""}
+    </span>
+  );
+}
+
 // 진행 상태 배지 색 규칙(진행 중=녹색·예정=대기·완료=회색)
 const STATUS_BADGE: Record<string, string> = { "진행 중": "s-ok", "진행": "s-ok", "예정": "s-wait", "완료": "s-mute" };
 export const statusClass = (s: string) => "badge " + (STATUS_BADGE[s] || "s-info");

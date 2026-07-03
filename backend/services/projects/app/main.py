@@ -27,6 +27,8 @@ async def lifespan(app: FastAPI):
         conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS by_id VARCHAR(32) DEFAULT ''"))
         conn.execute(text("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS done_date DATE"))
         conn.execute(text("ALTER TABLE note_pages ADD COLUMN IF NOT EXISTS share_uids JSON DEFAULT '[]'::json"))
+        conn.execute(text("ALTER TABLE archive_pages ADD COLUMN IF NOT EXISTS updated_by VARCHAR(32) DEFAULT ''"))
+        conn.execute(text("ALTER TABLE note_pages ADD COLUMN IF NOT EXISTS updated_by VARCHAR(32) DEFAULT ''"))
     rename_columns(engine, [
         ("publications", "sub", "index_type"),
     ])

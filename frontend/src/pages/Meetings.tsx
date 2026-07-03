@@ -3,11 +3,11 @@ import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta } from "../ui/kit";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface Action { id?: string; title: string; assignee_id: string; due: string; done: boolean; task_id?: string; }
-interface Meeting { id: string; date: string; title: string; by_id: string; decisions: string; actions: Action[]; attendees: string[]; project_id?: string; }
+interface Meeting { id: string; date: string; title: string; by_id: string; decisions: string; actions: Action[]; attendees: string[]; project_id?: string; updated_by?: string; created_at?: string; updated_at?: string; }
 // 진행 중 판정 — 연구과제=해당 연도 기간(폴백 총기간), 프로젝트=총기간
 function ongoing(p: any, isGrant: boolean): boolean {
   const t = todayKST();
@@ -157,7 +157,7 @@ export default function Meetings() {
         <Card>
           <table className="metatbl"><tbody>
             <tr><th>일자</th><td>{open.date}</td></tr>
-            <tr><th>작성자</th><td>{uname(open.by_id)}</td></tr>
+            <tr><th>작성·수정</th><td><AuthorMeta by={open.by_id} updatedBy={open.updated_by} createdAt={open.created_at} updatedAt={open.updated_at} nameOf={uname} className="" /></td></tr>
             <tr><th>참석자</th><td>{(open.attendees || []).map(uname).join(", ") || "—"}</td></tr>
             {open.project_id && <tr><th>관련 프로젝트</th><td>{projName(open.project_id) || "—"}</td></tr>}
           </tbody></table>

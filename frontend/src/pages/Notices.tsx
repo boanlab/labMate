@@ -5,10 +5,10 @@ import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
-import { PageHeader, Card } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta } from "../ui/kit";
 
 interface TFile { name: string; url: string; }
-interface Notice { id: string; title: string; body: string; by_id: string; required: boolean; due: string | null; acked_user_ids: string[]; link?: string; files?: TFile[]; target_user_ids?: string[]; }
+interface Notice { id: string; title: string; body: string; by_id: string; required: boolean; due: string | null; acked_user_ids: string[]; link?: string; files?: TFile[]; target_user_ids?: string[]; updated_by?: string; created_at?: string; updated_at?: string; }
 
 export default function Notices() {
   const { me } = useAuth();
@@ -90,7 +90,7 @@ export default function Notices() {
         {err && <div className="form-err" data-testid="notice-error">{err}</div>}
         <Card>
           <table className="metatbl"><tbody>
-            <tr><th>작성자</th><td>{uname(open.by_id)}</td></tr>
+            <tr><th>작성·수정</th><td><AuthorMeta by={open.by_id} updatedBy={open.updated_by} createdAt={open.created_at} updatedAt={open.updated_at} nameOf={uname} className="" /></td></tr>
             <tr><th>확인 마감</th><td>{open.due || "—"}</td></tr>
             <tr><th>대상</th><td>{(open.target_user_ids && open.target_user_ids.length) ? `선택 ${open.target_user_ids.length}명 · ${open.target_user_ids.map(uname).join(", ")}` : "전체 연구원"}</td></tr>
           </tbody></table>

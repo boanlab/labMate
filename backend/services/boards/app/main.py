@@ -23,6 +23,10 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     add_columns(engine, [
         ("posts", "min_role", "VARCHAR(20) DEFAULT ''"),   # 게시판 공개 범위(직급 이상 접근 제어)
+        # 작성/수정 이력 — 마지막 수정자·수정일(+회의록 작성일)
+        ("notices", "updated_by", "VARCHAR(32) DEFAULT ''"), ("notices", "updated_at", "TIMESTAMPTZ DEFAULT now()"),
+        ("posts", "updated_by", "VARCHAR(32) DEFAULT ''"), ("posts", "updated_at", "TIMESTAMPTZ DEFAULT now()"),
+        ("meetings", "updated_by", "VARCHAR(32) DEFAULT ''"), ("meetings", "created_at", "TIMESTAMPTZ DEFAULT now()"), ("meetings", "updated_at", "TIMESTAMPTZ DEFAULT now()"),
     ])
     rename_columns(engine, [
         ("approvals", "doc", "content"),

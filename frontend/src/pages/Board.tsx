@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta } from "../ui/kit";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { useConfig } from "../api/config";
 
 interface TFile { name: string; url: string; }
-interface Post { id: string; cat: string; title: string; body: string; link: string; by_id: string; views: number; comments: any[]; files?: TFile[]; created_at?: string; min_role?: string; }
+interface Post { id: string; cat: string; title: string; body: string; link: string; by_id: string; views: number; comments: any[]; files?: TFile[]; created_at?: string; updated_by?: string; updated_at?: string; min_role?: string; }
 // 공개 범위(최소 직급 이상만 열람). ''=전체 공개.
 const MIN_ROLE_OPTS: [string, string][] = [["", "전체 공개"], ["master", "석사과정 이상"], ["phd", "박사과정 이상"]];
 const minRoleLabel = (v?: string) => (MIN_ROLE_OPTS.find(([k]) => k === (v || ""))?.[1]) || "전체 공개";
@@ -122,6 +122,7 @@ export default function Board() {
             <tr><th>분류</th><td><span className={"badge " + (CBADGE[open.cat] || "s-mute")}>{open.cat}</span></td></tr>
             {open.min_role ? <tr><th>공개 범위</th><td><span className="badge s-wait">🔒 {minRoleLabel(open.min_role)}</span></td></tr> : null}
             <tr><th>조회</th><td>{open.views}</td></tr>
+            <tr><th>작성·수정</th><td><AuthorMeta by={open.by_id} updatedBy={open.updated_by} createdAt={open.created_at} updatedAt={open.updated_at} nameOf={uname} className="" /></td></tr>
             {open.link && <tr><th>링크</th><td><a className="lnk" href={open.link} target="_blank" rel="noreferrer">🔗 {open.link}</a></td></tr>}
           </tbody></table>
           <div style={{ lineHeight: 1.7, minHeight: 60 }} dangerouslySetInnerHTML={{ __html: open.body || "<span class='muted'>본문 없음</span>" }} />

@@ -85,6 +85,7 @@ def update_notice(nid: str, body: schemas.NoticeIn, user: CurrentUser = Depends(
         raise HTTPException(403, "수정 권한이 없습니다")
     for k, v in body.model_dump().items():
         setattr(n, k, v)
+    n.updated_by = user.id
     db.commit(); db.refresh(n)
     return n
 
@@ -142,6 +143,7 @@ def update_post(pid: str, body: schemas.PostIn, user: CurrentUser = Depends(get_
         raise HTTPException(400, "유효하지 않은 공개 범위")
     for k, v in body.model_dump().items():
         setattr(p, k, v)
+    p.updated_by = user.id
     db.commit(); db.refresh(p)
     return p
 
@@ -264,6 +266,7 @@ def update_meeting(mid: str, body: schemas.MeetingIn, user: CurrentUser = Depend
     m.date = data["date"]; m.title = data["title"]; m.attendees = data["attendees"]
     m.project_id = data["project_id"]
     m.decisions = data["decisions"]; m.actions = _normalize_actions(data["actions"])
+    m.updated_by = user.id
     db.commit(); db.refresh(m)
     return m
 
