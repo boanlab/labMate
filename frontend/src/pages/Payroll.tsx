@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { yearKST } from "../lib/date";
+import { yearKST, todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, won } from "../ui/kit";
@@ -7,7 +7,7 @@ import { useConfig } from "../api/config";
 
 
 interface User { id: string; name: string; role: string; grade: string; join_date: string | null; exit_date: string | null; master_start?: string | null; phd_start?: string | null; active?: boolean; }
-interface Project { id: string; code: string; name?: string; category: string; agency: string; start: string | null; end: string | null; meta?: Record<string, any>; }
+interface Project { id: string; code: string; name?: string; category: string; agency: string; start: string | null; end: string | null; lead_id?: string; meta?: Record<string, any>; }
 interface Part { uid: string; project_id: string; rate_pct: number; month: string; }
 interface Slip { id: string; uid: string; project_id: string; month: string; amount: number; status: string; }
 interface Budget { project_id: string; category: string; allocated: number; spent: number; }
@@ -154,6 +154,10 @@ export default function Payroll() {
   const pendTotal = slips.filter((s) => s.month.startsWith(`${year}-`) && s.status === "예정").length;   // 연간 미확정 총 건수
   const payStudents = students.filter((u) => MONTHS.some((mm) => payAmt(u.id, mm) > 0));
   const projPend = (projId: string) => slips.filter((s) => s.project_id === projId && s.status === "예정").reduce((a, s) => a + s.amount, 0);
+  // 현재 월 다음달~연말 금액 — 지급확정이라도 미래분은 예정으로 처리
+  const nowYM = todayKST().slice(0, 7);
+  const projFutureAll = (projId: string) => slips.filter((s) => s.project_id === projId && s.month > nowYM).reduce((a, s) => a + s.amount, 0);
+  const projFuturePaid = (projId: string) => slips.filter((s) => s.project_id === projId && s.status === "지급" && s.month > nowYM).reduce((a, s) => a + s.amount, 0);
 
   if (!isAdmin) {
     const my = slips.filter((s) => s.uid === me?.id);
@@ -177,9 +181,14 @@ export default function Payroll() {
   const curPool = String(curProj?.meta?.payroll_pool || "").trim();
   const poolProjects = curPool ? projects.filter((p) => String(p.meta?.payroll_pool || "").trim() === curPool) : (curProj ? [curProj] : []);
   const sb = poolProjects.reduce((a, p) => { const b = stuBudget(p.id); return { allocated: a.allocated + b.allocated, spent: a.spent + b.spent }; }, { allocated: 0, spent: 0 });
+  // 균등(YYYY)은 통합학생인건비 재원으로 운영 → 편성은 그대로, 균등 예산을 확정 집행으로 처리(선택 연도까지 시작분)
+  const isEqualGrant = (p: Project) => /균등\s*\(\d{4}\)/.test(p.code || "");
+  const grantYear = (p: Project) => (projPeriod(p)[0]?.slice(0, 4)) || (p.code.match(/\((\d{4})\)/)?.[1]) || "0";
+  const equalSpentAll = projects.filter((p) => isEqualGrant(p) && grantYear(p) <= year).reduce((a, p) => a + stuBudget(p.id).allocated, 0);
+  const equalSpent = curPool ? equalSpentAll : 0;
   // 같은 풀 타 과제 사용액(확정+예정) — 이 과제 몫은 현재 편성으로 대체
   const otherUsed = poolProjects.reduce((a, p) => a + (p.id === pid ? 0 : stuBudget(p.id).spent + projPend(p.id)), 0);
-  const remainForThis = sb.allocated - otherUsed - planAnnual;   // 실시간 잔여 = 예산 − 타 과제 사용 − 이 과제 현재 편성
+  const remainForThis = sb.allocated - otherUsed - equalSpent - planAnnual;   // 잔여 = 재원 − 타 과제 사용 − 균등 확정집행 − 이 과제 현재 편성
   return (
     <div data-testid="page-payroll">
       <PageHeader crumb="연구비 › 학생인건비" title="학생인건비 관리" />
@@ -206,6 +215,7 @@ export default function Payroll() {
           <div data-testid="pay-budbar" style={{ display: "flex", gap: 18, flexWrap: "wrap", padding: "2px 2px 12px", fontSize: 13 }}>
             {curPool && <span className="badge s-pur" title={`통합 그룹 '${curPool}' · ${poolProjects.length}개 과제 합산`}>통합 {curPool} · {poolProjects.length}개</span>}
             <span>{curPool ? "통합 학생인건비 예산" : "학생인건비 예산"} <b>{won(sb.allocated)}</b></span>
+            {curPool && equalSpent > 0 && <span className="muted" title="균등(YYYY)은 통합 재원으로 운영 → 확정 집행으로 처리">균등 확정집행 <b>{won(equalSpent)}</b></span>}
             {curPool && <span className="muted">타 과제 사용(확정+예정) <b>{won(otherUsed)}</b></span>}
             <span style={{ marginLeft: "auto" }}>이 과제 {year}년 편성(예정) <b style={{ color: remainForThis < 0 ? "var(--bad)" : "var(--brand)" }}>{won(planAnnual)}</b></span>
             <span>잔여 <b style={{ color: remainForThis < 0 ? "var(--bad)" : "var(--ok)" }}>{won(remainForThis)}</b>{remainForThis < 0 && <span className="badge s-bad" style={{ marginLeft: 6 }}>{curPool ? "통합 잔여 초과" : "잔여 예산 초과"}</span>}</span>
@@ -288,6 +298,16 @@ export default function Payroll() {
       {tab === "exec" && (
         <Card title={`${year}년 과제별 학생인건비 집행`} extra={<span className="muted small">예산 학생인건비 비목과 연동</span>}>
           {(() => {
+            // 내가 연구책임(PI)이고 선택 연도가 해당 회계연도인 과제 학생인건비 합계
+            // (해당 연도 기간 시작연도 = 선택 연도. 없으면 코드 연도 → 총기간 시작연도)
+            const fiscalYear = (p: Project) => (p.meta?.year_start || "").slice(0, 4) || p.code.match(/\((\d{4})\)/)?.[1] || (p.start || "").slice(0, 4) || "";
+            const mine = projects.filter((p) => p.lead_id === me?.id && fiscalYear(p) === year);
+            if (!mine.length) return null;
+            const alloc = mine.reduce((a, p) => a + stuBudget(p.id).allocated, 0);
+            const spent = mine.reduce((a, p) => a + stuBudget(p.id).spent, 0);
+            return <div className="io" data-testid="my-payroll-sum" style={{ marginBottom: 12 }}>연구 책임 과제 {mine.length}개 · {year}년 학생인건비 — 편성 <b>{won(alloc)}</b> / 집행 <b>{won(spent)}</b> · 집행률 <b>{alloc ? Math.round(spent / alloc * 100) : 0}%</b></div>;
+          })()}
+          {(() => {
             // 통합학생인건비 누적 — 선택 연도까지 시작된 과제만 합산
             const groups: Record<string, Project[]> = {};
             projects.forEach((p) => {
@@ -301,12 +321,12 @@ export default function Payroll() {
               <div style={{ marginBottom: 12 }}>
                 <div className="muted small" style={{ marginBottom: 6 }}>통합학생인건비 그룹 — 연도 무관 누적 합산 한도(개별 과제 한도와 무관)</div>
                 <table className="tbl" style={{ minWidth: 0 }}>
-                  <thead><tr><th>통합 그룹</th><th>포함 과제</th><th>편성</th><th>확정 집행</th><th>예정</th><th>잔여</th></tr></thead>
+                  <thead><tr><th>통합 그룹</th><th>포함 과제</th><th>편성</th><th>집행</th><th>예정</th><th>잔여</th></tr></thead>
                   <tbody>
                     {entries.map(([k, ps]) => {
-                      const alloc = ps.reduce((a, p) => a + stuBudget(p.id).allocated, 0);
-                      const spent = ps.reduce((a, p) => a + stuBudget(p.id).spent, 0);
-                      const pend = ps.reduce((a, p) => a + projPend(p.id), 0);
+                      const alloc = ps.reduce((a, p) => a + stuBudget(p.id).allocated, 0);   // 편성 그대로
+                      const spent = ps.reduce((a, p) => a + stuBudget(p.id).spent - projFuturePaid(p.id), 0) + equalSpentAll;   // 균등 포함, 미래 지급분 제외
+                      const pend = ps.reduce((a, p) => a + projFutureAll(p.id), 0);   // 현재 월 다음달~연말(지급확정 포함)
                       // 포함 과제: 최근 순(시작 연도 내림차순) 정렬
                       const yrOf = (p: Project) => (projPeriod(p)[0]?.slice(0, 4)) || (p.code.match(/\((\d{4})\)/)?.[1]) || "0";
                       const codes = [...ps].sort((a, b) => yrOf(b).localeCompare(yrOf(a)) || b.code.localeCompare(a.code)).map((p) => p.code).join(", ");
@@ -314,13 +334,14 @@ export default function Payroll() {
                         <tr key={k}>
                           <td><span className="badge s-pur">{k}</span></td>
                           <td className="small muted" title={codes} style={{ maxWidth: "min(460px, 30vw)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{codes}</td>
-                          <td>{won(alloc)}</td><td>{won(spent)}</td><td className="muted">{pend ? won(pend) : "—"}</td>
+                          <td>{won(alloc)}</td><td title={equalSpentAll ? `과제 확정 집행 + 균등 ${won(equalSpentAll)}` : undefined}>{won(spent)}</td><td className="muted">{pend ? won(pend) : "—"}</td>
                           <td style={{ color: alloc - spent - pend < 0 ? "var(--bad)" : "inherit" }}><b>{won(alloc - spent - pend)}</b></td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+                {equalSpentAll > 0 && <div className="muted small" style={{ marginTop: 4 }}>※ 균등(YYYY) 예산 {won(equalSpentAll)}은 통합학생인건비 확정 집행으로 처리(균등은 통합 재원으로 운영).</div>}
               </div>
             );
           })()}
