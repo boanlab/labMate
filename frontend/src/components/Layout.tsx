@@ -5,6 +5,7 @@ import { useTheme } from "../ui/theme";
 import { Icon } from "../ui/icons";
 import { useConfig, fileUrl } from "../api/config";
 import { NotificationBell } from "./NotificationBell";
+import { InstallButton } from "./InstallButton";
 
 const ROLE_LABEL: Record<string, string> = {
   prof: "지도교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리자",
@@ -106,6 +107,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           </span>
         </div>
         <div className="appbar-r">
+          <InstallButton />
           <NotificationBell />
           <button className="appbar-icon" data-testid="theme-toggle" title="다크모드" onClick={toggle}>{dark ? "☀" : "🌙"}</button>
           <div className="usermenu" ref={menuRef}>
