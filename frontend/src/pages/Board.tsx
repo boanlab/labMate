@@ -5,6 +5,8 @@ import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, AuthorMeta } from "../ui/kit";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
+import { richHtml } from "../ui/richHtml";
+import { dateKST } from "../lib/date";
 import { useConfig } from "../api/config";
 
 interface TFile { name: string; url: string; }
@@ -125,7 +127,7 @@ export default function Board() {
             <tr><th>작성·수정</th><td><AuthorMeta by={open.by_id} updatedBy={open.updated_by} createdAt={open.created_at} updatedAt={open.updated_at} nameOf={uname} className="" /></td></tr>
             {open.link && <tr><th>링크</th><td><a className="lnk" href={open.link} target="_blank" rel="noreferrer">🔗 {open.link}</a></td></tr>}
           </tbody></table>
-          <div style={{ lineHeight: 1.7, minHeight: 60 }} dangerouslySetInnerHTML={{ __html: open.body || "<span class='muted'>본문 없음</span>" }} />
+          <div style={{ lineHeight: 1.7, minHeight: 60 }} dangerouslySetInnerHTML={{ __html: richHtml(open.body) || "<span class='muted'>본문 없음</span>" }} />
           {!!(open.files && open.files.length) && (
             <div style={{ marginTop: 12 }}>
               <div className="muted small" style={{ marginBottom: 4 }}>첨부파일</div>
@@ -233,7 +235,7 @@ export default function Board() {
                 <td><span className={"badge " + (CBADGE[p.cat] || "s-mute")}>{p.cat}</span></td>
                 <td><a style={{ cursor: "pointer", fontWeight: 600 }} data-testid={`post-open-${p.id}`} onClick={() => openPost(p)}>{p.title}</a>{p.min_role ? <span className="badge s-wait" style={{ marginLeft: 6 }} title={minRoleLabel(p.min_role)}>🔒 {minRoleLabel(p.min_role)}</span> : null}<div className="muted small">{stripHtml(p.body)}</div></td>
                 <td className="small muted">{uname(p.by_id)}</td>
-                <td className="small muted">{p.created_at ? p.created_at.slice(0, 10) : "—"}</td>
+                <td className="small muted">{p.created_at ? dateKST(p.created_at) : "—"}</td>
                 <td>{p.comments?.length || 0}</td><td>{p.views}</td>
               </tr>
             ))}

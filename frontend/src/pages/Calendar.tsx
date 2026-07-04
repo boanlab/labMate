@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
@@ -206,7 +207,7 @@ export default function Calendar() {
                         <button className="btn ghost sm" data-testid={`ev-del-${e.id}`} onClick={() => delEvent(e.id)}>삭제</button>
                       </div>}
                     </div>
-                    {e.detail && <div className="small" style={{ marginTop: 10, lineHeight: 1.6, color: "var(--ink)" }} dangerouslySetInnerHTML={{ __html: e.detail }} />}
+                    {e.detail && <div className="small" style={{ marginTop: 10, lineHeight: 1.6, color: "var(--ink)" }} dangerouslySetInnerHTML={{ __html: richHtml(e.detail) }} />}
                     {e.link && <div style={{ marginTop: 10 }}><a className="btn ghost sm" href={e.link} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>🔗 링크 열기</a></div>}
                   </div>
                 );

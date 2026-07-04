@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { richHtml } from "../ui/richHtml";
 import { todayKST } from "../lib/date";
 import { useSearchParams } from "react-router-dom";
 import { api, apiError } from "../api/client";
@@ -410,7 +411,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
                 <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line2)" }}>
                   <div className="muted small" style={{ marginBottom: 6 }}>내용</div>
                   {taskOpen.body
-                    ? <div style={{ fontSize: 13.5, lineHeight: 1.75 }} dangerouslySetInnerHTML={{ __html: taskOpen.body }} />
+                    ? <div style={{ fontSize: 13.5, lineHeight: 1.75 }} dangerouslySetInnerHTML={{ __html: richHtml(taskOpen.body) }} />
                     : <div className="muted small">등록된 내용이 없습니다</div>}
                 </div>
 

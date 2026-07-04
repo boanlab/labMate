@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
@@ -339,7 +340,7 @@ export default function Approvals() {
                   ))}
                 </div>
               </div>
-              <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: viewing.content || "<span class='muted'>본문 없음</span>" }} />
+              <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: richHtml(viewing.content) || "<span class='muted'>본문 없음</span>" }} />
             </div>
           </div>
         </div>

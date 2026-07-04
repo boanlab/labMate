@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader } from "../ui/kit";
+import { dateKST, dtKST } from "../lib/date";
 
 const SERVICES = ["members", "projects", "funds", "attendance", "boards", "resource"];
 const SERVICE_KO: Record<string, string> = {
@@ -36,8 +37,8 @@ export default function AuditLog() {
 
   const fAudit = audit.filter((a) =>
     (!auditSvc || a.service === auditSvc) &&
-    (!auditFrom || (a.at || "").slice(0, 10) >= auditFrom) &&
-    (!auditTo || (a.at || "").slice(0, 10) <= auditTo) &&
+    (!auditFrom || dateKST(a.at) >= auditFrom) &&
+    (!auditTo || dateKST(a.at) <= auditTo) &&
     (!auditQ || [a.actor, a.action, a.entity, a.detail].join(" ").toLowerCase().includes(auditQ.toLowerCase()))
   );
   const auditMax = Math.max(0, Math.ceil(fAudit.length / PAGE) - 1);
@@ -69,7 +70,7 @@ export default function AuditLog() {
             <tbody>
               {fAudit.slice(apg * PAGE, apg * PAGE + PAGE).map((a, i) => (
                 <tr key={i}>
-                  <td className="muted small" style={{ whiteSpace: "nowrap" }}>{(a.at || "").replace("T", " ").slice(0, 19)}</td>
+                  <td className="muted small" style={{ whiteSpace: "nowrap" }}>{dtKST(a.at)}</td>
                   <td><b>{a.actor}</b></td>
                   <td><span className="badge s-info">{a.action}</span></td>
                   <td>{a.entity || "—"}</td>

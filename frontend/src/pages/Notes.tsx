@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, AuthorMeta } from "../ui/kit";
+import { todayKST } from "../lib/date";
 import { confirmDialog } from "../ui/dialog";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 const ROLE_KO: Record<string, string> = { prof: "교수", phd: "박사과정", master: "석사과정", under: "학부", staff: "행정", admin: "관리자" };
@@ -73,7 +74,7 @@ export default function Notes() {
   const canEdit = (p: Note | null) => !!p && !!me && (p.owner_id === me.id || ["prof", "admin"].includes(me.role) || !!me.delegated_admin);
 
   // 과제·프로젝트 연결 후보 — 본인 관련(책임자·담당자·참여) + 진행중. 이미 연결된 것은 필터 제외돼도 유지.
-  const today = new Date().toLocaleDateString("sv-SE");
+  const today = todayKST();
   // 과제 기간 — 해당 연도 기간(meta) 우선, 없으면 전체 기간 폴백
   const period = (p: any): [string, string] =>
     (p.meta?.year_start || p.meta?.year_end) ? [p.meta.year_start || "", p.meta.year_end || ""] : [p.start || "", p.end || ""];
@@ -93,7 +94,7 @@ export default function Notes() {
   const upLocal = (id: string, patch: Partial<Note>) => setPages((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   async function patch(id: string, fields: Partial<Note>) {
     upLocal(id, fields);
-    try { await api.patch(`/projects/notes/${id}`, fields); setSaved(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })); }
+    try { await api.patch(`/projects/notes/${id}`, fields); setSaved(new Date().toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })); }
     catch (e) { setErr(apiError(e)); }
   }
   // 본문(HTML) 디바운스 자동저장
@@ -101,7 +102,7 @@ export default function Notes() {
   function saveContent(id: string, html: string) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     upLocal(id, { content: html });
-    saveTimer.current = setTimeout(() => { api.patch(`/projects/notes/${id}`, { content: html }).then(() => setSaved(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }))).catch((e) => setErr(apiError(e))); }, 1200);
+    saveTimer.current = setTimeout(() => { api.patch(`/projects/notes/${id}`, { content: html }).then(() => setSaved(new Date().toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }))).catch((e) => setErr(apiError(e))); }, 1200);
   }
 
   async function create(parent = "") {

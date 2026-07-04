@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { richHtml } from "../ui/richHtml";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
@@ -161,7 +162,7 @@ export default function Meetings() {
             <tr><th>참석자</th><td>{(open.attendees || []).map(uname).join(", ") || "—"}</td></tr>
             {open.project_id && <tr><th>관련 프로젝트</th><td>{projName(open.project_id) || "—"}</td></tr>}
           </tbody></table>
-          {open.decisions ? <div style={{ margin: "0 0 12px", lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: open.decisions }} /> : <div style={{ margin: "0 0 12px" }} className="muted">결정사항 없음</div>}
+          {open.decisions ? <div style={{ margin: "0 0 12px", lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: richHtml(open.decisions) }} /> : <div style={{ margin: "0 0 12px" }} className="muted">결정사항 없음</div>}
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}><b>액션아이템</b></div>
           {(open.actions || []).length ? (
             <table className="tbl" style={{ minWidth: 0, marginTop: 8 }}>

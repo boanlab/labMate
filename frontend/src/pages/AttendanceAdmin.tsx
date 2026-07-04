@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, apiError } from "../api/client";
+import { dateKST } from "../lib/date";
 import { useAuth } from "../auth/AuthContext";
 
 interface Att { id: string; uid: string; date: string; check_in: string; check_out: string; status: string; note: string; work_min?: number; session_start?: string; corrected?: boolean; }
@@ -58,7 +59,7 @@ export default function AttendanceAdmin() {
     catch (e) { setErr(apiError(e)); }
   }
 
-  const logDate = (l: Log) => (l.at || "").slice(0, 10);
+  const logDate = (l: Log) => dateKST(l.at);
   const sortedLogs = [...logs].sort((a, b) => logDate(b).localeCompare(logDate(a)));
   const shownAtts = (from || to || uid) ? atts : atts.slice(0, 30);
 

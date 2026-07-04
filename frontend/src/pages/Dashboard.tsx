@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { todayKST } from "../lib/date";
+import { richHtml } from "../ui/richHtml";
+import { todayKST, dtKST } from "../lib/date";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
@@ -203,7 +204,7 @@ export default function Dashboard() {
               <tbody>
                 {audit.slice(0, 15).map((a, i) => (
                   <tr key={i}>
-                    <td className="muted small" style={{ whiteSpace: "nowrap" }}>{(a.at || "").replace("T", " ").slice(5, 16)}</td>
+                    <td className="muted small" style={{ whiteSpace: "nowrap" }}>{dtKST(a.at).slice(5)}</td>
                     <td className="small"><b>{a.actor}</b></td>
                     <td><span className="badge s-info">{a.action}</span></td>
                     <td className="small">{a.entity || "—"}</td>
@@ -406,7 +407,7 @@ export default function Dashboard() {
                 {selEv.attendees?.length ? <tr><th>참석</th><td>{selEv.attendees.map((uid: string) => users.find((u) => u.id === uid)?.name || uid).join(", ")}</td></tr> : null}
                 {selEv.link && <tr><th>링크</th><td><a className="lnk" href={selEv.link} target="_blank" rel="noreferrer">{selEv.link}</a></td></tr>}
               </tbody></table>
-              {selEv.detail && <div style={{ marginTop: 10, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: selEv.detail }} />}
+              {selEv.detail && <div style={{ marginTop: 10, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: richHtml(selEv.detail) }} />}
             </div>
             <div className="modal-f"><button className="btn ghost" onClick={() => { setSelEv(null); nav("/calendar"); }}>캘린더에서 보기</button><button className="btn primary" onClick={() => setSelEv(null)}>닫기</button></div>
           </div>

@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { dateKST } from "../lib/date";
 
 export function Kpi({ label, value, sub, tone, onClick, testid }: { label: string; value: ReactNode; sub?: string; tone?: "blue" | "green" | "amber" | "red"; onClick?: () => void; testid?: string }) {
   return (
@@ -34,7 +35,7 @@ export const won = (n: number) => (n || 0).toLocaleString() + "원";
 export function AuthorMeta({ by, updatedBy, createdAt, updatedAt, nameOf, className = "muted small" }: {
   by?: string; updatedBy?: string; createdAt?: string | null; updatedAt?: string | null; nameOf: (id: string) => string; className?: string;
 }) {
-  const c = (createdAt || "").slice(0, 10), u = (updatedAt || "").slice(0, 10);
+  const c = dateKST(createdAt), u = dateKST(updatedAt);
   const edited = (!!updatedBy && updatedBy !== by) || (!!u && !!c && u !== c);
   return (
     <span className={className}>

@@ -33,14 +33,14 @@ export default function Archive() {
   const upLocal = (id: string, patch: Partial<Doc>) => setPages((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   async function patch(id: string, fields: Partial<Doc>) {
     upLocal(id, fields);
-    try { await api.patch(`/projects/archive/${id}`, fields); setSaved(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })); }
+    try { await api.patch(`/projects/archive/${id}`, fields); setSaved(new Date().toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })); }
     catch (e) { setErr(apiError(e)); }
   }
   const saveTimer = useRef<any>(null);
   function saveContent(id: string, html: string) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     upLocal(id, { content: html });
-    saveTimer.current = setTimeout(() => { api.patch(`/projects/archive/${id}`, { content: html }).then(() => setSaved(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }))).catch((e) => setErr(apiError(e))); }, 1200);
+    saveTimer.current = setTimeout(() => { api.patch(`/projects/archive/${id}`, { content: html }).then(() => setSaved(new Date().toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }))).catch((e) => setErr(apiError(e))); }, 1200);
   }
   async function uploadFiles(p: Doc, fl: FileList) {
     const fd = new FormData(); Array.from(fl).forEach((f) => fd.append("files", f));

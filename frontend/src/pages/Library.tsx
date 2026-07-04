@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
@@ -92,7 +93,7 @@ export default function Library() {
             ) : playing.ref ? (
               <div className="io">🔗 <a href={playing.ref} target="_blank" rel="noreferrer">{playing.ref}</a></div>
             ) : null}
-            {playing.body ? <div style={{ lineHeight: 1.7, marginTop: ytEmbed(playing.ref) ? 14 : 0 }} dangerouslySetInnerHTML={{ __html: playing.body }} /> : (!playing.ref && <div className="muted" style={{ padding: 16, textAlign: "center" }}>등록된 강의 자료가 없습니다.</div>)}
+            {playing.body ? <div style={{ lineHeight: 1.7, marginTop: ytEmbed(playing.ref) ? 14 : 0 }} dangerouslySetInnerHTML={{ __html: richHtml(playing.body) }} /> : (!playing.ref && <div className="muted" style={{ padding: 16, textAlign: "center" }}>등록된 강의 자료가 없습니다.</div>)}
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8, flexShrink: 0 }}>
@@ -131,7 +132,7 @@ export default function Library() {
                 <div style={{ marginTop: 6, display: l.type === "영상" ? "none" : "block" }}>
                   {activeLesson === i
                     ? <HtmlEditor value={l.body || ""} onChange={(html) => setLesson(i, { body: html })} testid={`c-body-${i}`} minHeight={90} />
-                    : <div className="ck-preview" data-testid={`c-body-${i}`} onClick={() => setActiveLesson(i)} dangerouslySetInnerHTML={{ __html: l.body || "<span class='muted'>클릭해 내용 입력…</span>" }} />}
+                    : <div className="ck-preview" data-testid={`c-body-${i}`} onClick={() => setActiveLesson(i)} dangerouslySetInnerHTML={{ __html: richHtml(l.body) || "<span class='muted'>클릭해 내용 입력…</span>" }} />}
                 </div>
               </div>
             ))}
