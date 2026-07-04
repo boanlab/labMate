@@ -90,9 +90,9 @@ const EMPTY = {
   journal: "", vol: "", no: "", pages: "", publisher: "", country: "", lang: "영어", issn: "", doi: "",
   first_authors: "", corr_authors: "", total_authors: "",
   // 학술대회
-  cscope: "국제", conf: "", conf_start: "", conf_end: "", host: "", venue: "", proceedings: "", host_country: "", part_countries: "", co_authors: "",
+  conf: "", conf_start: "", conf_end: "", host: "", venue: "", proceedings: "", host_country: "", part_countries: "", co_authors: "",
   // 특허
-  pstat: "국내출원", reg_no: "", applicant: "", inv_count: "",
+  reg_no: "", applicant: "",
 };
 
 export default function Publications() {

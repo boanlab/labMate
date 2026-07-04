@@ -42,6 +42,9 @@ POSTGRES_PASSWORD=change-me        # 강력한 값으로 변경
 JWT_SECRET=change-me               # openssl rand -hex 32
 ADMIN_EMAIL=labmate@kloud.zone     # 첫 배포 자동 관리자 시드
 ADMIN_PASSWORD=labmate123
+
+VAPID_PUBLIC_KEY=                  # Web Push(선택). 미설정 시 인앱 알림만
+VAPID_PRIVATE_KEY=                 # 공개키=uncompressed point, 개인키=raw 32B scalar (base64url)
 ```
 
 ---
@@ -74,7 +77,6 @@ make help      # 전체 명령 목록
 | `make push-images` | 이미지 레지스트리 푸시(`v0.1`+`latest`, `docker login` 필요) |
 | `make release` | 이미지 빌드 + 푸시 |
 | `make pull` | 레지스트리에서 이미지 받기 |
-| `make prod-up` | `make up` 별칭(하위호환) |
 | `make prod-down` | 레지스트리 배포 중지/제거 |
 
 이미지 조직/버전은 변수로 덮어쓸 수 있습니다: `make build-images ORG=myorg VERSION=v0.2`, `make up VERSION=latest`.
@@ -101,12 +103,14 @@ make help      # 전체 명령 목록
 
 각 서비스는 독립 PostgreSQL DB(`labmate_<service>`)를 사용하고, 서비스 간 직접 호출 없이 공통 JWT로만 인증을 공유합니다.
 
+**알림**: 참여자 지정·전자결재·승인 결과 등 이벤트를 서비스별 `notifications` 테이블에 저장하고, 상단 종(bell)이 각 서비스에서 취합해 표시합니다. 구독 시 브라우저·모바일 Web Push(PWA)도 발송합니다 — `.env`의 `VAPID_*` 설정 시 활성(HTTPS 필요).
+
 ### 디렉터리 구조
 
 ```
 backend/
-  services/<service>/app/   # models.py · schemas.py · routers.py · main.py · seed.py
-  libs/common/labmate_common/   # 공통: db · config · security · audit · configstore · dataadmin · tenancy · migrate
+  services/<service>/app/   # models.py · schemas.py · routers.py · main.py (관리자 시드 seed.py 는 members)
+  libs/common/labmate_common/   # 공통: db · config · security · audit · configstore · dataadmin · tenancy · migrate · notifications · push
 frontend/src/                  # React 페이지·컴포넌트
 deploy/nginx/gateway.conf      # API 게이트웨이 라우팅
 deploy/postgres/init/          # 서비스별 DB 생성 스크립트

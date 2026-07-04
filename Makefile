@@ -82,9 +82,6 @@ COMPOSE_PROD := $(COMPOSE) -f docker-compose.yml
 pull: ## 레지스트리에서 푸시한 이미지 받기(VERSION 기본 latest)
 	$(COMPOSE_PROD) pull
 
-.PHONY: prod-up
-prod-up: up ## up 별칭(하위호환)
-
 .PHONY: prod-down
 prod-down: ## 레지스트리 배포 중지/제거(데이터 유지)
 	$(COMPOSE_PROD) down --remove-orphans

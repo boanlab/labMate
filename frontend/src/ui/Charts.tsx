@@ -1,33 +1,9 @@
-// SVG 차트(도넛/게이지/가로막대) 컴포넌트
-export const CHART_PAL = ["#3f5d7d", "#2e9e6b", "#c2891b", "#d8584f", "#7b66c4", "#3a9b9b", "#9aa3ad"];
-
-export interface Seg { label: string; value: number; color?: string; }
-
+// SVG 차트(게이지/가로막대) 컴포넌트
 function arc(cx: number, cy: number, r: number, a0: number, a1: number) {
   const p = (a: number) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
   const [x0, y0] = p(a0), [x1, y1] = p(a1);
   const large = a1 - a0 > Math.PI ? 1 : 0;
   return `M${x0} ${y0} A${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
-}
-
-export function Donut({ segs, size = 132, center }: { segs: Seg[]; size?: number; center?: string }) {
-  const total = segs.reduce((t, s) => t + s.value, 0) || 1;
-  const r = size / 2 - 12, cx = size / 2, cy = size / 2;
-  let a = -Math.PI / 2;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--line)" strokeWidth={16} />
-      {segs.map((s, i) => {
-        const frac = s.value / total;
-        const a1 = a + frac * Math.PI * 2;
-        const d = arc(cx, cy, r, a + 0.02, a1 - 0.02);
-        a = a1;
-        return frac > 0 ? <path key={i} d={d} fill="none" stroke={s.color || CHART_PAL[i % CHART_PAL.length]} strokeWidth={16} strokeLinecap="round" /> : null;
-      })}
-      <text x={cx} y={cy - 2} textAnchor="middle" fontSize={22} fontWeight={800} fill="var(--ink)">{center ?? total}</text>
-      <text x={cx} y={cy + 16} textAnchor="middle" fontSize={11} fill="var(--sub)">합계</text>
-    </svg>
-  );
 }
 
 export function Gauge({ pct, label, size = 120, color }: { pct: number; label?: string; size?: number; color?: string }) {
