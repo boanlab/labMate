@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#4a6d94"/>
+      <stop offset="1" stop-color="#34506e"/>
+    </linearGradient>
+    <clipPath id="flask">
+      <path d="M226 150 L286 150 L286 224 L344 356 Q350 382 324 382 L188 382 Q162 382 168 356 L226 224 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- 대시보드 브랜드 블루(풀블리드 → 마스커블 안전) -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- 플라스크(흰색 실루엣) -->
+  <path d="M226 150 L286 150 L286 224 L344 356 Q350 382 324 382 L188 382 Q162 382 168 356 L226 224 Z" fill="#ffffff"/>
+  <!-- 액체(그린 액센트) — 플라스크 하단에 클립 -->
+  <g clip-path="url(#flask)">
+    <rect x="150" y="300" width="212" height="90" fill="#2e9e6b"/>
+    <circle cx="232" cy="330" r="7" fill="#ffffff" opacity="0.55"/>
+    <circle cx="276" cy="352" r="5" fill="#ffffff" opacity="0.45"/>
+  </g>
+  <!-- 병 입구 테두리 라인 -->
+  <rect x="212" y="150" width="88" height="14" rx="7" fill="#ffffff"/>
+</svg>
