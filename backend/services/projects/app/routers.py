@@ -41,9 +41,7 @@ def _can_manage_project(user: CurrentUser) -> bool:
 
 
 def _can_edit_pj(user: CurrentUser, p: Project) -> bool:
-    """연구과제는 교수·위임만, 프로젝트(activity)는 교수·위임 또는 책임자·담당자."""
-    if p.kind == "grant":
-        return _can_manage_project(user)
+    """연구과제·프로젝트 모두 교수·위임 또는 책임자·담당자가 수정·삭제(생성은 grant만 교수·위임)."""
     return _can_manage_project(user) or user.id in (p.lead_id, p.pm_id)
 
 

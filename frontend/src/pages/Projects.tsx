@@ -78,7 +78,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const isGrant = kind === "grant";
   const LABEL = isGrant ? "연구과제" : "프로젝트";
   const { me } = useAuth();
-  // 권한 — 생성: 연구과제=교수·위임/활동=구성원 · 수정삭제: 연구과제=교수·위임/활동=+책임자·담당자
+  // 권한 — 생성: 연구과제=교수·위임/활동=구성원 · 수정삭제: 교수·위임 또는 책임자·담당자(공통)
   const canManageProject = !!me && (me.role === "prof" || !!me.delegated_admin);
   const canCreate = !!me && (isGrant ? canManageProject : me.role !== "admin");
   const canManageWork = !!me && (["prof", "staff"].includes(me.role) || !!me.delegated_admin);
@@ -269,8 +269,8 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const canTasks = canManageWork || (!!open && !!me && [open.lead_id, open.pm_id, ...(open.members || [])].includes(me.id));
   // 수정·삭제·이동: 교수·행정·위임·책임자·담당자, 참여 연구원은 본인이 추가한 업무만
   const canEditTask = (t: Task) => canManageWork || (!!open && !!me && [open.lead_id, open.pm_id].includes(me.id)) || t.by_id === me?.id;
-  // 수정·삭제: 연구과제=교수·위임 / 활동=교수·위임·책임자·담당자
-  const canEdit = canManageProject || (!isGrant && !!open && !!me && [open.lead_id, open.pm_id].includes(me.id));
+  // 수정·삭제: 교수·위임 또는 책임자·담당자(연구과제·활동 동일)
+  const canEdit = canManageProject || (!!open && !!me && [open.lead_id, open.pm_id].includes(me.id));
   // 상태 산정: 연구과제=해당 연도 기간 / 활동=총 기간
   const liveStatus = (p: Project) => isGrant
     ? grantAutoStatus(p.meta?.year_start || "", p.meta?.year_end || "", p.start || "", p.end || "")
