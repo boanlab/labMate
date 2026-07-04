@@ -210,9 +210,13 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   }
   async function delDetail() {
     if (!open) return;
-    const typed = await promptDialog(`이 ${LABEL}을(를) 삭제하려면 관리코드 "${open.code}" 를 입력하세요. (실수 방지)`);
-    if (typed === null) return;
-    if (typed.trim() !== open.code) { await alertDialog("관리코드가 일치하지 않아 삭제가 취소되었습니다."); return; }
+    if (open.code && open.code.trim()) {                 // 관리코드 있으면 코드 입력 확인(실수 방지)
+      const typed = await promptDialog(`이 ${LABEL}을(를) 삭제하려면 관리코드 "${open.code}" 를 입력하세요. (실수 방지)`);
+      if (typed === null) return;
+      if (typed.trim() !== open.code) { await alertDialog("관리코드가 일치하지 않아 삭제가 취소되었습니다."); return; }
+    } else if (!await confirmDialog(`이 ${LABEL}을(를) 삭제할까요?`, { danger: true })) {   // 코드 없으면 일반 확인
+      return;
+    }
     try { await api.delete(`/projects/projects/${open.id}`); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
   }
   async function reloadTasks() { if (open) try { setTasks((await api.get<Task[]>(`/projects/projects/${open.id}/tasks`)).data); } catch { /* */ } }
@@ -517,7 +521,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
           {editId && <div className="io" style={{ margin: "12px 14px 0" }}>수정 중 — 관리코드 <b>{form.code}</b></div>}
           {isGrant ? (
             <div className="bd grid2">
-              <Field label="관리코드"><input data-testid="p-code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></Field>
+              <Field label="관리코드"><input data-testid="p-code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="미입력 시 자동 생성" /></Field>
               <Field label="과제명"><input data-testid="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
               <Field label="전담기관"><select data-testid="p-agency" value={form.agency} onChange={(e) => setForm({ ...form, agency: e.target.value })}>{AGENCIES.map((a) => <option key={a}>{a}</option>)}</select></Field>
               <Field label="사업명"><input value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })} /></Field>
@@ -554,7 +558,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
             </div>
           ) : (
             <div className="bd grid2">
-              <Field label="관리코드"><input data-testid="p-code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></Field>
+              <Field label="관리코드"><input data-testid="p-code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="미입력 시 자동 생성" /></Field>
               <Field label="분류"><select data-testid="p-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{ACT_CATS.filter((c) => c !== "과제").map((c) => <option key={c}>{c}</option>)}</select></Field>
               <Field label="프로젝트명"><input data-testid="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
               <Field label="담당자"><select data-testid="p-pm" value={form.pm_id} onChange={(e) => setForm({ ...form, pm_id: e.target.value })}><option value="">선택</option>{pmOpts.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>

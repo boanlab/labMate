@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 import io
 import os
 import re
+import secrets
+import string
 import uuid as _uuid
 import zipfile
 
@@ -28,6 +30,17 @@ router = APIRouter()
 def _project_members(p: Project) -> list[str]:
     """과제 참여 대상 uid 모음(책임자·실무담당·참여자)."""
     return [x for x in [p.lead_id, p.pm_id, *(p.members or [])] if x]
+
+
+def _gen_code(db: Session) -> str:
+    """관리코드 미입력 시 랜덤 XXXX-XXXX(영문 대문자+숫자) 생성, org 내 중복 회피."""
+    alphabet = string.ascii_uppercase + string.digits
+    code = ""
+    for _ in range(10):
+        code = "-".join("".join(secrets.choice(alphabet) for _ in range(4)) for _ in range(2))
+        if not db.scalar(select(Project.id).where(Project.code == code)):
+            break
+    return code
 MANAGER_ROLES = ("prof", "staff")
 
 
@@ -86,6 +99,8 @@ def create_project(body: schemas.ProjectIn, user: CurrentUser = Depends(get_curr
     if body.kind == "grant" and not _can_manage_project(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "연구과제 생성 권한이 없습니다 (교수·위임 연구원만)")
     p = Project(**body.model_dump())
+    if not (p.code or "").strip():        # 관리코드 미입력 시 랜덤 코드 자동 부여
+        p.code = _gen_code(db)
     # 활동 프로젝트: 생성자를 참여자로 자동 포함(가시성 보장)
     if p.kind == "activity" and user.id not in (p.lead_id, p.pm_id) and user.id not in (p.members or []):
         p.members = list(p.members or []) + [user.id]
