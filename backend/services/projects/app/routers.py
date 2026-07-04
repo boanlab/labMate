@@ -93,7 +93,7 @@ def create_project(body: schemas.ProjectIn, user: CurrentUser = Depends(get_curr
     db.flush()
     _label = "연구과제" if p.kind == "grant" else "프로젝트"
     notify(db, recipients=_project_members(p), kind="project", title=f"{_label} 배정",
-           body=f"{user.name}님이 '{p.title}' {_label}에 회원님을 참여자로 지정했습니다",
+           body=f"{user.name}님이 '{p.name}' {_label}에 회원님을 참여자로 지정했습니다",
            link="/grants" if p.kind == "grant" else "/projects", actor=user, ref_id=p.id)
     db.commit()
     db.refresh(p)
@@ -122,9 +122,9 @@ def update_project(pid: str, body: schemas.ProjectIn, user: CurrentUser = Depend
     _label = "연구과제" if p.kind == "grant" else "프로젝트"
     _link = "/grants" if p.kind == "grant" else "/projects"
     notify(db, recipients=[u for u in after if u not in before], kind="project", title=f"{_label} 배정",
-           body=f"{user.name}님이 '{p.title}' {_label}에 회원님을 참여자로 지정했습니다", link=_link, actor=user, ref_id=p.id)
+           body=f"{user.name}님이 '{p.name}' {_label}에 회원님을 참여자로 지정했습니다", link=_link, actor=user, ref_id=p.id)
     notify(db, recipients=[u for u in before if u not in after], kind="project", title=f"{_label} 제외",
-           body=f"{user.name}님이 '{p.title}' {_label}에서 회원님을 제외했습니다", link=_link, actor=user, ref_id=p.id)
+           body=f"{user.name}님이 '{p.name}' {_label}에서 회원님을 제외했습니다", link=_link, actor=user, ref_id=p.id)
     db.commit()
     db.refresh(p)
     return p
@@ -138,7 +138,7 @@ def delete_project(pid: str, user: CurrentUser = Depends(get_current_user), db: 
     if p:
         _label = "연구과제" if p.kind == "grant" else "프로젝트"
         notify(db, recipients=_project_members(p), kind="project", title=f"{_label} 삭제",
-               body=f"{user.name}님이 '{p.title}' {_label}을(를) 삭제했습니다",
+               body=f"{user.name}님이 '{p.name}' {_label}을(를) 삭제했습니다",
                link="/grants" if p.kind == "grant" else "/projects", actor=user, ref_id=p.id)
         p.deleted_at = datetime.now(timezone.utc)
         db.commit()
