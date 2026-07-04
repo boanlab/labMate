@@ -5,14 +5,16 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Icon } from "../ui/icons";
+import { registerPush, pushActive } from "../lib/push";
 
-interface Noti { id: string; title: string; sub: string; link: string; icon: string; }
+interface Noti { id: string; title: string; sub: string; link: string; icon: string; svc?: string; read?: boolean; }
 const SEEN_KEY = "labmate.notif.seen";
-
-function currentIdx(line: any[]): number {
-  for (let i = 0; i < line.length; i++) { if (!line[i].decision) return i; if (line[i].decision === "반려") return -1; }
-  return -1;
-}
+// 영구 알림을 조회할 서비스와 kind→아이콘 매핑
+const NOTIF_SVCS = ["projects", "boards", "attendance"];
+const KIND_ICON: Record<string, string> = {
+  project: "folder", task: "clipboard", note: "book", notice: "bell", meeting: "users",
+  comment: "chat", event: "calendar", approval: "doc", leave: "sun", attendance: "clock",
+};
 
 export function NotificationBell() {
   const { me } = useAuth();
@@ -20,14 +22,22 @@ export function NotificationBell() {
   const [items, setItems] = useState<Noti[]>([]);
   const [open, setOpen] = useState(false);
   const [read, setRead] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("labmate.notif.read") || "[]"); } catch { return []; } });
-  const unread = items.filter((i) => !read.includes(i.id));
+  // 영구 알림은 서버 read_at, 파생 리마인더는 localStorage 로 읽음 판정
+  const isRead = (i: Noti) => (i.svc ? !!i.read : read.includes(i.id));
+  const unread = items.filter((i) => !isRead(i));
   const ref = useRef<HTMLDivElement>(null);
   const isMgr = !!me && (["prof", "staff", "admin"].includes(me.role) || !!me.delegated_admin);
-  function markAllRead() { const ids = items.map((i) => i.id); setRead(ids); localStorage.setItem("labmate.notif.read", JSON.stringify(ids)); }
+  function markAllRead() {
+    const ids = items.map((i) => i.id); setRead(ids); localStorage.setItem("labmate.notif.read", JSON.stringify(ids));
+    setItems((list) => list.map((i) => (i.svc ? { ...i, read: true } : i)));   // 영구 알림 낙관적 읽음
+    NOTIF_SVCS.forEach((s) => { api.post(`/${s}/notifications/read`, {}).catch(() => { /* */ }); });
+  }
 
   useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      try { Notification.requestPermission(); } catch { /* */ }
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "granted") { registerPush(); return; }
+    if (Notification.permission === "default") {
+      try { Notification.requestPermission().then((p) => { if (p === "granted") registerPush(); }); } catch { /* */ }
     }
   }, []);
 
@@ -41,22 +51,22 @@ export function NotificationBell() {
     if (!me) return;
     const out: Noti[] = [];
     const today = todayKST();
-    try {
-      const appr = (await api.get<any[]>("/boards/approvals/inbox")).data || [];
-      appr.forEach((a) => {
-        const idx = currentIdx(a.steps);
-        if (a.status === "진행" && idx >= 0 && a.steps[idx]?.uid === me.id)
-          out.push({ id: "appr-" + a.id, title: "결재 요청", sub: `${a.doc_no} · ${a.title}`, link: "/approvals", icon: "doc" });
-      });
-    } catch { /* 비결재자 등 */ }
-    try {
-      const mine = (await api.get<any[]>("/boards/approvals/mine")).data || [];
-      mine.forEach((a) => { if (a.status === "반려") out.push({ id: "rej-" + a.id, title: "결재 반려됨", sub: `${a.doc_no} · ${a.title}`, link: "/approvals", icon: "doc" }); });
-    } catch { /* */ }
+    // 영구 알림(서버 저장) — 참여자/담당자 지정·결재 요청/결과·댓글 등
+    for (const s of NOTIF_SVCS) {
+      try {
+        const rows = (await api.get<any[]>(`/${s}/notifications`)).data || [];
+        rows.forEach((n) => out.push({ id: "n-" + n.id, title: n.title, sub: n.body, link: n.link, icon: KIND_ICON[n.kind] || "bell", svc: s, read: !!n.read_at }));
+      } catch { /* */ }
+    }
+    // 관리자: 승인 대기 요청(역할 기반 → 파생 유지)
     if (isMgr) {
       try {
         const lv = (await api.get<any[]>("/attendance/leaves/inbox")).data || [];
         lv.forEach((l) => out.push({ id: "lv-" + l.id, title: "휴가 승인 요청", sub: `${l.type} ${l.start_date}~${l.end_date}`, link: "/leave", icon: "sun" }));
+      } catch { /* */ }
+      try {
+        const cr = (await api.get<any[]>("/attendance/attendance/correct-requests")).data || [];
+        cr.forEach((r) => { if (r.status === "대기") out.push({ id: "cr-" + r.id, title: "근태 정정 요청", sub: `${r.date} · ${r.reason || ""}`, link: "/att-admin", icon: "clock" }); });
       } catch { /* */ }
     }
     try {
@@ -75,8 +85,9 @@ export function NotificationBell() {
     // 새 항목 → 데스크톱 알림
     let seen: string[] = [];
     try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); } catch { /* */ }
-    const fresh = out.filter((o) => !seen.includes(o.id));
-    if (fresh.length && "Notification" in window && Notification.permission === "granted") {
+    const fresh = out.filter((o) => !seen.includes(o.id) && !(o.svc && o.read));
+    // 서버 푸시(SW)가 활성이면 OS 알림은 그쪽에서 처리 → 폴링 중복 알림 억제
+    if (fresh.length && !pushActive() && "Notification" in window && Notification.permission === "granted") {
       const n = fresh[0];
       try { new Notification("LabMate 알림", { body: n.title + " · " + n.sub + (fresh.length > 1 ? ` 외 ${fresh.length - 1}건` : ""), tag: "labmate" }); } catch { /* */ }
     }

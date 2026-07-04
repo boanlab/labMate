@@ -16,6 +16,8 @@ from .masters import DEFAULTS
 from labmate_common.audit import make_audit_router
 from labmate_common.tenancy import OrgMiddleware
 from labmate_common.dataadmin import make_data_admin_router
+from labmate_common.notifications import Notification, make_notifications_router  # noqa: F401
+from labmate_common.push import PushSubscription, make_push_router  # noqa: F401
 from .routers import router
 
 
@@ -46,6 +48,8 @@ def health():
 
 
 app.include_router(router)
+app.include_router(make_notifications_router())
+app.include_router(make_push_router())
 app.include_router(make_data_admin_router("projects"))
 app.include_router(make_audit_router("projects"))
 app.include_router(make_config_router(DEFAULTS))

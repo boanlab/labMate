@@ -13,6 +13,7 @@ class NoticeIn(BaseModel):
     link: str = ""
     files: list[dict] = Field(default_factory=list)
     target_user_ids: list[str] = Field(default_factory=list)   # 확인 대상 (비면 전체)
+    notify_uids: list[str] = Field(default_factory=list)       # 알림 발송 대상(전체 공지 시 프론트가 전 구성원 id 전달; 저장 안 함)
 
 
 class NoticeOut(NoticeIn):

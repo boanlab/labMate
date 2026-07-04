@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { richHtml } from "../ui/richHtml";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
@@ -56,6 +57,7 @@ export default function Notices() {
     const payload = {
       title: form.title, body, required: form.required, due: form.due || null,
       link: form.link, files: form.files, target_user_ids: form.targetMode === "select" ? form.target_user_ids : [],
+      notify_uids: form.targetMode === "all" ? members.map((u) => u.id) : [],   // 전체 공지 알림 대상(전 구성원)
     };
     try {
       if (editId) await api.patch(`/boards/notices/${editId}`, payload);
@@ -94,7 +96,7 @@ export default function Notices() {
             <tr><th>확인 마감</th><td>{open.due || "—"}</td></tr>
             <tr><th>대상</th><td>{(open.target_user_ids && open.target_user_ids.length) ? `선택 ${open.target_user_ids.length}명 · ${open.target_user_ids.map(uname).join(", ")}` : "전체 연구원"}</td></tr>
           </tbody></table>
-          <div style={{ lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: open.body || "<span class='muted'>내용 없음</span>" }} />
+          <div style={{ lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: richHtml(open.body) || "<span class='muted'>내용 없음</span>" }} />
           {open.link && <div style={{ marginTop: 12 }}><a className="lnk small" href={open.link} target="_blank" rel="noreferrer">🔗 {open.link}</a></div>}
           {!!(open.files && open.files.length) && (
             <div style={{ marginTop: 12 }}>

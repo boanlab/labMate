@@ -11,6 +11,7 @@ from labmate_common.configstore import get_setting
 from labmate_common.db import get_db
 from labmate_common.audit import record
 from labmate_common.deps import CurrentUser, get_current_user
+from labmate_common.notifications import notify
 
 from . import schemas
 from .masters import DEFAULTS
@@ -203,6 +204,9 @@ def decide_correct_request(rid: str, decision: str, note: str = "", user: Curren
     if decision == "승인":
         _apply_correction(db, user.id, r.uid, r.date, r.check_in, r.check_out, r.requested_status, "정정 요청 승인", r.reason)
     record(db, user, f"근태 정정 요청 {decision}", r.date.isoformat(), r.reason)
+    notify(db, recipients=[r.uid], kind="attendance", title=f"근태 정정 {decision}",
+           body=f"{user.name}님이 {r.date.isoformat()} 근태 정정 요청을 {decision}했습니다", link="/attendance",
+           actor=user, ref_id=r.id)
     db.commit(); db.refresh(r)
     return r
 
@@ -282,6 +286,9 @@ def decide_leave(lid: str, body: schemas.DecideIn, user: CurrentUser = Depends(g
         bal = _ensure_balance(db, lv.uid)
         bal.used += lv.days
     record(db, user, f"휴가 {lv.status}", lv.type, f"{lv.start_date}~{lv.end_date} ({lv.days}일)")
+    notify(db, recipients=[lv.uid], kind="leave", title=f"휴가 {lv.status}",
+           body=f"{user.name}님이 {lv.type} 신청({lv.start_date}~{lv.end_date})을 {lv.status}했습니다", link="/leave",
+           actor=user, ref_id=lv.id)
     db.commit(); db.refresh(lv)
     return lv
 

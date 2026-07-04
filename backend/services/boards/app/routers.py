@@ -11,12 +11,25 @@ from labmate_common.configstore import get_setting
 from labmate_common.db import get_db
 from labmate_common.audit import record
 from labmate_common.deps import CurrentUser, get_current_user
+from labmate_common.notifications import notify
 
 from . import schemas
 from .masters import DEFAULTS
 from .models import Approval, Event, Meeting, Notice, Post
 
 router = APIRouter()
+
+
+def _notify_current_approver(db: Session, a: Approval, user: CurrentUser) -> None:
+    """진행 중 결재에서 지금 차례인 결재자에게 '결재 요청' 알림."""
+    idx = _current_index(a.steps)
+    if idx is None:
+        return
+    uid = a.steps[idx].get("uid")
+    if uid:
+        notify(db, recipients=[uid], kind="approval", title="결재 요청",
+               body=f"'{a.title}' 문서의 결재 차례입니다 ({a.doc_no})", link="/approvals",
+               actor=user, ref_id=a.id)
 MANAGER = ("prof", "staff")
 
 KST = timezone(timedelta(hours=9))
@@ -70,8 +83,14 @@ def list_notices(user: CurrentUser = Depends(get_current_user), db: Session = De
 def create_notice(body: schemas.NoticeIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     if not _is_manager(user):
         raise HTTPException(403, "공지 작성 권한이 없습니다")
-    n = Notice(by_id=user.id, acked_user_ids=[user.id], **body.model_dump())
-    db.add(n); db.commit(); db.refresh(n)
+    n = Notice(by_id=user.id, acked_user_ids=[user.id], **body.model_dump(exclude={"notify_uids"}))
+    db.add(n); db.flush()
+    # 대상 지정 공지는 대상자에게, 전체 공지는 프론트가 넘긴 전 구성원(notify_uids)에게 발송
+    recipients = n.target_user_ids or body.notify_uids
+    notify(db, recipients=recipients, kind="notice", title="새 공지",
+           body=f"{user.name}님이 공지 '{n.title}'을(를) 등록했습니다", link="/notices",
+           actor=user, ref_id=n.id)
+    db.commit(); db.refresh(n)
     return n
 
 
@@ -82,9 +101,17 @@ def update_notice(nid: str, body: schemas.NoticeIn, user: CurrentUser = Depends(
         raise HTTPException(404, "공지 없음")
     if not (_is_manager(user) or n.by_id == user.id):
         raise HTTPException(403, "수정 권한이 없습니다")
-    for k, v in body.model_dump().items():
+    before = set(n.target_user_ids or [])
+    for k, v in body.model_dump(exclude={"notify_uids"}).items():
         setattr(n, k, v)
     n.updated_by = user.id
+    after = set(n.target_user_ids or [])
+    notify(db, recipients=[u for u in after if u not in before], kind="notice", title="새 공지",
+           body=f"{user.name}님이 공지 '{n.title}'의 확인 대상으로 회원님을 지정했습니다", link="/notices",
+           actor=user, ref_id=n.id)
+    notify(db, recipients=[u for u in before if u not in after], kind="notice", title="공지 대상 제외",
+           body=f"{user.name}님이 공지 '{n.title}' 확인 대상에서 회원님을 제외했습니다", link="/notices",
+           actor=user, ref_id=n.id)
     db.commit(); db.refresh(n)
     return n
 
@@ -165,6 +192,12 @@ def add_comment(pid: str, body: schemas.CommentIn, user: CurrentUser = Depends(g
         raise HTTPException(404, "글 없음")
     import uuid
     p.comments = p.comments + [{"id": uuid.uuid4().hex[:8], "by": user.id, "name": user.name, "at": _today(), "text": body.text, "parent": body.parent or ""}]
+    targets = [p.by_id]                                            # 글 작성자
+    if body.parent:                                                # 답글이면 부모 댓글 작성자도
+        targets += [c.get("by") for c in p.comments if c.get("id") == body.parent]
+    notify(db, recipients=targets, kind="comment", title="새 댓글",
+           body=f"{user.name}님이 '{p.title}' 글에 댓글을 남겼습니다", link="/board",
+           actor=user, ref_id=p.id)
     db.commit(); db.refresh(p)
     return p
 
@@ -249,7 +282,11 @@ def create_meeting(body: schemas.MeetingIn, user: CurrentUser = Depends(get_curr
     data = body.model_dump()
     data["actions"] = _normalize_actions(data.get("actions", []))
     m = Meeting(by_id=user.id, **data)
-    db.add(m); db.commit(); db.refresh(m)
+    db.add(m); db.flush()
+    notify(db, recipients=m.attendees or [], kind="meeting", title="회의록 참석자 지정",
+           body=f"{user.name}님이 회의록 '{m.title}'에 회원님을 참석자로 지정했습니다", link="/meetings",
+           actor=user, ref_id=m.id)
+    db.commit(); db.refresh(m)
     return m
 
 
@@ -261,10 +298,18 @@ def update_meeting(mid: str, body: schemas.MeetingIn, user: CurrentUser = Depend
     if m.by_id != user.id and user.role not in ("prof", "admin"):
         raise HTTPException(403, "수정 권한이 없습니다")
     data = body.model_dump()
+    before = set(m.attendees or [])
     m.date = data["date"]; m.title = data["title"]; m.attendees = data["attendees"]
     m.project_id = data["project_id"]
     m.decisions = data["decisions"]; m.actions = _normalize_actions(data["actions"])
     m.updated_by = user.id
+    after = set(m.attendees or [])
+    notify(db, recipients=[u for u in after if u not in before], kind="meeting", title="회의록 참석자 지정",
+           body=f"{user.name}님이 회의록 '{m.title}'에 회원님을 참석자로 지정했습니다", link="/meetings",
+           actor=user, ref_id=m.id)
+    notify(db, recipients=[u for u in before if u not in after], kind="meeting", title="회의록 참석 제외",
+           body=f"{user.name}님이 회의록 '{m.title}' 참석자에서 회원님을 제외했습니다", link="/meetings",
+           actor=user, ref_id=m.id)
     db.commit(); db.refresh(m)
     return m
 
@@ -273,6 +318,9 @@ def update_meeting(mid: str, body: schemas.MeetingIn, user: CurrentUser = Depend
 def delete_meeting(mid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     m = db.get(Meeting, mid)
     if m and (m.by_id == user.id or user.role in ("prof", "admin")):
+        notify(db, recipients=m.attendees or [], kind="meeting", title="회의록 삭제",
+               body=f"{user.name}님이 회의록 '{m.title}'을(를) 삭제했습니다", link="/meetings",
+               actor=user, ref_id=m.id)
         m.deleted_at = datetime.now(timezone.utc); db.commit()
     elif m:
         raise HTTPException(403, "삭제 권한이 없습니다")
@@ -357,7 +405,12 @@ def list_events(expand: bool = True, user: CurrentUser = Depends(get_current_use
 def create_event(body: schemas.EventIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     # 전원 등록 가능
     e = Event(by_id=user.id, **body.model_dump())
-    db.add(e); db.commit(); db.refresh(e)
+    db.add(e); db.flush()
+    if e.scope == "구성원 선택":                                    # 선택된 참석자에게만 알림(전체/개인 제외)
+        notify(db, recipients=e.attendees or [], kind="event", title="일정 공유",
+               body=f"{user.name}님이 '{e.title}' 일정에 회원님을 지정했습니다", link="/calendar",
+               actor=user, ref_id=e.id)
+    db.commit(); db.refresh(e)
     return e
 
 
@@ -379,8 +432,16 @@ def update_event(eid: str, body: schemas.EventIn, user: CurrentUser = Depends(ge
         raise HTTPException(404, "일정 없음")
     if not _can_edit_event(user, e):
         raise HTTPException(403, "수정 권한이 없습니다")
+    before = set(e.attendees or []) if e.scope == "구성원 선택" else set()
     for k, v in body.model_dump().items():
         setattr(e, k, v)
+    after = set(e.attendees or []) if e.scope == "구성원 선택" else set()
+    notify(db, recipients=[u for u in after if u not in before], kind="event", title="일정 공유",
+           body=f"{user.name}님이 '{e.title}' 일정에 회원님을 지정했습니다", link="/calendar",
+           actor=user, ref_id=e.id)
+    notify(db, recipients=[u for u in before if u not in after], kind="event", title="일정 제외",
+           body=f"{user.name}님이 '{e.title}' 일정에서 회원님을 제외했습니다", link="/calendar",
+           actor=user, ref_id=e.id)
     db.commit(); db.refresh(e)
     return e
 
@@ -389,6 +450,10 @@ def update_event(eid: str, body: schemas.EventIn, user: CurrentUser = Depends(ge
 def delete_event(eid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     e = db.get(Event, eid)
     if e and _can_edit_event(user, e):
+        if e.scope == "구성원 선택":
+            notify(db, recipients=e.attendees or [], kind="event", title="일정 삭제",
+                   body=f"{user.name}님이 '{e.title}' 일정을 삭제했습니다", link="/calendar",
+                   actor=user, ref_id=e.id)
         e.deleted_at = datetime.now(timezone.utc); db.commit()
     elif e:
         raise HTTPException(403, "삭제 권한이 없습니다")
@@ -437,7 +502,10 @@ def create_approval(body: schemas.ApprovalIn, user: CurrentUser = Depends(get_cu
         amount=body.amount, deduct_account=body.deduct_account, content=body.content, source_ref=body.source_ref,
         steps=steps, status="임시저장" if body.draft else "진행", doc_no=_make_doc_no(db, body.type),
     )
-    db.add(a); db.commit(); db.refresh(a)
+    db.add(a); db.flush()
+    if a.status == "진행":
+        _notify_current_approver(db, a, user)
+    db.commit(); db.refresh(a)
     return a
 
 
@@ -462,6 +530,7 @@ def update_approval(aid: str, body: schemas.ApprovalIn, user: CurrentUser = Depe
             raise HTTPException(400, "결재선에 최소 1명의 결재자를 지정하세요")
         a.status = "진행"
         a.doc_no = a.doc_no or _make_doc_no(db, body.type)
+        _notify_current_approver(db, a, user)
     db.commit(); db.refresh(a)
     return a
 
@@ -495,8 +564,14 @@ def decide_approval(aid: str, body: schemas.DecideIn, user: CurrentUser = Depend
     a.steps = new_line
     if body.decision == "반려":
         a.status = "반려"
+        notify(db, recipients=[a.by_id], kind="approval", title="결재 반려",
+               body=f"{user.name}님이 '{a.title}' 결재를 반려했습니다", link="/approvals", actor=user, ref_id=a.id)
     elif all(s.get("decision") == "승인" for s in a.steps):
         a.status = "승인"
+        notify(db, recipients=[a.by_id], kind="approval", title="결재 승인 완료",
+               body=f"'{a.title}' 결재가 최종 승인되었습니다", link="/approvals", actor=user, ref_id=a.id)
+    else:                                                         # 중간 승인 → 다음 차례 결재자 호출
+        _notify_current_approver(db, a, user)
     record(db, user, f"결재 {body.decision}", a.doc_no, a.title)
     db.commit(); db.refresh(a)
     return a
@@ -539,6 +614,7 @@ def resubmit_approval(aid: str, body: schemas.ApprovalIn, user: CurrentUser = De
     a.type = body.type; a.title = body.title; a.project_id = body.project_id
     a.amount = body.amount; a.deduct_account = body.deduct_account; a.content = body.content
     a.steps = steps; a.status = "진행"
+    _notify_current_approver(db, a, user)
     db.commit(); db.refresh(a)
     return a
 

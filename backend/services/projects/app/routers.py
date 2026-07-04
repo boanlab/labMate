@@ -17,11 +17,17 @@ from sqlalchemy.orm import Session
 from labmate_common.config import settings
 from labmate_common.db import get_db
 from labmate_common.deps import CurrentUser, get_current_user
+from labmate_common.notifications import notify
 
 from . import schemas
 from .models import ArchivePage, Milestone, NotePage, Project, Publication, Task
 
 router = APIRouter()
+
+
+def _project_members(p: Project) -> list[str]:
+    """과제 참여 대상 uid 모음(책임자·실무담당·참여자)."""
+    return [x for x in [p.lead_id, p.pm_id, *(p.members or [])] if x]
 MANAGER_ROLES = ("prof", "staff")
 
 
@@ -86,6 +92,11 @@ def create_project(body: schemas.ProjectIn, user: CurrentUser = Depends(get_curr
     if p.kind == "activity" and user.id not in (p.lead_id, p.pm_id) and user.id not in (p.members or []):
         p.members = list(p.members or []) + [user.id]
     db.add(p)
+    db.flush()
+    _label = "연구과제" if p.kind == "grant" else "프로젝트"
+    notify(db, recipients=_project_members(p), kind="project", title=f"{_label} 배정",
+           body=f"{user.name}님이 '{p.title}' {_label}에 회원님을 참여자로 지정했습니다",
+           link="/grants" if p.kind == "grant" else "/projects", actor=user, ref_id=p.id)
     db.commit()
     db.refresh(p)
     return p
@@ -106,8 +117,16 @@ def update_project(pid: str, body: schemas.ProjectIn, user: CurrentUser = Depend
         raise HTTPException(404, "과제 없음")
     if not _can_edit_pj(user, p):
         raise HTTPException(403, "수정 권한이 없습니다")
+    before = set(_project_members(p))
     for k, v in body.model_dump(exclude_unset=True).items():       # 보낸 필드만 갱신(미입력 필드 보존)
         setattr(p, k, v)
+    after = set(_project_members(p))
+    _label = "연구과제" if p.kind == "grant" else "프로젝트"
+    _link = "/grants" if p.kind == "grant" else "/projects"
+    notify(db, recipients=[u for u in after if u not in before], kind="project", title=f"{_label} 배정",
+           body=f"{user.name}님이 '{p.title}' {_label}에 회원님을 참여자로 지정했습니다", link=_link, actor=user, ref_id=p.id)
+    notify(db, recipients=[u for u in before if u not in after], kind="project", title=f"{_label} 제외",
+           body=f"{user.name}님이 '{p.title}' {_label}에서 회원님을 제외했습니다", link=_link, actor=user, ref_id=p.id)
     db.commit()
     db.refresh(p)
     return p
@@ -119,6 +138,10 @@ def delete_project(pid: str, user: CurrentUser = Depends(get_current_user), db: 
     if p and not _can_edit_pj(user, p):
         raise HTTPException(403, "삭제 권한이 없습니다")
     if p:
+        _label = "연구과제" if p.kind == "grant" else "프로젝트"
+        notify(db, recipients=_project_members(p), kind="project", title=f"{_label} 삭제",
+               body=f"{user.name}님이 '{p.title}' {_label}을(를) 삭제했습니다",
+               link="/grants" if p.kind == "grant" else "/projects", actor=user, ref_id=p.id)
         p.deleted_at = datetime.now(timezone.utc)
         db.commit()
 
@@ -138,6 +161,11 @@ def create_task(pid: str, body: schemas.TaskIn, user: CurrentUser = Depends(get_
         raise HTTPException(403, "과제 참여자만 업무를 등록할 수 있습니다")
     t = Task(project_id=pid, by_id=user.id, **body.model_dump())
     db.add(t)
+    db.flush()
+    if t.assignee_id:
+        notify(db, recipients=[t.assignee_id], kind="task", title="세부업무 배정",
+               body=f"{user.name}님이 '{t.title}' 업무를 회원님에게 배정했습니다", link="/projects",
+               actor=user, ref_id=t.id)
     db.commit()
     db.refresh(t)
     return t
@@ -151,8 +179,18 @@ def update_task(tid: str, body: schemas.TaskIn, user: CurrentUser = Depends(get_
     p = db.get(Project, t.project_id)
     if not (p and _can_manage_task(user, p, t)):
         raise HTTPException(403, "수정 권한이 없습니다")
+    prev_assignee = t.assignee_id
     for k, v in body.model_dump().items():
         setattr(t, k, v)
+    if t.assignee_id != prev_assignee:                        # 담당자 변경
+        if t.assignee_id:
+            notify(db, recipients=[t.assignee_id], kind="task", title="세부업무 배정",
+                   body=f"{user.name}님이 '{t.title}' 업무를 회원님에게 배정했습니다", link="/projects",
+                   actor=user, ref_id=t.id)
+        if prev_assignee:                                     # 기존 담당자에게 해제 통지
+            notify(db, recipients=[prev_assignee], kind="task", title="세부업무 담당 해제",
+                   body=f"{user.name}님이 '{t.title}' 업무 담당에서 회원님을 해제했습니다", link="/projects",
+                   actor=user, ref_id=t.id)
     db.commit()
     db.refresh(t)
     return t
@@ -166,6 +204,10 @@ def delete_task(tid: str, user: CurrentUser = Depends(get_current_user), db: Ses
     p = db.get(Project, t.project_id)
     if not (p and _can_manage_task(user, p, t)):
         raise HTTPException(403, "삭제 권한이 없습니다")
+    if t.assignee_id:
+        notify(db, recipients=[t.assignee_id], kind="task", title="세부업무 삭제",
+               body=f"{user.name}님이 회원님 담당 업무 '{t.title}'을(를) 삭제했습니다", link="/projects",
+               actor=user, ref_id=t.id)
     t.deleted_at = datetime.now(timezone.utc)
     db.commit()
 
@@ -304,7 +346,11 @@ def create_note(body: schemas.NotePageIn, user: CurrentUser = Depends(get_curren
         sibs = list(db.scalars(select(NotePage).where(NotePage.parent_id == data["parent_id"])))
         data["sort"] = (max((s.sort for s in sibs), default=0) + 1)
     p = NotePage(owner_id=user.id, updated_by=user.id, **data)
-    db.add(p); db.commit(); db.refresh(p)
+    db.add(p); db.flush()
+    notify(db, recipients=p.share_uids or [], kind="note", title="연구노트 공유",
+           body=f"{user.name}님이 연구노트 '{p.title}'을(를) 회원님과 공유했습니다", link="/notes",
+           actor=user, ref_id=p.id)
+    db.commit(); db.refresh(p)
     return p
 
 
@@ -315,9 +361,17 @@ def update_note(nid: str, body: schemas.NotePagePatch, user: CurrentUser = Depen
         raise HTTPException(404, "노트 없음")
     if not _note_can_edit(user, p):
         raise HTTPException(403, "수정 권한이 없습니다")
+    before = set(p.share_uids or [])
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(p, k, v)
     p.updated_by = user.id
+    after = set(p.share_uids or [])
+    notify(db, recipients=[u for u in after if u not in before], kind="note", title="연구노트 공유",
+           body=f"{user.name}님이 연구노트 '{p.title}'을(를) 회원님과 공유했습니다", link="/notes",
+           actor=user, ref_id=p.id)
+    notify(db, recipients=[u for u in before if u not in after], kind="note", title="연구노트 공유 해제",
+           body=f"{user.name}님이 연구노트 '{p.title}' 공유에서 회원님을 제외했습니다", link="/notes",
+           actor=user, ref_id=p.id)
     db.commit(); db.refresh(p)
     return p
 
@@ -329,6 +383,9 @@ def delete_note(nid: str, user: CurrentUser = Depends(get_current_user), db: Ses
         return
     if not _note_can_edit(user, p):
         raise HTTPException(403, "삭제 권한이 없습니다")
+    notify(db, recipients=p.share_uids or [], kind="note", title="연구노트 삭제",
+           body=f"{user.name}님이 공유 연구노트 '{p.title}'을(를) 삭제했습니다", link="/notes",
+           actor=user, ref_id=p.id)
     now = datetime.now(timezone.utc)
     ids = {nid}                                                    # 하위 트리 전체 소프트 삭제
     while True:

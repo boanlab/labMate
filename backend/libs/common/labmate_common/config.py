@@ -21,6 +21,11 @@ class Settings(BaseSettings):
 
     upload_dir: str = "/data/uploads"
 
+    # Web Push(VAPID) — 모든 서비스가 동일 키 공유. 미설정 시 푸시 비활성(인앱 알림은 정상).
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:admin@labmate.local"
+
     # 첫 배포 자동 관리자 시드(.env의 ADMIN_EMAIL/ADMIN_PASSWORD)
     admin_email: str = "labmate@kloud.zone"
     admin_password: str = "labmate123"

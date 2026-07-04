@@ -8,6 +8,9 @@ x-common-env: &common-env
   REFRESH_TOKEN_DAYS: "14"
   REDIS_URL: redis://redis:6379/0
   ENV: ${ENV:-development}
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@labmate.local}
 
 services:
   postgres:
