@@ -18,6 +18,17 @@ interface Log { id: string; att_id: string; target_uid: string; by_id: string; b
 interface Req { id: string; uid: string; date: string; check_in: string; check_out: string; requested_status: string; reason: string; status: string; decided_by: string; decided_at: string; decide_note: string; }
 
 const REQB: Record<string, string> = { "대기": "s-wait", "승인": "s-ok", "반려": "s-bad" };
+const PAGE = 10;
+function Pager({ page, max, set }: { page: number; max: number; set: (p: number) => void }) {
+  if (max <= 0) return null;
+  return (
+    <div className="pager" style={{ padding: 10 }}>
+      <button className="btn ghost sm" disabled={page === 0} onClick={() => set(page - 1)}>◀</button>
+      <span>{page + 1} / {max + 1}</span>
+      <button className="btn ghost sm" disabled={page >= max} onClick={() => set(page + 1)}>▶</button>
+    </div>
+  );
+}
 
 export default function AttendanceAdmin() {
   const { me } = useAuth();
@@ -30,6 +41,9 @@ export default function AttendanceAdmin() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [err, setErr] = useState("");
+  const [reqPage, setReqPage] = useState(0);
+  const [attPage, setAttPage] = useState(0);
+  const [logPage, setLogPage] = useState(0);
 
   const members = users.filter((u) => u.role !== "admin");
   const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
@@ -62,6 +76,10 @@ export default function AttendanceAdmin() {
   const logDate = (l: Log) => dateKST(l.at);
   const sortedLogs = [...logs].sort((a, b) => logDate(b).localeCompare(logDate(a)));
   const shownAtts = (from || to || uid) ? atts : atts.slice(0, 30);
+  const reqHist = reqs.filter((r) => r.status !== "대기");
+  const reqMax = Math.max(0, Math.ceil(reqHist.length / PAGE) - 1), reqPg = Math.min(reqPage, reqMax);
+  const attMax = Math.max(0, Math.ceil(shownAtts.length / PAGE) - 1), attPg = Math.min(attPage, attMax);
+  const logMax = Math.max(0, Math.ceil(sortedLogs.length / PAGE) - 1), logPg = Math.min(logPage, logMax);
 
   if (!isProf) {
     return (
@@ -99,13 +117,13 @@ export default function AttendanceAdmin() {
         </table>
       </div>
 
-      {reqs.filter((r) => r.status !== "대기").length > 0 && (
+      {reqHist.length > 0 && (
         <div className="card">
-          <div className="card-h"><b>정정 요청 처리 이력</b><span className="muted small">{reqs.filter((r) => r.status !== "대기").length}건</span></div>
+          <div className="card-h"><b>정정 요청 처리 이력</b><span className="muted small">{reqHist.length}건</span></div>
           <table className="tbl" data-testid="aa-req-history">
             <thead><tr><th>신청자</th><th>일자</th><th>요청 (상태 / 출근~퇴근)</th><th>사유</th><th>결과</th></tr></thead>
             <tbody>
-              {reqs.filter((r) => r.status !== "대기").map((r) => (
+              {reqHist.slice(reqPg * PAGE, reqPg * PAGE + PAGE).map((r) => (
                 <tr key={r.id}>
                   <td>{uname(r.uid)}</td>
                   <td>{r.date}</td>
@@ -116,6 +134,7 @@ export default function AttendanceAdmin() {
               ))}
             </tbody>
           </table>
+          <Pager page={reqPg} max={reqMax} set={setReqPage} />
         </div>
       )}
 
@@ -136,7 +155,7 @@ export default function AttendanceAdmin() {
         <table className="tbl" data-testid="aa-table">
           <thead><tr><th>일자</th><th>구성원</th><th>상태</th><th>출근</th><th>퇴근</th><th>근무</th><th>비고</th></tr></thead>
           <tbody>
-            {shownAtts.map((a) => (
+            {shownAtts.slice(attPg * PAGE, attPg * PAGE + PAGE).map((a) => (
               <tr key={a.id}>
                 <td>{a.date}{a.corrected && <span className="badge s-wait" style={{ marginLeft: 6 }}>보정</span>}</td>
                 <td><b>{uname(a.uid)}</b></td>
@@ -148,6 +167,7 @@ export default function AttendanceAdmin() {
             {!shownAtts.length && <tr><td colSpan={7} className="muted">근태 기록 없음</td></tr>}
           </tbody>
         </table>
+        <Pager page={attPg} max={attMax} set={setAttPage} />
       </div>
 
       <div className="card">
@@ -155,7 +175,7 @@ export default function AttendanceAdmin() {
         <table className="tbl" data-testid="aa-logs">
           <thead><tr><th>보정일</th><th>대상</th><th>보정자</th><th>변경 전 → 후</th><th>사유</th></tr></thead>
           <tbody>
-            {sortedLogs.slice(0, 30).map((l) => (
+            {sortedLogs.slice(logPg * PAGE, logPg * PAGE + PAGE).map((l) => (
               <tr key={l.id}>
                 <td className="small muted">{logDate(l) || "—"}</td>
                 <td>{uname(l.target_uid)}</td><td>{uname(l.by_id)}</td>
@@ -166,6 +186,7 @@ export default function AttendanceAdmin() {
             {!sortedLogs.length && <tr><td colSpan={5} className="muted">보정 이력 없음</td></tr>}
           </tbody>
         </table>
+        <Pager page={logPg} max={logMax} set={setLogPage} />
       </div>
     </div>
   );
