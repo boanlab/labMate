@@ -6,6 +6,7 @@ import { PageHeader, Card } from "../ui/kit";
 import { DataTable, Col } from "../ui/DataTable";
 import { confirmDialog } from "../ui/dialog";
 import { useConfig, names } from "../api/config";
+import { FIXED_KINDS, family, seriesOf } from "../lib/pubClass";
 
 interface PubFile { name: string; url: string; }
 interface Pub {
@@ -13,18 +14,8 @@ interface Pub {
   index_grade: string; authors: string; funding: string; status: string; pub_date: string | null; meta: any;
   abstract?: string; files?: PubFile[];
 }
-// 고정 실적 종류 6종 — 전용 양식(그 외는 기타 양식)
-const FIXED_KINDS = ["국제논문지", "국내논문지", "국제학술대회", "국내학술대회", "국제특허", "국내특허"];
 const KINDS_FB = [...FIXED_KINDS];
 
-// 실적 종류 → 양식 계열(고정 6종만 전용, 그 외 기타)
-function family(k: string): "논문" | "학술대회" | "특허" | "기타" {
-  if (/특허/.test(k)) return "특허";
-  if (/학술대회|학회/.test(k)) return "학술대회";
-  if (/논문|SCI|KCI/i.test(k)) return "논문";
-  return "기타";
-}
-function scopeOf(u: Pub) { return u.scope || "국외"; }
 // 실적 연도 = pub_date 연도. 비면 특허=등록번호, 학술대회=종료/시작일에서 보조 추출
 function yearOf(u: Pub) {
   const m = u.meta || {};
@@ -36,21 +27,6 @@ function yearOf(u: Pub) {
   }
   return (d || "").slice(0, 4) || "미상";
 }
-// 실적 → 고정 6종 라벨(커스텀은 그대로, 구 데이터는 6종 매핑)
-function seriesOf(u: Pub): string {
-  const k = u.kind || "";
-  if (FIXED_KINDS.includes(k)) return k;
-  const fam = family(k);
-  if (fam === "논문") {
-    const ix = u.index_grade || u.index_type || k;
-    return /SSCI|SCIE|SCI|SCOPUS|A&HCI/i.test(ix) ? "국제논문지" : "국내논문지";
-  }
-  const intl = scopeOf(u) === "국외" || /국제|국외|해외/.test(k);
-  if (fam === "학술대회") return intl ? "국제학술대회" : "국내학술대회";
-  if (fam === "특허") return intl ? "국제특허" : "국내특허";
-  return k;   // 기타(커스텀 종류)
-}
-
 // 실적 상세 항목 — [라벨, 값, span]. span: full/half/third
 type Span = "full" | "half" | "third";
 function pubRows(u: Pub): [string, any, Span][] {
