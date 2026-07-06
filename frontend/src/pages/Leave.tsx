@@ -50,9 +50,9 @@ export default function Leave() {
         await api.post("/boards/approvals", {
           type: "휴가",
           title: `휴가 신청 · ${form.type} (${form.start_date}~${form.end_date}, ${form.days}일)`,
-          doc: `<p>${form.reason || "(사유 없음)"}</p>`,
+          content: `<p>${form.reason || "(사유 없음)"}</p>`,
           approver_ids: [approver.id],
-          ref: `leave:${lv.id}`,
+          source_ref: `leave:${lv.id}`,
         });
       }
       setAdding(false); load();
