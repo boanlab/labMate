@@ -34,7 +34,25 @@ async def lifespan(app: FastAPI):
     rename_columns(engine, [
         ("publications", "sub", "index_type"),
     ])
+    _migrate_goal_keys(engine)
     yield
+
+
+def _migrate_goal_keys(engine) -> None:
+    """과제 목표 지표 키를 실적 분류 어휘로 통일(멱등) — SCI→국제논문지·KCI→국내논문지·국외특허→국제특허."""
+    import json
+    remap = {"SCI": "국제논문지", "KCI": "국내논문지", "국외특허": "국제특허"}
+    with engine.begin() as conn:
+        rows = conn.execute(text("SELECT id, goals FROM projects WHERE goals::text ~ 'SCI|KCI|국외특허'")).fetchall()
+        for rid, goals in rows:
+            if not goals:
+                continue
+            new: dict = {}
+            for k, v in goals.items():
+                nk = remap.get(k, k)
+                new[nk] = (new.get(nk, 0) or 0) + (v or 0)   # 대상 키 이미 있으면 합산
+            conn.execute(text("UPDATE projects SET goals = CAST(:g AS json) WHERE id = :id"),
+                         {"g": json.dumps(new, ensure_ascii=False), "id": rid})
 
 
 app = FastAPI(title="LabMate Projects Service", version="0.1.0", lifespan=lifespan)

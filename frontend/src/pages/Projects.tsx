@@ -8,6 +8,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, Chips, statusClass } from "../ui/kit";
 import { Gauge, HBars } from "../ui/Charts";
 import { useConfig, names } from "../api/config";
+import { FIXED_KINDS, seriesOf } from "../lib/pubClass";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface TFile { name: string; url: string; }
@@ -33,7 +34,6 @@ function pubShare(u: Pub): number {
 }
 
 const ACT_CATS_FB = ["과제", "연구", "세미나", "인프라", "기타"];
-const GOAL_INDICATORS = ["SCI", "KCI", "국제학술대회", "국내학술대회", "국내특허", "국외특허", "SW등록", "기술문서"];
 // 상태는 기간으로 자동 정의 — 시작 전: 예정 / 기간 중: 진행 중 / 종료 후: 완료
 function autoStatus(start: string, end: string): string {
   const today = todayKST();
@@ -63,12 +63,6 @@ const STC: Record<string, string> = { "예정": "#9aa3ad", "진행": "#3f5d7d", 
 const won = (x: any) => { const n = Number(String(x ?? "").replace(/[^0-9.]/g, "")); return n ? n.toLocaleString() : ""; };
 const fmtWon = (v: string) => { const n = String(v).replace(/[^0-9]/g, ""); return n ? Number(n).toLocaleString() : ""; };
 
-function pubMetric(p: Pub): string {
-  if (p.kind === "논문") { const ix = p.index_grade || p.index_type; return /SCI|SSCI|SCOPUS/i.test(ix) ? "SCI" : "KCI"; }
-  if (p.kind === "학술대회") return p.scope === "국외" ? "국제학술대회" : "국내학술대회";
-  if (p.kind === "특허") return p.scope === "국외" ? "국외특허" : "국내특허";
-  return p.kind;
-}
 
 // 모듈 레벨 정의 — 컴포넌트 내부면 매 렌더 새 타입으로 input 포커스 풀림
 const Field = ({ label, children, full, style }: any) => <div style={{ ...(full ? { gridColumn: "1 / -1" } : {}), ...style }}><label>{label}</label>{children}</div>;
@@ -101,6 +95,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const [kbMax, setKbMax] = useState(420);
   const AGENCIES = names(useConfig("agencies", ["NRF", "IITP", "KEIT", "KIAT", "지자체", "교내", "기타"]));
   const ACT_CATS = useConfig<string[]>("project_types", ACT_CATS_FB);
+  const PUB_KINDS = names(useConfig("pub_types", FIXED_KINDS));   // 목표 지표 = 실적 종류(실적 분류와 동일)
 
   const emptyForm = {
     code: "", name: "", category: isGrant ? "과제" : "연구", status: "진행 중", agency: "NRF", program: "",
@@ -260,7 +255,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   function goalBars(p: Project) {
     const g = p.goals || {};
     const counts: Record<string, number> = {};
-    pubs.filter((u) => pubFundsProject(u, p)).forEach((u) => { const mk = pubMetric(u); counts[mk] = (counts[mk] || 0) + pubShare(u); });
+    pubs.filter((u) => pubFundsProject(u, p)).forEach((u) => { const mk = seriesOf(u); counts[mk] = (counts[mk] || 0) + pubShare(u); });
     // 목표 미설정 지표도 실적 있으면 목표 0으로 표시(목표+실적 지표 합집합)
     const keys = Array.from(new Set([...Object.keys(g), ...Object.keys(counts)]));
     return keys.map((k) => {
@@ -545,7 +540,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
               </Field>
               {editId && <Field label="연구성과 목표 (지표별 목표 건수)" full style={{ marginTop: 14 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "4px 14px" }}>
-                  {GOAL_INDICATORS.map((ind) => (
+                  {PUB_KINDS.map((ind) => (
                     <div key={ind} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span className="small muted" style={{ width: 82, flexShrink: 0 }}>{ind}</span>
                       <input type="number" min={0} style={{ width: 62, margin: 0 }} value={form.goals[ind] ?? ""} onChange={(e) => setForm({ ...form, goals: { ...form.goals, [ind]: Number(e.target.value) } })} />
