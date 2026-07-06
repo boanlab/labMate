@@ -90,6 +90,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const [taskForm, setTaskForm] = useState<any | null>(null);
   const [allInfo, setAllInfo] = useState(false);
   const [filter, setFilter] = useState("진행 중");
+  const [q, setQ] = useState("");
   const [taskBody, setTaskBody] = useState("");
   const kanbanRef = useRef<HTMLDivElement>(null);
   const [kbMax, setKbMax] = useState(420);
@@ -274,7 +275,10 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const liveStatus = (p: Project) => isGrant
     ? grantAutoStatus(p.meta?.year_start || "", p.meta?.year_end || "", p.start || "", p.end || "")
     : autoStatus(p.start || "", p.end || "");
-  const shown = filter === "전체" ? items : items.filter((p) => liveStatus(p) === filter);
+  const ql = q.trim().toLowerCase();
+  const shown = items
+    .filter((p) => filter === "전체" || liveStatus(p) === filter)
+    .filter((p) => !ql || `${p.code} ${p.name} ${p.agency} ${p.program} ${uname(p.lead_id)} ${uname(p.pm_id)}`.toLowerCase().includes(ql));
   // 담당자·구성원 후보 — 기간 내 재직자. 수정 시 기존 담당자는 후보에서 빠져도 유지
   const memberOpts = users.filter((u) => u.role !== "admin" && memberInProjectPeriod(u, ...formPeriod(form, isGrant)));
   const pmOpts = (form.pm_id && !memberOpts.some((u) => u.id === form.pm_id) && users.find((u) => u.id === form.pm_id))
@@ -573,9 +577,10 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
           </div>
         </form>
       )}
-      <div style={{ marginBottom: 10 }}>
+      <div style={{ marginBottom: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <Chips testid="proj-filter" value={filter} onChange={setFilter}
           items={["진행 중", "예정", "완료", "전체"].map((f) => ({ key: f, count: f === "전체" ? items.length : items.filter((p) => liveStatus(p) === f).length }))} />
+        <input className="tsearch" data-testid="proj-search" placeholder={`${LABEL} 검색 (코드·명칭·기관·담당자)`} value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 280 }} />
       </div>
       <div className="card scroll">
         <table className="tbl" data-testid="project-table">
