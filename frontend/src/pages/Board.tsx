@@ -3,7 +3,7 @@ import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, AuthorMeta } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { richHtml } from "../ui/richHtml";
@@ -203,10 +203,10 @@ export default function Board() {
         <form className="card" onSubmit={add} data-testid="board-form">
           <div className="card-h"><b>{editId ? "게시물 수정" : "글쓰기"}</b></div>
           <div className="bd grid2">
-            <div style={{ gridColumn: "1 / -1" }}><label>제목</label><input data-testid="b-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label>제목<Req/></label><input data-testid="b-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div><label>분류</label><select data-testid="b-cat" value={form.cat} onChange={(e) => setForm({ ...form, cat: e.target.value })}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
             <div><label>공개 범위</label><select data-testid="b-minrole" value={form.min_role} onChange={(e) => setForm({ ...form, min_role: e.target.value })}>{MIN_ROLE_OPTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>본문</label><HtmlEditor value={body} onChange={setBody} testid="b-body" minHeight={200} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label>본문<Req/></label><HtmlEditor value={body} onChange={setBody} testid="b-body" minHeight={200} /></div>
             <div style={{ gridColumn: "1 / -1" }}><label>링크(선택)</label><input data-testid="b-link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label>첨부파일(선택)</label>

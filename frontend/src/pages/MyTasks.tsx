@@ -5,7 +5,7 @@ import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { alertDialog } from "../ui/dialog";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Chips } from "../ui/kit";
+import { PageHeader, Chips, Req } from "../ui/kit";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { todayKST } from "../lib/date";
 
@@ -122,17 +122,17 @@ export default function MyTasks() {
               </span>
             </div>
             <div className="modal-b">
-              <label>제목</label>
+              <label>제목<Req/></label>
               <input data-testid="mtf-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
               <div className="grid2">
                 <div><label>상태</label><select data-testid="mtf-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{["예정", "진행 중", "완료"].map((s) => <option key={s}>{s}</option>)}</select></div>
                 <div><label>실제 마감일 <span className="muted small">(완료 시 자동)</span></label><input type="date" value={form.done_date} onChange={(e) => setForm({ ...form, done_date: e.target.value })} /></div>
-                <div><label>시작일</label><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></div>
-                <div><label>마감일</label><input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} /></div>
+                <div><label>시작일<Req/></label><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></div>
+                <div><label>마감일<Req/></label><input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} /></div>
               </div>
               <label>링크 (선택)</label>
               <input type="url" placeholder="https://…" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
-              <label>내용</label>
+              <label>내용<Req/></label>
               <HtmlEditor value={body} onChange={setBody} testid="mtf-body" minHeight={120} />
               <label>첨부파일 (선택)</label>
               <input type="file" multiple onChange={uploadFiles} />

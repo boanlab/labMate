@@ -3,7 +3,7 @@ import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card } from "../ui/kit";
+import { PageHeader, Card, Req } from "../ui/kit";
 import { useConfig, names } from "../api/config";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
@@ -144,8 +144,8 @@ export default function Calendar() {
         <form className="card" onSubmit={save} data-testid="event-form">
           <div className="bd grid3">
             <div><label>구분</label><select data-testid="ev-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{EVTYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
-            <div style={{ gridColumn: "span 2" }}><label>제목</label><input data-testid="ev-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div><label>시작일</label><input data-testid="ev-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+            <div style={{ gridColumn: "span 2" }}><label>제목<Req/></label><input data-testid="ev-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+            <div><label>시작일<Req/></label><input data-testid="ev-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
             <div><label>종료일(선택)</label><input data-testid="ev-end" type="date" min={form.date} value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></div>
             <div><label>시간(선택)</label><input data-testid="ev-time" type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
