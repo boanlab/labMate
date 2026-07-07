@@ -141,6 +141,9 @@ export default function Approvals() {
   async function undo(a: Appr) {
     try {
       const upd = (await api.post<Appr>(`/boards/approvals/${a.id}/undo`, {})).data;
+      if (upd.source_ref?.startsWith("leave:")) {   // 연결 휴가를 대기로 되돌림(캘린더에서 제거)
+        try { await api.post(`/attendance/leaves/${upd.source_ref.slice(6)}/reopen`); } catch { /* 무시 */ }
+      }
       setViewing((v) => (v && v.id === a.id ? upd : v));   // 팝업 갱신 → 진행 상태로 재결재
       load();
     } catch (e) { setErr(apiError(e)); }
