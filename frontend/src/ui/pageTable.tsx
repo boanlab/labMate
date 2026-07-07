@@ -5,9 +5,10 @@ import { RefObject, useEffect, useState } from "react";
 // wrapRef: 테이블 래퍼(thead/tbody 포함) div. dep: 목록 길이 등 재계산 트리거.
 // 페이저 + 카드 하단 margin(10) + .content 하단 패딩(16) + 안전 여백을 아래로 예약.
 const BOTTOM_RESERVE = 116;
-export function useAutoPageSize(wrapRef: RefObject<HTMLElement>, dep: number): number {
+export function useAutoPageSize(wrapRef: RefObject<HTMLElement>, dep: number, enabled = true): number {
   const [size, setSize] = useState(10);
   useEffect(() => {
+    if (!enabled) return;
     const calc = () => {
       const el = wrapRef.current;
       if (!el) return;
@@ -30,7 +31,7 @@ export function useAutoPageSize(wrapRef: RefObject<HTMLElement>, dep: number): n
     ro.observe(document.body);
     return () => { cancelAnimationFrame(raf); clearTimeout(t); window.removeEventListener("resize", calc); ro.disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dep]);
+  }, [dep, enabled]);
   return size;
 }
 
