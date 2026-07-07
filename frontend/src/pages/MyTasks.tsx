@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
+import { alertDialog } from "../ui/dialog";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Chips } from "../ui/kit";
@@ -65,6 +66,11 @@ export default function MyTasks() {
   }
   async function save(e: React.FormEvent) {
     e.preventDefault(); if (!form) return;
+    if (!form.title.trim()) return alertDialog("업무 제목을 입력하세요");
+    if (!form.assignee_id) return alertDialog("담당자를 선택하세요");
+    if (!form.start) return alertDialog("시작일을 입력하세요");
+    if (!form.due) return alertDialog("마감일을 입력하세요");
+    if (!body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return alertDialog("내용을 입력하세요");
     const done_date = (form.done_date || (form.status === "완료" ? todayKST() : "")) || null;
     const payload = { title: form.title, assignee_id: form.assignee_id, status: form.status, start: form.start || null, due: form.due || null, done_date, body, link: form.link, files: form.files || [] };
     try { await api.patch(`/projects/tasks/${form.id}`, payload); setForm(null); load(); }

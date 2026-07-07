@@ -55,6 +55,8 @@ export default function Notices() {
   }
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
+    if (!form.title.trim()) return setErr("제목을 입력하세요");
+    if (!body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return setErr("내용을 입력하세요");
     const payload = {
       title: form.title, body, required: form.required, due: form.due || null,
       link: form.link, files: form.files, target_user_ids: form.targetMode === "select" ? form.target_user_ids : [],

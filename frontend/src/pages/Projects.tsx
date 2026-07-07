@@ -176,6 +176,19 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
 
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
+    if (isGrant) {
+      if (!form.name.trim()) return setErr("과제명을 입력하세요");
+      if (!form.agency.trim()) return setErr("전담기관을 입력하세요");
+      if (!form.program.trim()) return setErr("사업명을 입력하세요");
+      if (!form.year_start || !form.year_end) return setErr("해당 연도 기간(시작·종료)을 입력하세요");
+      if (!form.host_org.trim()) return setErr("주관기관을 입력하세요");
+      if (!form.host_pi.trim()) return setErr("주관기관 연구책임자를 입력하세요");
+    } else {
+      if (!form.name.trim()) return setErr("프로젝트명을 입력하세요");
+      if (!form.pm_id) return setErr("담당자를 선택하세요");
+      if (!form.start) return setErr("시작일을 입력하세요");
+      if (!form.end) return setErr("종료일을 입력하세요");
+    }
     const piId = profUser?.id || "";
     const payload = isGrant ? {
       kind: "grant", code: form.code, name: form.name, category: "과제", status: grantAutoStatus(form.year_start, form.year_end, form.start, form.end),
@@ -230,6 +243,11 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   }
   async function saveTask(e: React.FormEvent) {
     e.preventDefault(); if (!open || !taskForm) return;
+    if (!taskForm.title.trim()) return alertDialog("업무 제목을 입력하세요");
+    if (!taskForm.assignee_id) return alertDialog("담당자를 선택하세요");
+    if (!taskForm.start) return alertDialog("시작일을 입력하세요");
+    if (!taskForm.due) return alertDialog("마감일을 입력하세요");
+    if (!taskBody.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return alertDialog("내용을 입력하세요");
     // 실제 마감일: 입력값 우선, 미입력+완료면 오늘 자동
     const done_date = (taskForm.done_date || (taskForm.status === "완료" ? todayKST() : "")) || null;
     const payload = { title: taskForm.title, assignee_id: taskForm.assignee_id, status: taskForm.status, start: taskForm.start || null, due: taskForm.due || null, done_date, body: taskBody, link: taskForm.link, files: taskForm.files || [] };

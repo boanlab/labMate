@@ -107,6 +107,8 @@ export default function Calendar() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
+    if (!form.title.trim()) return setErr("제목을 입력하세요");
+    if (!form.date) return setErr("시작일을 입력하세요");
     const payload = { title: form.title, date: form.date, end_date: form.end && form.end > form.date ? form.end : null, time: form.time, type: form.type, scope: form.scope, detail, link: form.link, repeat: form.repeat, until: form.until || null, attendees: form.scope === "구성원 선택" ? form.attendees : [] };
     try {
       if (form.id) await api.put(`/boards/events/${form.id}`, payload);
