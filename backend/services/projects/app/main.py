@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
         conn.execute(text("ALTER TABLE note_pages ADD COLUMN IF NOT EXISTS share_uids JSON DEFAULT '[]'::json"))
         conn.execute(text("ALTER TABLE archive_pages ADD COLUMN IF NOT EXISTS updated_by VARCHAR(32) DEFAULT ''"))
         conn.execute(text("ALTER TABLE note_pages ADD COLUMN IF NOT EXISTS updated_by VARCHAR(32) DEFAULT ''"))
+        conn.execute(text("UPDATE tasks SET status='진행 중' WHERE status='진행'"))   # 세부업무 상태를 프로젝트와 통일(진행→진행 중)
     rename_columns(engine, [
         ("publications", "sub", "index_type"),
     ])

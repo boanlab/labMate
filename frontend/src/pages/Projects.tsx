@@ -59,7 +59,7 @@ function memberInProjectPeriod(u: any, start: string, end: string): boolean {
   if (start && xd && xd < start) return false;
   return true;
 }
-const STC: Record<string, string> = { "예정": "#9aa3ad", "진행": "#3f5d7d", "완료": "#2e9e6b" };
+const STC: Record<string, string> = { "예정": "#9aa3ad", "진행 중": "#3f5d7d", "완료": "#2e9e6b" };
 const won = (x: any) => { const n = Number(String(x ?? "").replace(/[^0-9.]/g, "")); return n ? n.toLocaleString() : ""; };
 const fmtWon = (v: string) => { const n = String(v).replace(/[^0-9]/g, ""); return n ? Number(n).toLocaleString() : ""; };
 
@@ -285,7 +285,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
     ? [users.find((u) => u.id === form.pm_id)!, ...memberOpts] : memberOpts;
 
   if (open) {
-    const cols = ["예정", "진행", "완료"];
+    const cols = ["예정", "진행 중", "완료"];
     const m = open.meta || {};
     return (
       <div data-testid="page-project-detail">
@@ -439,7 +439,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
                 <label>제목</label>
                 <input data-testid="tf-title" value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} required />
                 <div className="grid2">
-                  <div><label>상태</label><select value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}>{["예정", "진행", "완료"].map((s) => <option key={s}>{s}</option>)}</select></div>
+                  <div><label>상태</label><select value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}>{["예정", "진행 중", "완료"].map((s) => <option key={s}>{s}</option>)}</select></div>
                   <div><label>담당자</label><select value={taskForm.assignee_id} onChange={(e) => setTaskForm({ ...taskForm, assignee_id: e.target.value })}><option value="">미지정</option>{users.filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
                   <div><label>시작일</label><input type="date" min={open.start || undefined} max={taskForm.due || open.end || undefined} value={taskForm.start} onChange={(e) => setTaskForm({ ...taskForm, start: e.target.value })} /></div>
                   <div><label>마감일</label><input type="date" min={taskForm.start || open.start || undefined} max={open.end || undefined} value={taskForm.due} onChange={(e) => setTaskForm({ ...taskForm, due: e.target.value })} /></div>

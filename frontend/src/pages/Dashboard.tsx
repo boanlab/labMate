@@ -367,7 +367,7 @@ export default function Dashboard() {
           <Card title="세부 업무 현황" extra={<span className="muted small">내 업무 {myTasks.length}건</span>} testid="dash-tasks">
             <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 16px", marginBottom: 8 }}>
               <span className="small"><b style={{ color: "#9aa3ad" }}>●</b> 예정 <b>{taskCount["예정"] || 0}</b></span>
-              <span className="small"><b style={{ color: "#3f5d7d" }}>●</b> 진행 <b>{taskCount["진행"] || 0}</b></span>
+              <span className="small"><b style={{ color: "#3f5d7d" }}>●</b> 진행 중 <b>{taskCount["진행 중"] || 0}</b></span>
               <span className="small"><b style={{ color: "#2e9e6b" }}>●</b> 완료 <b>{taskCount["완료"] || 0}</b></span>
               {overdueTasks.length > 0 && <span className="small"><b style={{ color: "var(--bad)" }}>●</b> 지연 <b>{overdueTasks.length}</b></span>}
             </div>

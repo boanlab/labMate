@@ -178,7 +178,7 @@ export default function Meetings() {
                       <td style={{ whiteSpace: "normal", textDecoration: done ? "line-through" : "none", color: done ? "var(--sub)" : "inherit" }}>{a.title || "—"}</td>
                       <td className="small muted">{a.assignee_id ? uname(a.assignee_id) : "미정"}</td>
                       <td className="small muted">{a.due || "—"}</td>
-                      <td className="small">{a.task_id ? (linked ? <span className={"badge " + (linked.status === "완료" ? "s-ok" : linked.status === "진행" ? "s-info" : "s-mute")}>{linked.status}</span> : <span className="muted">삭제됨</span>) : <span className="muted">—</span>}</td>
+                      <td className="small">{a.task_id ? (linked ? <span className={"badge " + (linked.status === "완료" ? "s-ok" : linked.status === "진행 중" ? "s-info" : "s-mute")}>{linked.status}</span> : <span className="muted">삭제됨</span>) : <span className="muted">—</span>}</td>
                     </tr>
                   );
                 })}
