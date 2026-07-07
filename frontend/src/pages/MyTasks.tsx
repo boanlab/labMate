@@ -67,7 +67,6 @@ export default function MyTasks() {
   async function save(e: React.FormEvent) {
     e.preventDefault(); if (!form) return;
     if (!form.title.trim()) return alertDialog("업무 제목을 입력하세요");
-    if (!form.assignee_id) return alertDialog("담당자를 선택하세요");
     if (!form.start) return alertDialog("시작일을 입력하세요");
     if (!form.due) return alertDialog("마감일을 입력하세요");
     if (!body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return alertDialog("내용을 입력하세요");
