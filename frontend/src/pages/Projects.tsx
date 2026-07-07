@@ -244,7 +244,6 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   async function saveTask(e: React.FormEvent) {
     e.preventDefault(); if (!open || !taskForm) return;
     if (!taskForm.title.trim()) return alertDialog("업무 제목을 입력하세요");
-    if (!taskForm.assignee_id) return alertDialog("담당자를 선택하세요");
     if (!taskForm.start) return alertDialog("시작일을 입력하세요");
     if (!taskForm.due) return alertDialog("마감일을 입력하세요");
     if (!taskBody.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return alertDialog("내용을 입력하세요");
@@ -466,7 +465,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
                 <input data-testid="tf-title" value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} required />
                 <div className="grid2">
                   <div><label>상태</label><select value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}>{["예정", "진행 중", "완료"].map((s) => <option key={s}>{s}</option>)}</select></div>
-                  <div><label>담당자<Req/></label><select value={taskForm.assignee_id} onChange={(e) => setTaskForm({ ...taskForm, assignee_id: e.target.value })}><option value="">미지정</option>{users.filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+                  <div><label>담당자</label><select value={taskForm.assignee_id} onChange={(e) => setTaskForm({ ...taskForm, assignee_id: e.target.value })}><option value="">미지정</option>{users.filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
                   <div><label>시작일<Req/></label><input type="date" min={open.start || undefined} max={taskForm.due || open.end || undefined} value={taskForm.start} onChange={(e) => setTaskForm({ ...taskForm, start: e.target.value })} /></div>
                   <div><label>마감일<Req/></label><input type="date" min={taskForm.start || open.start || undefined} max={open.end || undefined} value={taskForm.due} onChange={(e) => setTaskForm({ ...taskForm, due: e.target.value })} /></div>
                   <div><label>실제 마감일 <span className="muted small">(완료 시 자동)</span></label><input type="date" data-testid="tf-donedate" value={taskForm.done_date} onChange={(e) => setTaskForm({ ...taskForm, done_date: e.target.value })} /></div>
