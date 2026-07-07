@@ -139,7 +139,8 @@ export default function Expenses() {
   const q = query.trim().toLowerCase();
   const matchQ = (x: Exp) => !q || [code(x.project_id), x.category, x.subcategory, x.title, uname(x.by_id), x.claim_date, String(x.amount)].some((v) => (v || "").toLowerCase().includes(q));
   const base = items.filter((x) => (!filterPid || x.project_id === filterPid) && matchQ(x));
-  const shown = base.filter((x) => statusFilter === "전체" || statusOf(x.project_id) === statusFilter);
+  const shown = base.filter((x) => statusFilter === "전체" || statusOf(x.project_id) === statusFilter)
+    .sort((a, b) => (b.claim_date || "").localeCompare(a.claim_date || ""));   // 집행일자 최신순
   const statusCount = (t: string) => t === "전체" ? base.length : base.filter((x) => statusOf(x.project_id) === t).length;
   const total = shown.reduce((a, x) => a + x.amount, 0);
 
