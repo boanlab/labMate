@@ -93,7 +93,17 @@ export default function Calendar() {
       setItems(out);
     } catch (e) { setErr(apiError(e)); }
   }
-  useEffect(() => { load(); api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {}); }, []);
+  useEffect(() => {
+    load();
+    api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {});
+    // 탭 복귀·포커스 시 재조회 — 휴가 승인/취소 등 외부 변경을 실시간 반영
+    const onFocus = () => load();
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    return () => { window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVis); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
