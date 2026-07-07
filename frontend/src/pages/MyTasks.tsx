@@ -11,14 +11,14 @@ interface TFile { name: string; url: string; }
 interface Task { id: string; project_id: string; title: string; by_id?: string; assignee_id: string; status: string; start: string | null; due: string | null; done_date?: string | null; body: string; link?: string; files?: TFile[]; }
 interface Proj { id: string; kind: string; code: string; name: string; }
 
-const STC: Record<string, string> = { "예정": "#9aa3ad", "진행": "#3f5d7d", "완료": "#2e9e6b" };
+const STC: Record<string, string> = { "예정": "#9aa3ad", "진행 중": "#3f5d7d", "완료": "#2e9e6b" };
 
 export default function MyTasks() {
   const { me } = useAuth();
   const nav = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projs, setProjs] = useState<Proj[]>([]);
-  const [filter, setFilter] = useState("진행");   // 기본: 진행 중
+  const [filter, setFilter] = useState("진행 중");   // 기본: 진행 중
   const [q, setQ] = useState("");
   const [form, setForm] = useState<any | null>(null);
   const [body, setBody] = useState("");
@@ -70,7 +70,7 @@ export default function MyTasks() {
       {err && <div className="form-err">{err}</div>}
       <div style={{ marginBottom: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <Chips testid="task-filter" value={filter} onChange={setFilter}
-          items={["진행", "예정", "완료", "전체"].map((f) => ({ key: f, label: f === "진행" ? "진행 중" : f, count: count(f) }))} />
+          items={["진행 중", "예정", "완료", "전체"].map((f) => ({ key: f, count: count(f) }))} />
         <input className="tsearch" data-testid="task-search" placeholder="업무·과제 검색" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 260 }} />
       </div>
       <div className="card scroll">
@@ -87,7 +87,7 @@ export default function MyTasks() {
                     <div className="muted small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p?.name}>{p?.name || ""}</div>
                   </td>
                   <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.title}>{t.title}</td>
-                  <td><span className="badge" style={{ background: (STC[t.status] || "#5a6478") + "1f", color: STC[t.status] || "#5a6478" }}>{t.status === "진행" ? "진행 중" : t.status}</span></td>
+                  <td><span className="badge" style={{ background: (STC[t.status] || "#5a6478") + "1f", color: STC[t.status] || "#5a6478" }}>{t.status}</span></td>
                   <td>{t.due ? <span className={"small " + (late ? "badge s-bad" : "")}>{t.due}</span> : <span className="muted small">—</span>}</td>
                 </tr>
               );
@@ -110,7 +110,7 @@ export default function MyTasks() {
               <label>제목</label>
               <input data-testid="mtf-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
               <div className="grid2">
-                <div><label>상태</label><select data-testid="mtf-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{["예정", "진행", "완료"].map((s) => <option key={s} value={s}>{s === "진행" ? "진행 중" : s}</option>)}</select></div>
+                <div><label>상태</label><select data-testid="mtf-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{["예정", "진행 중", "완료"].map((s) => <option key={s}>{s}</option>)}</select></div>
                 <div><label>실제 마감일 <span className="muted small">(완료 시 자동)</span></label><input type="date" value={form.done_date} onChange={(e) => setForm({ ...form, done_date: e.target.value })} /></div>
                 <div><label>시작일</label><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></div>
                 <div><label>마감일</label><input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} /></div>
