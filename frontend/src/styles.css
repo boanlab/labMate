@@ -161,6 +161,10 @@ body.dark .kpi.k-red { background: #2c1816; border-color: #4f2e2a; } body.dark .
 .tbl { width: 100%; border-collapse: collapse; min-width: 480px; }
 .tbl th, .tbl td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line2); font-size: 13.5px; white-space: nowrap; }
 .tbl td { line-height: 1.55; }
+/* 반응형 고정 레이아웃: 컬럼을 지정 폭 비율대로 배분하고, 넘치는 내용은 말줄임(...).
+   브라우저 폭이 줄어도 컬럼이 사라지지 않고(가로 스크롤 대신) 폭에 맞춰 줄어듦. 고정 폭 컬럼(상태 등)은 그대로 유지. */
+.tbl.fit { table-layout: fixed; min-width: 0; }
+.tbl.fit th, .tbl.fit td { overflow: hidden; text-overflow: ellipsis; }
 /* 남는 폭 흡수 후 초과분 자동 말줄임(브라우저 폭 반응) */
 .tbl td.ell { width: 100%; max-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* 학생별 과제 지급 팝업 — 14열(관리코드+12개월+합계)을 한 팝업에 담기 위한 콤팩트 표 */
@@ -277,6 +281,8 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 /* 모바일 상단바/드로어 */
 .backdrop { display: none; }
 .hamburger { display: inline-block; background: transparent; border: none; color: #fff; font-size: 21px; line-height: 1; padding: 4px 8px; cursor: pointer; }
+/* 폰(≤560px): 반응형 표에서 우선순위 낮은 컬럼 숨김 — 핵심 컬럼(제목·상태 등)이 뭉개지지 않도록 */
+@media (max-width: 560px) { .hide-sm { display: none !important; } }
 /* 데스크탑: 사이드바 접기 */
 @media (min-width: 861px) {
   .appshell.sidebar-collapsed .side { display: none; }
@@ -302,6 +308,7 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
   .appbar-r { gap: 6px; }
   .callayout { grid-template-columns: 1fr; }
   .card { overflow-x: auto; }                 /* 넓은 표는 카드 안에서 가로 스크롤(페이지 가로 스크롤 방지) */
+  .tbl.fit th, .tbl.fit td { padding-left: 8px; padding-right: 8px; }   /* 모바일: 반응형 표 여백 축소로 컬럼 폭 확보 */
   .cal { min-width: 540px; }                  /* 7열 캘린더는 카드 내 가로 스크롤 */
   .cal .day { min-height: 64px; }
   .rackrow { display: flex; overflow-x: auto; gap: 12px; max-height: 62vh; padding-bottom: 6px; }

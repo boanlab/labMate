@@ -99,10 +99,10 @@ export default function Leave() {
             {(from || to) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); }}>초기화</button> : <span className="muted small">{shownMine.length}건</span>}
           </span>
         </div>
-        <table className="tbl" data-testid="leave-table">
-          <thead><tr><th>종류</th><th>기간</th><th>일수</th><th>사유</th><th>신청일</th><th>상태</th><th>승인자</th></tr></thead>
+        <table className="tbl fit" data-testid="leave-table">
+          <thead><tr><th className="hide-sm" style={{ width: 84 }}>종류</th><th>기간</th><th className="hide-sm" style={{ width: 60 }}>일수</th><th className="hide-sm">사유</th><th className="hide-sm" style={{ width: 92 }}>신청일</th><th style={{ width: 78 }}>상태</th><th className="hide-sm" style={{ width: 84 }}>승인자</th></tr></thead>
           <tbody>
-            {mineView.map((l) => <tr key={l.id}><td>{l.type}</td><td>{l.start_date}~{l.end_date}</td><td>{l.days}일</td><td className="muted">{l.reason}</td><td className="muted small">{dateKST(l.created_at) || "—"}</td><td><span className={"badge " + (SB[l.status] || "s-mute")}>{l.status}</span></td><td className="muted">{l.status === "승인" || l.status === "반려" ? uname(l.approver_id || "") : "—"}</td></tr>)}
+            {mineView.map((l) => <tr key={l.id}><td className="hide-sm">{l.type}</td><td>{l.start_date}~{l.end_date}</td><td className="hide-sm">{l.days}일</td><td className="muted hide-sm">{l.reason}</td><td className="muted small hide-sm">{dateKST(l.created_at) || "—"}</td><td><span className={"badge " + (SB[l.status] || "s-mute")}>{l.status}</span></td><td className="muted hide-sm">{l.status === "승인" || l.status === "반려" ? uname(l.approver_id || "") : "—"}</td></tr>)}
             {!shownMine.length && <tr><td colSpan={7} className="muted">{(from || to) ? "해당 기간 신청 내역 없음" : "신청 내역 없음"}</td></tr>}
           </tbody>
         </table>

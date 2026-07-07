@@ -271,8 +271,8 @@ export default function Approvals() {
       {isApprover && (
         <div className="card">
           <div className="card-h"><b>결재 수신함</b></div>
-          <table className="tbl" data-testid="appr-inbox">
-            <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>기안자</th><th>상신일</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
+          <table className="tbl fit" data-testid="appr-inbox">
+            <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 90 }}>기안자</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 96 }}>처리</th></tr></thead>
             <tbody>
               {inView.map((a) => {
                 const idx = currentIdx(a.steps);
@@ -280,11 +280,11 @@ export default function Approvals() {
                 const iAmPending = a.steps.some((s) => s.uid === me?.id && !s.decision);
                 return (
                   <tr key={a.id}>
-                    <td>{a.doc_no}</td><td style={{ maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis" }} title={a.type}>{a.type}</td>
-                    <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={a.title}><a className="lnk" onClick={() => setViewing(a)}>{a.title}</a></td>
-                    <td>{uname(a.by_id)}</td>
-                    <td className="muted small">{dateKST(a.created_at) || "—"}</td>
-                    <td className="muted small" style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={lineSummary(a)}>{lineSummary(a)}</td>
+                    <td className="hide-sm">{a.doc_no}</td><td title={a.type}>{a.type}</td>
+                    <td title={a.title}><a className="lnk" onClick={() => setViewing(a)}>{a.title}</a></td>
+                    <td className="hide-sm">{uname(a.by_id)}</td>
+                    <td className="muted small hide-sm">{dateKST(a.created_at) || "—"}</td>
+                    <td className="muted small hide-sm" title={lineSummary(a)}>{lineSummary(a)}</td>
                     <td><span className={"badge " + (SBADGE[a.status] || "s-mute")}>{a.status}</span></td>
                     <td>{a.status === "진행" && iAmPending ? (myTurn ? (<>
                       <button className="btn ghost sm" data-testid={`a-approve-${a.id}`} onClick={() => decide(a, "승인")}>승인</button>{" "}
@@ -302,16 +302,16 @@ export default function Approvals() {
 
       <div className="card">
         <div className="card-h"><b>내 상신함</b></div>
-        <table className="tbl" data-testid="appr-mine">
-          <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>상신일</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
+        <table className="tbl fit" data-testid="appr-mine">
+          <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 96 }}>처리</th></tr></thead>
           <tbody>
             {mineView.map((a) => {
               const started = a.steps.some((s) => s.decision);
               return (
                 <tr key={a.id}>
-                  <td>{a.doc_no}</td><td style={{ maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis" }} title={a.type}>{a.type}</td><td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={a.title}>{a.title}</td>
-                  <td className="muted small">{dateKST(a.created_at) || "—"}</td>
-                  <td className="muted small" style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={lineSummary(a)}>{lineSummary(a)}</td>
+                  <td className="hide-sm">{a.doc_no}</td><td title={a.type}>{a.type}</td><td title={a.title}>{a.title}</td>
+                  <td className="muted small hide-sm">{dateKST(a.created_at) || "—"}</td>
+                  <td className="muted small hide-sm" title={lineSummary(a)}>{lineSummary(a)}</td>
                   <td><span className={"badge " + (SBADGE[a.status] || "s-mute")}>{a.status}</span></td>
                   <td>
                     <button className="btn ghost sm" data-testid={`a-view-${a.id}`} onClick={() => setViewing(a)}>문서</button>{" "}

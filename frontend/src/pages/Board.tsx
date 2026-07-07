@@ -237,16 +237,16 @@ export default function Board() {
       <div className="tbar" style={{ marginBottom: 8 }}><input className="tsearch" data-testid="board-search" placeholder="제목·내용·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{filtered.length}건</span></div>
       <Card pad={false}>
         <div ref={listRef}>
-        <table className="tbl" data-testid="board-table">
-          <thead><tr><th>분류</th><th>제목</th><th>작성자</th><th>작성일</th><th>댓글</th><th>조회</th></tr></thead>
+        <table className="tbl fit" data-testid="board-table">
+          <thead><tr><th style={{ width: 78 }}>분류</th><th>제목</th><th className="hide-sm" style={{ width: 88 }}>작성자</th><th style={{ width: 96 }}>작성일</th><th className="hide-sm" style={{ width: 52 }}>댓글</th><th className="hide-sm" style={{ width: 52 }}>조회</th></tr></thead>
           <tbody>
             {view.map((p) => (
               <tr key={p.id}>
                 <td><span className={"badge " + (CBADGE[p.cat] || "s-mute")}>{p.cat}</span></td>
                 <td><a style={{ cursor: "pointer", fontWeight: 600 }} data-testid={`post-open-${p.id}`} onClick={() => openPost(p)}>{p.title}</a>{p.min_role ? <span className="badge s-wait" style={{ marginLeft: 6 }} title={minRoleLabel(p.min_role)}>🔒 {minRoleLabel(p.min_role)}</span> : null}<div className="muted small">{stripHtml(p.body)}</div></td>
-                <td className="small muted">{uname(p.by_id)}</td>
+                <td className="small muted hide-sm">{uname(p.by_id)}</td>
                 <td className="small muted">{p.created_at ? dateKST(p.created_at) : "—"}</td>
-                <td>{p.comments?.length || 0}</td><td>{p.views}</td>
+                <td className="hide-sm">{p.comments?.length || 0}</td><td className="hide-sm">{p.views}</td>
               </tr>
             ))}
             {!filtered.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 18 }}>게시글 없음</td></tr>}

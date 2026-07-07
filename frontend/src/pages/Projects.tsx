@@ -608,17 +608,17 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
         <input className="tsearch" data-testid="proj-search" placeholder={`${LABEL} 검색 (코드·명칭·기관·담당자)`} value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 280 }} />
       </div>
       <div className="card scroll" ref={listRef}>
-        <table className="tbl" data-testid="project-table">
+        <table className="tbl fit" data-testid="project-table">
           {isGrant
-            ? <thead><tr><th>관리코드</th><th>과제명</th><th>전담기관</th><th>사업명</th><th>기간</th><th>상태</th></tr></thead>
-            : <thead><tr><th>관리코드</th><th>명칭</th><th>분류</th><th>담당자</th><th>기간</th><th>상태</th></tr></thead>}
+            ? <thead><tr><th style={{ width: 116 }}>관리코드</th><th>과제명</th><th className="hide-sm" style={{ width: 92 }}>전담기관</th><th className="hide-sm" style={{ width: 190 }}>사업명</th><th className="hide-sm" style={{ width: 140 }}>기간</th><th style={{ width: 78 }}>상태</th></tr></thead>
+            : <thead><tr><th style={{ width: 116 }}>관리코드</th><th>명칭</th><th className="hide-sm" style={{ width: 92 }}>분류</th><th className="hide-sm" style={{ width: 96 }}>담당자</th><th className="hide-sm" style={{ width: 140 }}>기간</th><th style={{ width: 78 }}>상태</th></tr></thead>}
           <tbody>
             {view.map((p) => (
               <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => openDetail(p)}>
                 <td><a style={{ cursor: "pointer", fontWeight: 700 }} data-testid={`proj-open-${p.code}`} onClick={(e) => { e.stopPropagation(); openDetail(p); }}>{p.code}</a></td>
-                <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={p.name}>{p.name}</td>
-                {isGrant ? <><td>{p.agency || "—"}</td><td style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }} title={p.program || ""}>{p.program || "—"}</td></> : <><td>{p.category}</td><td>{uname(p.pm_id)}</td></>}
-                <td className="small muted">{p.start || "—"}{p.end ? ` ~ ${p.end}` : ""}</td>
+                <td title={p.name}>{p.name}</td>
+                {isGrant ? <><td className="hide-sm">{p.agency || "—"}</td><td className="hide-sm" title={p.program || ""}>{p.program || "—"}</td></> : <><td className="hide-sm">{p.category}</td><td className="hide-sm">{uname(p.pm_id)}</td></>}
+                <td className="small muted hide-sm">{p.start || "—"}{p.end ? ` ~ ${p.end}` : ""}</td>
                 <td><span className={statusClass(liveStatus(p))}>{liveStatus(p)}</span></td>
               </tr>
             ))}

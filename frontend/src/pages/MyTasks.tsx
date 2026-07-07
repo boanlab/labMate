@@ -87,8 +87,8 @@ export default function MyTasks() {
         <input className="tsearch" data-testid="task-search" placeholder="업무·과제 검색" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 260 }} />
       </div>
       <div className="card scroll" ref={listRef}>
-        <table className="tbl" data-testid="mytasks-table" style={{ tableLayout: "fixed", width: "100%" }}>
-          <thead><tr><th style={{ width: 200 }}>과제 · 프로젝트</th><th>업무</th><th style={{ width: 72 }}>상태</th><th style={{ width: 116 }}>마감</th></tr></thead>
+        <table className="tbl fit" data-testid="mytasks-table">
+          <thead><tr><th style={{ width: 118 }}>과제 · 프로젝트</th><th>업무</th><th style={{ width: 72 }}>상태</th><th className="hide-sm" style={{ width: 100 }}>마감</th></tr></thead>
           <tbody>
             {view.map((t) => {
               const p = projOf(t.project_id);
@@ -101,7 +101,7 @@ export default function MyTasks() {
                   </td>
                   <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.title}>{t.title}</td>
                   <td><span className="badge" style={{ background: (STC[t.status] || "#5a6478") + "1f", color: STC[t.status] || "#5a6478" }}>{t.status}</span></td>
-                  <td>{t.due ? <span className={"small " + (late ? "badge s-bad" : "")}>{t.due}</span> : <span className="muted small">—</span>}</td>
+                  <td className="hide-sm">{t.due ? <span className={"small " + (late ? "badge s-bad" : "")}>{t.due}</span> : <span className="muted small">—</span>}</td>
                 </tr>
               );
             })}
