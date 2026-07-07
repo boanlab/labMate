@@ -62,7 +62,6 @@ export default function Board() {
   async function add(e: React.FormEvent) {
     e.preventDefault(); setErr("");
     if (!form.title.trim()) return setErr("제목을 입력하세요");
-    if (!body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return setErr("내용을 입력하세요");
     try {
       if (editId) await api.put(`/boards/posts/${editId}`, { ...form, body });
       else await api.post("/boards/posts", { ...form, body });
@@ -206,7 +205,7 @@ export default function Board() {
             <div style={{ gridColumn: "1 / -1" }}><label>제목<Req/></label><input data-testid="b-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div><label>분류</label><select data-testid="b-cat" value={form.cat} onChange={(e) => setForm({ ...form, cat: e.target.value })}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
             <div><label>공개 범위</label><select data-testid="b-minrole" value={form.min_role} onChange={(e) => setForm({ ...form, min_role: e.target.value })}>{MIN_ROLE_OPTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>본문<Req/></label><HtmlEditor value={body} onChange={setBody} testid="b-body" minHeight={200} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label>본문</label><HtmlEditor value={body} onChange={setBody} testid="b-body" minHeight={200} /></div>
             <div style={{ gridColumn: "1 / -1" }}><label>링크(선택)</label><input data-testid="b-link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label>첨부파일(선택)</label>
