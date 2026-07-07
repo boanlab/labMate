@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, Chips, won, statusClass } from "../ui/kit";
+import { PageHeader, Card, Chips, won, statusClass, Req } from "../ui/kit";
 import { useConfig, names } from "../api/config";
 
 
@@ -139,7 +139,7 @@ export default function BudgetPage() {
           </table>
           {editing && (
             <div className="bd" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <label style={{ margin: 0 }}>변경 사유</label>
+              <label style={{ margin: 0 }}>변경 사유<Req/></label>
               <input data-testid="bg-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="예: 1차년도 예산 편성" style={{ margin: 0, flex: 1 }} />
             </div>
           )}
