@@ -19,6 +19,7 @@ export default function MyTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projs, setProjs] = useState<Proj[]>([]);
   const [filter, setFilter] = useState("진행");   // 기본: 진행 중
+  const [q, setQ] = useState("");
   const [form, setForm] = useState<any | null>(null);
   const [body, setBody] = useState("");
   const [err, setErr] = useState("");
@@ -37,7 +38,9 @@ export default function MyTasks() {
   const myTasks = tasks.filter((t) => t.assignee_id === me?.id);
   const today = todayKST();
   const count = (s: string) => s === "전체" ? myTasks.length : myTasks.filter((t) => t.status === s).length;
+  const ql = q.trim().toLowerCase();
   const shown = (filter === "전체" ? myTasks : myTasks.filter((t) => t.status === filter))
+    .filter((t) => { if (!ql) return true; const p = projOf(t.project_id); return `${t.title} ${p?.code || ""} ${p?.name || ""}`.toLowerCase().includes(ql); })
     .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
 
   function openEdit(t: Task) {
@@ -65,9 +68,10 @@ export default function MyTasks() {
     <div>
       <PageHeader crumb="업무 › 세부업무" title="세부업무" />
       {err && <div className="form-err">{err}</div>}
-      <div style={{ marginBottom: 10 }}>
+      <div style={{ marginBottom: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <Chips testid="task-filter" value={filter} onChange={setFilter}
           items={["예정", "진행", "완료", "전체"].map((f) => ({ key: f, count: count(f) }))} />
+        <input className="tsearch" data-testid="task-search" placeholder="업무·과제 검색" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 260 }} />
       </div>
       <div className="card scroll">
         <table className="tbl" data-testid="mytasks-table" style={{ tableLayout: "fixed", width: "100%" }}>
