@@ -6,7 +6,7 @@ import { useSearchParams } from "react-router-dom";
 import { api, apiError } from "../api/client";
 import { confirmDialog, alertDialog, promptDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, Chips, statusClass } from "../ui/kit";
+import { PageHeader, Card, Chips, statusClass, Req } from "../ui/kit";
 import { Gauge, HBars } from "../ui/Charts";
 import { useConfig, names } from "../api/config";
 import { FIXED_KINDS, seriesOf } from "../lib/pubClass";
@@ -462,19 +462,19 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
             <form className="modal" data-testid="task-form" onSubmit={saveTask} style={{ width: 960, maxWidth: "90%" }}>
               <div className="modal-h"><b>{taskForm.id ? "업무 수정" : "업무 추가"}</b><button type="button" className="btn ghost sm" onClick={() => setTaskForm(null)}>✕</button></div>
               <div className="modal-b">
-                <label>제목</label>
+                <label>제목<Req/></label>
                 <input data-testid="tf-title" value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} required />
                 <div className="grid2">
                   <div><label>상태</label><select value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}>{["예정", "진행 중", "완료"].map((s) => <option key={s}>{s}</option>)}</select></div>
-                  <div><label>담당자</label><select value={taskForm.assignee_id} onChange={(e) => setTaskForm({ ...taskForm, assignee_id: e.target.value })}><option value="">미지정</option>{users.filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
-                  <div><label>시작일</label><input type="date" min={open.start || undefined} max={taskForm.due || open.end || undefined} value={taskForm.start} onChange={(e) => setTaskForm({ ...taskForm, start: e.target.value })} /></div>
-                  <div><label>마감일</label><input type="date" min={taskForm.start || open.start || undefined} max={open.end || undefined} value={taskForm.due} onChange={(e) => setTaskForm({ ...taskForm, due: e.target.value })} /></div>
+                  <div><label>담당자<Req/></label><select value={taskForm.assignee_id} onChange={(e) => setTaskForm({ ...taskForm, assignee_id: e.target.value })}><option value="">미지정</option>{users.filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+                  <div><label>시작일<Req/></label><input type="date" min={open.start || undefined} max={taskForm.due || open.end || undefined} value={taskForm.start} onChange={(e) => setTaskForm({ ...taskForm, start: e.target.value })} /></div>
+                  <div><label>마감일<Req/></label><input type="date" min={taskForm.start || open.start || undefined} max={open.end || undefined} value={taskForm.due} onChange={(e) => setTaskForm({ ...taskForm, due: e.target.value })} /></div>
                   <div><label>실제 마감일 <span className="muted small">(완료 시 자동)</span></label><input type="date" data-testid="tf-donedate" value={taskForm.done_date} onChange={(e) => setTaskForm({ ...taskForm, done_date: e.target.value })} /></div>
                 </div>
                 {(open.start || open.end) && <div className="muted small" style={{ marginTop: 2 }}>과제 기간: {open.start || "—"} ~ {open.end || "—"} 내로 지정</div>}
                 <label>링크 (선택)</label>
                 <input type="url" placeholder="https://…" value={taskForm.link} onChange={(e) => setTaskForm({ ...taskForm, link: e.target.value })} />
-                <label>내용</label>
+                <label>내용<Req/></label>
                 <HtmlEditor value={taskBody} onChange={setTaskBody} testid="tf-body" minHeight={120} />
                 <label>첨부파일 (선택)</label>
                 <input type="file" multiple data-testid="tf-files" onChange={uploadTaskFiles} />
@@ -547,15 +547,15 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
           {isGrant ? (
             <div className="bd grid2">
               <Field label="관리코드"><input data-testid="p-code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="미입력 시 자동 생성" /></Field>
-              <Field label="과제명"><input data-testid="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-              <Field label="전담기관"><select data-testid="p-agency" value={form.agency} onChange={(e) => setForm({ ...form, agency: e.target.value })}>{AGENCIES.map((a) => <option key={a}>{a}</option>)}</select></Field>
-              <Field label="사업명"><input value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })} /></Field>
+              <Field label={<>과제명<Req/></>}><input data-testid="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+              <Field label={<>전담기관<Req/></>}><select data-testid="p-agency" value={form.agency} onChange={(e) => setForm({ ...form, agency: e.target.value })}>{AGENCIES.map((a) => <option key={a}>{a}</option>)}</select></Field>
+              <Field label={<>사업명<Req/></>}><input value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })} /></Field>
               <Field label="총 과제기간 (시작)"><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></Field>
               <Field label="총 과제기간 (종료)"><input type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></Field>
-              <Field label="해당 연도 기간 (시작)"><input type="date" value={form.year_start} onChange={(e) => setForm({ ...form, year_start: e.target.value })} /></Field>
-              <Field label="해당 연도 기간 (종료)"><input type="date" value={form.year_end} onChange={(e) => setForm({ ...form, year_end: e.target.value })} /></Field>
-              <Field label="주관기관"><input value={form.host_org} onChange={(e) => setForm({ ...form, host_org: e.target.value })} /></Field>
-              <Field label="주관기관 연구책임자"><input value={form.host_pi} onChange={(e) => setForm({ ...form, host_pi: e.target.value })} /></Field>
+              <Field label={<>해당 연도 기간 (시작)<Req/></>}><input type="date" value={form.year_start} onChange={(e) => setForm({ ...form, year_start: e.target.value })} /></Field>
+              <Field label={<>해당 연도 기간 (종료)<Req/></>}><input type="date" value={form.year_end} onChange={(e) => setForm({ ...form, year_end: e.target.value })} /></Field>
+              <Field label={<>주관기관<Req/></>}><input value={form.host_org} onChange={(e) => setForm({ ...form, host_org: e.target.value })} /></Field>
+              <Field label={<>주관기관 연구책임자<Req/></>}><input value={form.host_pi} onChange={(e) => setForm({ ...form, host_pi: e.target.value })} /></Field>
               <Field label="참여기관 (선택)"><input value={form.partner_orgs} onChange={(e) => setForm({ ...form, partner_orgs: e.target.value })} /></Field>
               <Field label="참여기관 연구책임자 (선택)"><input value={form.partner_pis} onChange={(e) => setForm({ ...form, partner_pis: e.target.value })} /></Field>
               <Field label="총 연구비 (원)"><input inputMode="numeric" value={form.budget_total} onChange={(e) => setForm({ ...form, budget_total: fmtWon(e.target.value) })} /></Field>
@@ -585,10 +585,10 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
             <div className="bd grid2">
               <Field label="관리코드"><input data-testid="p-code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="미입력 시 자동 생성" /></Field>
               <Field label="분류"><select data-testid="p-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{ACT_CATS.filter((c) => c !== "과제").map((c) => <option key={c}>{c}</option>)}</select></Field>
-              <Field label="프로젝트명"><input data-testid="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-              <Field label="담당자"><select data-testid="p-pm" value={form.pm_id} onChange={(e) => setForm({ ...form, pm_id: e.target.value })}><option value="">선택</option>{pmOpts.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>
-              <Field label="시작일"><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></Field>
-              <Field label="종료일 (선택)"><input type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></Field>
+              <Field label={<>프로젝트명<Req/></>}><input data-testid="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+              <Field label={<>담당자<Req/></>}><select data-testid="p-pm" value={form.pm_id} onChange={(e) => setForm({ ...form, pm_id: e.target.value })}><option value="">선택</option>{pmOpts.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>
+              <Field label={<>시작일<Req/></>}><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></Field>
+              <Field label={<>종료일<Req/></>}><input type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></Field>
               <Field label={`구성원 선택${form.members.length ? ` · ${form.members.length}명` : ""}`} full>
                 <div className="fchips" data-testid="p-members">
                   {memberOpts.map((u) => <button type="button" key={u.id} className={"chip" + (form.members.includes(u.id) ? " on" : "")} onClick={() => toggleMember(u.id)}>{u.name}</button>)}

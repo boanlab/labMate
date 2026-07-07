@@ -4,6 +4,7 @@ import { todayKST, dateKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
+import { Req } from "../ui/kit";
 
 interface Lv { id: string; uid: string; type: string; start_date: string; end_date: string; days: number; reason: string; status: string; approver_id?: string; created_at?: string; }
 interface Bal { uid: string; granted: number; used: number; }
@@ -81,9 +82,9 @@ export default function Leave() {
           <div className="bd grid2">
             <div><label>종류</label><select data-testid="l-type" value={form.type} onChange={(e) => { const type = e.target.value; setForm({ ...form, type, days: calcDays(form.start_date, form.end_date, type) }); }}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
             <div><label>일수 <span className="muted small">(자동 계산)</span></label><input data-testid="l-days" type="number" step="0.5" value={form.days} readOnly tabIndex={-1} style={{ background: "var(--soft)" }} /></div>
-            <div><label>시작</label><input data-testid="l-start_date" type="date" value={form.start_date} onChange={(e) => { const start_date = e.target.value; setForm({ ...form, start_date, days: calcDays(start_date, form.end_date, form.type) }); }} /></div>
-            <div><label>종료</label><input data-testid="l-end_date" type="date" value={form.end_date} onChange={(e) => { const end_date = e.target.value; setForm({ ...form, end_date, days: calcDays(form.start_date, end_date, form.type) }); }} /></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>사유</label><input data-testid="l-reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
+            <div><label>시작<Req/></label><input data-testid="l-start_date" type="date" value={form.start_date} onChange={(e) => { const start_date = e.target.value; setForm({ ...form, start_date, days: calcDays(start_date, form.end_date, form.type) }); }} /></div>
+            <div><label>종료<Req/></label><input data-testid="l-end_date" type="date" value={form.end_date} onChange={(e) => { const end_date = e.target.value; setForm({ ...form, end_date, days: calcDays(form.start_date, end_date, form.type) }); }} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label>사유<Req/></label><input data-testid="l-reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
           </div>
           <div className="bd" style={{ display: "flex", gap: 8 }}><button className="btn primary" data-testid="leave-add-submit">신청</button><button type="button" className="btn ghost" data-testid="leave-cancel" onClick={() => setAdding(false)}>취소</button></div>
         </form>

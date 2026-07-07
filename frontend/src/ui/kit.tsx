@@ -31,6 +31,9 @@ export function PageHeader({ crumb, title, action, testid }: { crumb?: string; t
 
 export const won = (n: number) => (n || 0).toLocaleString() + "원";
 
+// 필수 입력 표시 — 라벨 옆 빨간 별표
+export function Req() { return <span style={{ color: "var(--bad)", marginLeft: 1 }} title="필수 입력">*</span>; }
+
 // 작성/수정 이력 표시 — 작성자·작성일 (+ 수정됐으면 수정자·수정일)
 export function AuthorMeta({ by, updatedBy, createdAt, updatedAt, nameOf, className = "muted small" }: {
   by?: string; updatedBy?: string; createdAt?: string | null; updatedAt?: string | null; nameOf: (id: string) => string; className?: string;

@@ -5,7 +5,7 @@ import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, AuthorMeta } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface Action { id?: string; title: string; assignee_id: string; due: string; done: boolean; task_id?: string; }
@@ -114,7 +114,7 @@ export default function Meetings() {
         <PageHeader crumb="소통 › 회의록" title={editing.id ? "회의록 수정" : "회의록 작성"} action={<button className="btn ghost" onClick={() => setEditing(null)}>목록</button>} />
         {err && <div className="form-err" data-testid="meeting-error">{err}</div>}
         <Card>
-          <div><label>제목</label><input data-testid="mt-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+          <div><label>제목<Req/></label><input data-testid="mt-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
           <div className="grid2" style={{ marginBottom: 10 }}>
             <div><label>일자</label><input data-testid="mt-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
             <div><label>관련 프로젝트 <span className="muted small">(선택 시 액션아이템이 세부 업무로 등록)</span></label>
@@ -129,7 +129,7 @@ export default function Meetings() {
           <div className="fchips" data-testid="mt-attendees" style={{ marginBottom: 10 }}>
             {users.filter((u) => u.role !== "admin" && u.active !== false).map((u) => <button type="button" key={u.id} className={"chip" + (form.attendees.includes(u.id) ? " on" : "")} onClick={() => toggleAttendee(u.id)}>{u.name}</button>)}
           </div>
-          <label>결정사항</label>
+          <label>결정사항<Req/></label>
           <HtmlEditor value={dec} onChange={setDec} testid="mt-decisions" minHeight={120} />
           <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>액션아이템
             <button type="button" className="btn ghost sm" data-testid="mt-action-add" onClick={addAction}>+ 추가</button>

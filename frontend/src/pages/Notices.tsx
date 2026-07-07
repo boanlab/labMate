@@ -7,7 +7,7 @@ import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
-import { PageHeader, Card, AuthorMeta } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
 
 interface TFile { name: string; url: string; }
 interface Notice { id: string; title: string; body: string; by_id: string; required: boolean; due: string | null; acked_user_ids: string[]; link?: string; files?: TFile[]; target_user_ids?: string[]; updated_by?: string; created_at?: string; updated_at?: string; }
@@ -159,7 +159,7 @@ export default function Notices() {
             {editId && <div className="io" style={{ marginBottom: 10 }}>수정 중</div>}
             <div className="muted small" style={{ marginBottom: 8 }}>작성자 · <b>{uname(form.by_id)}</b></div>
             <div className="grid3">
-              <div style={{ gridColumn: "span 2" }}><label>제목</label><input data-testid="n-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+              <div style={{ gridColumn: "span 2" }}><label>제목<Req/></label><input data-testid="n-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
               <div><label>확인 마감일(선택)</label><input data-testid="n-due" type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} /></div>
             </div>
             <div className="grid3" style={{ marginTop: 4 }}>
@@ -180,7 +180,7 @@ export default function Notices() {
                 {members.map((u) => <button type="button" key={u.id} className={"chip" + (form.target_user_ids.includes(u.id) ? " on" : "")} onClick={() => toggleTarget(u.id)}>{u.name}</button>)}
               </div>
             )}
-            <label>내용</label><HtmlEditor value={body} onChange={setBody} testid="n-body" minHeight={200} />
+            <label>내용<Req/></label><HtmlEditor value={body} onChange={setBody} testid="n-body" minHeight={200} />
             <label>링크(선택)</label>
             <input data-testid="n-link" type="url" placeholder="https://…" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
             <label>첨부파일(선택)</label>
