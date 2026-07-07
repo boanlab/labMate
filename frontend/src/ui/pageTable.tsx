@@ -3,8 +3,8 @@
 import { RefObject, useEffect, useState } from "react";
 
 // wrapRef: 테이블 래퍼(thead/tbody 포함) div. dep: 목록 길이 등 재계산 트리거.
-// 페이저 + 카드 하단 margin(10) + .content 하단 패딩(16) + 안전 여백 ≈ 72px를 아래로 예약.
-const BOTTOM_RESERVE = 72;
+// 페이저 + 카드 하단 margin(10) + .content 하단 패딩(16) + 안전 여백을 아래로 예약.
+const BOTTOM_RESERVE = 108;
 export function useAutoPageSize(wrapRef: RefObject<HTMLElement>, dep: number): number {
   const [size, setSize] = useState(10);
   useEffect(() => {
