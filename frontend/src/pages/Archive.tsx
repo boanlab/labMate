@@ -8,7 +8,7 @@ import HtmlEditor from "../ui/HtmlEditorLazy";
 interface TFile { name: string; url: string; }
 interface Doc { id: string; parent_id: string; sort: number; title: string; icon: string; content: string; tags: string[]; files: TFile[]; owner_id: string; updated_by?: string; created_at?: string; updated_at?: string; }
 
-// 자료실 — 트리형 문서. 전 구성원 열람·작성·수정, 삭제는 작성자·교수. 기본 읽기 전용(수정 버튼으로 편집).
+// 아카이브 — 트리형 문서. 전 구성원 열람·작성·수정, 삭제는 작성자·교수. 기본 읽기 전용(수정 버튼으로 편집).
 export default function Archive() {
   const { me } = useAuth();
   const [pages, setPages] = useState<Doc[]>([]);
@@ -124,7 +124,7 @@ export default function Archive() {
 
   return (
     <div data-testid="page-archive">
-      <PageHeader crumb="연구실 › 자료실" title="자료실" action={
+      <PageHeader crumb="연구실 › 아카이브" title="아카이브" action={
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn ghost" data-testid="arch-toggle-tree" onClick={() => setShowTree((v) => !v)}>{showTree ? "◧ 목록 숨김" : "◨ 목록 보기"}</button>
           <button className="btn primary" data-testid="arch-new" onClick={() => create("")}>+ 새 페이지</button>

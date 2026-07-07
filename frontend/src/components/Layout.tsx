@@ -50,7 +50,7 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
   { title: "연구실", items: [
     { to: "/publications", label: "실적", icon: "award", roles: ALL },
     { to: "/library", label: "교육", icon: "book", roles: NO_STAFF },
-    { to: "/archive", label: "자료실", icon: "folder", roles: ALL },
+    { to: "/archive", label: "아카이브", icon: "folder", roles: ALL },
     { to: "/assets", label: "자산", icon: "desktop", roles: ALL },
     { to: "/infra", label: "인프라", icon: "server", roles: ALL },
   ] },
