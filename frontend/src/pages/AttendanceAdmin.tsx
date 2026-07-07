@@ -80,7 +80,7 @@ export default function AttendanceAdmin() {
   const logDate = (l: Log) => dateKST(l.at);
   const sortedLogs = [...logs].sort((a, b) => logDate(b).localeCompare(logDate(a)))
     .filter((l) => !logQ.trim() || `${uname(l.target_uid)} ${uname(l.by_id)} ${l.reason || ""}`.toLowerCase().includes(logQ.trim().toLowerCase()));
-  const shownAtts = (from || to || uid) ? atts : atts.slice(0, 30);
+  const shownAtts = atts;
   const reqHist = reqs.filter((r) => r.status !== "대기")
     .filter((r) => !reqQ.trim() || `${uname(r.uid)} ${r.reason || ""} ${r.date}`.toLowerCase().includes(reqQ.trim().toLowerCase()));
   const reqMax = Math.max(0, Math.ceil(reqHist.length / 3) - 1), reqPg = Math.min(reqPage, reqMax);
@@ -155,7 +155,7 @@ export default function AttendanceAdmin() {
             <input type="date" data-testid="aa-from" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 150, margin: 0 }} />
             <span className="muted small">~</span>
             <input type="date" data-testid="aa-to" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 150, margin: 0 }} />
-            {(from || to || uid) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); setUid(""); }}>초기화</button> : <span className="muted small">최근 30건</span>}
+            {(from || to || uid) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); setUid(""); }}>초기화</button> : <span className="muted small">{atts.length}건</span>}
           </span>
         </div>
         <table className="tbl" data-testid="aa-table">
