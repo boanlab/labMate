@@ -74,10 +74,10 @@ def _can_add_task(user: CurrentUser, p: Project) -> bool:
 
 
 def _can_manage_task(user: CurrentUser, p: Project, t: Task) -> bool:
-    """세부업무 수정·삭제 — 교수·행정·위임·책임자·담당자, 참여 연구원은 본인이 추가한 업무만."""
+    """세부업무 수정·삭제 — 교수·행정·위임·책임자·담당자, 참여 연구원은 본인이 추가하거나 담당인 업무."""
     if _is_work_admin(user) or user.id in (p.lead_id, p.pm_id):
         return True
-    return t.by_id == user.id
+    return t.by_id == user.id or t.assignee_id == user.id
 
 
 # ── 프로젝트 ──
