@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { richHtml } from "../ui/richHtml";
+import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST, dateKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
@@ -76,6 +77,13 @@ export default function Notices() {
   const audience = (n: Notice) => (n.target_user_ids && n.target_user_ids.length) ? n.target_user_ids : members.map((u) => u.id);
   const ackInfo = (n: Notice) => { const aud = audience(n); return { acked: aud.filter((id) => n.acked_user_ids.includes(id)).length, total: aud.length }; };
   const shown = items.filter((n) => !q.trim() || `${n.title} ${stripHtml(n.body || "")}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const listRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [q]);
+  const pageSize = useAutoPageSize(listRef, shown.length);
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const cur = Math.min(page, pages - 1);
+  const view = shown.slice(cur * pageSize, cur * pageSize + pageSize);
   const canEdit = (n: Notice) => isMgr || n.by_id === me?.id;
   const mustAck = (n: Notice) => !!me && audience(n).includes(me.id);
 
@@ -192,11 +200,11 @@ export default function Notices() {
         </form>
       )}
       <div className="tbar"><input className="tsearch" data-testid="notice-search" placeholder="제목·내용 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
-      <div className="card">
+      <div className="card" ref={listRef}>
         <table className="tbl" data-testid="notice-table">
           <thead><tr><th>공지</th><th>작성자</th><th>작성일</th><th>대상</th><th>마감</th><th>내 확인</th>{isMgr && <th>현황</th>}</tr></thead>
           <tbody>
-            {shown.map((n) => {
+            {view.map((n) => {
               const acked = me ? n.acked_user_ids.includes(me.id) : false;
               const overdue = n.due && n.due < today;
               const info = ackInfo(n);
@@ -216,6 +224,7 @@ export default function Notices() {
           </tbody>
         </table>
       </div>
+      <Pager page={cur} pages={pages} set={setPage} />
 
     </div>
   );

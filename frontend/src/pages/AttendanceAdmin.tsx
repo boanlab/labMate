@@ -44,6 +44,10 @@ export default function AttendanceAdmin() {
   const [reqPage, setReqPage] = useState(0);
   const [attPage, setAttPage] = useState(0);
   const [logPage, setLogPage] = useState(0);
+  const [reqQ, setReqQ] = useState("");
+  const [logQ, setLogQ] = useState("");
+  useEffect(() => setReqPage(0), [reqQ]);
+  useEffect(() => setLogPage(0), [logQ]);
 
   const members = users.filter((u) => u.role !== "admin");
   const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
@@ -74,12 +78,14 @@ export default function AttendanceAdmin() {
   }
 
   const logDate = (l: Log) => dateKST(l.at);
-  const sortedLogs = [...logs].sort((a, b) => logDate(b).localeCompare(logDate(a)));
+  const sortedLogs = [...logs].sort((a, b) => logDate(b).localeCompare(logDate(a)))
+    .filter((l) => !logQ.trim() || `${uname(l.target_uid)} ${uname(l.by_id)} ${l.reason || ""}`.toLowerCase().includes(logQ.trim().toLowerCase()));
   const shownAtts = (from || to || uid) ? atts : atts.slice(0, 30);
-  const reqHist = reqs.filter((r) => r.status !== "대기");
-  const reqMax = Math.max(0, Math.ceil(reqHist.length / PAGE) - 1), reqPg = Math.min(reqPage, reqMax);
+  const reqHist = reqs.filter((r) => r.status !== "대기")
+    .filter((r) => !reqQ.trim() || `${uname(r.uid)} ${r.reason || ""} ${r.date}`.toLowerCase().includes(reqQ.trim().toLowerCase()));
+  const reqMax = Math.max(0, Math.ceil(reqHist.length / 3) - 1), reqPg = Math.min(reqPage, reqMax);
   const attMax = Math.max(0, Math.ceil(shownAtts.length / PAGE) - 1), attPg = Math.min(attPage, attMax);
-  const logMax = Math.max(0, Math.ceil(sortedLogs.length / PAGE) - 1), logPg = Math.min(logPage, logMax);
+  const logMax = Math.max(0, Math.ceil(sortedLogs.length / 3) - 1), logPg = Math.min(logPage, logMax);
 
   if (!isProf) {
     return (
@@ -119,11 +125,11 @@ export default function AttendanceAdmin() {
 
       {reqHist.length > 0 && (
         <div className="card">
-          <div className="card-h"><b>정정 요청 처리 이력</b><span className="muted small">{reqHist.length}건</span></div>
+          <div className="card-h" style={{ display: "flex", alignItems: "center", gap: 8 }}><b>정정 요청 처리 이력</b><input className="tsearch" data-testid="req-search" placeholder="신청자·사유·일자 검색" value={reqQ} onChange={(e) => setReqQ(e.target.value)} style={{ maxWidth: 220, marginLeft: "auto" }} /><span className="muted small">{reqHist.length}건</span></div>
           <table className="tbl" data-testid="aa-req-history">
             <thead><tr><th>신청자</th><th>일자</th><th>요청 (상태 / 출근~퇴근)</th><th>사유</th><th>결과</th></tr></thead>
             <tbody>
-              {reqHist.slice(reqPg * PAGE, reqPg * PAGE + PAGE).map((r) => (
+              {reqHist.slice(reqPg * 3, reqPg * 3 + 3).map((r) => (
                 <tr key={r.id}>
                   <td>{uname(r.uid)}</td>
                   <td>{r.date}</td>
@@ -171,11 +177,11 @@ export default function AttendanceAdmin() {
       </div>
 
       <div className="card">
-        <div className="card-h"><b>출퇴근 시간 보정 이력</b><span className="muted small">{sortedLogs.length}건</span></div>
+        <div className="card-h" style={{ display: "flex", alignItems: "center", gap: 8 }}><b>출퇴근 시간 보정 이력</b><input className="tsearch" data-testid="log-search" placeholder="대상·보정자·사유 검색" value={logQ} onChange={(e) => setLogQ(e.target.value)} style={{ maxWidth: 220, marginLeft: "auto" }} /><span className="muted small">{sortedLogs.length}건</span></div>
         <table className="tbl" data-testid="aa-logs">
           <thead><tr><th>보정일</th><th>대상</th><th>보정자</th><th>변경 전 → 후</th><th>사유</th></tr></thead>
           <tbody>
-            {sortedLogs.slice(logPg * PAGE, logPg * PAGE + PAGE).map((l) => (
+            {sortedLogs.slice(logPg * 3, logPg * 3 + 3).map((l) => (
               <tr key={l.id}>
                 <td className="small muted">{logDate(l) || "—"}</td>
                 <td>{uname(l.target_uid)}</td><td>{uname(l.by_id)}</td>

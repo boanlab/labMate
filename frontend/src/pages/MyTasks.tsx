@@ -1,6 +1,7 @@
 // 세부업무 — 연구과제·프로젝트에서 본인에게 할당된 업무를 상태별로 보고 편집(과제/프로젝트에 반영).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Chips } from "../ui/kit";
@@ -42,6 +43,13 @@ export default function MyTasks() {
   const shown = (filter === "전체" ? myTasks : myTasks.filter((t) => t.status === filter))
     .filter((t) => { if (!ql) return true; const p = projOf(t.project_id); return `${t.title} ${p?.code || ""} ${p?.name || ""}`.toLowerCase().includes(ql); })
     .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  const listRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [q, filter]);
+  const pageSize = useAutoPageSize(listRef, shown.length);
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const cur = Math.min(page, pages - 1);
+  const view = shown.slice(cur * pageSize, cur * pageSize + pageSize);
 
   function openEdit(t: Task) {
     setForm({ id: t.id, project_id: t.project_id, title: t.title, assignee_id: t.assignee_id, status: t.status, start: t.start || "", due: t.due || "", done_date: t.done_date || "", link: t.link || "", files: t.files || [] });
@@ -73,11 +81,11 @@ export default function MyTasks() {
           items={["진행 중", "예정", "완료", "전체"].map((f) => ({ key: f, count: count(f) }))} />
         <input className="tsearch" data-testid="task-search" placeholder="업무·과제 검색" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 260 }} />
       </div>
-      <div className="card scroll">
+      <div className="card scroll" ref={listRef}>
         <table className="tbl" data-testid="mytasks-table" style={{ tableLayout: "fixed", width: "100%" }}>
           <thead><tr><th style={{ width: 200 }}>과제 · 프로젝트</th><th>업무</th><th style={{ width: 72 }}>상태</th><th style={{ width: 116 }}>마감</th></tr></thead>
           <tbody>
-            {shown.map((t) => {
+            {view.map((t) => {
               const p = projOf(t.project_id);
               const late = t.status !== "완료" && t.due && t.due < today;
               return (
@@ -96,6 +104,7 @@ export default function MyTasks() {
           </tbody>
         </table>
       </div>
+      <Pager page={cur} pages={pages} set={setPage} />
 
       {form && (
         <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) setForm(null); }}>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Pager } from "../ui/pageTable";
 import { todayKST, dateKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
@@ -29,7 +30,11 @@ export default function Leave() {
   const SB: Record<string, string> = { "대기": "s-wait", "승인": "s-ok", "반려": "s-bad", "취소": "s-mute" };
   const uname = (id: string) => users.find((u) => u.id === id)?.name || "—";
   const sortedMine = [...mine].sort((a, b) => b.start_date.localeCompare(a.start_date));
-  const shownMine = (from || to) ? sortedMine.filter((l) => (!from || l.end_date >= from) && (!to || l.start_date <= to)) : sortedMine.slice(0, 10);
+  const shownMine = (from || to) ? sortedMine.filter((l) => (!from || l.end_date >= from) && (!to || l.start_date <= to)) : sortedMine;
+  const [minePage, setMinePage] = useState(0);
+  useEffect(() => setMinePage(0), [from, to]);
+  const minePages = Math.max(1, Math.ceil(shownMine.length / 10)), mineCur = Math.min(minePage, minePages - 1);
+  const mineView = shownMine.slice(mineCur * 10, mineCur * 10 + 10);
 
   async function load() {
     try {
@@ -87,16 +92,17 @@ export default function Leave() {
             <input type="date" data-testid="lv-from" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 150, margin: 0 }} />
             <span className="muted small">~</span>
             <input type="date" data-testid="lv-to" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 150, margin: 0 }} />
-            {(from || to) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); }}>초기화</button> : <span className="muted small">최근 10건</span>}
+            {(from || to) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); }}>초기화</button> : <span className="muted small">{shownMine.length}건</span>}
           </span>
         </div>
         <table className="tbl" data-testid="leave-table">
           <thead><tr><th>종류</th><th>기간</th><th>일수</th><th>사유</th><th>신청일</th><th>상태</th><th>승인자</th></tr></thead>
           <tbody>
-            {shownMine.map((l) => <tr key={l.id}><td>{l.type}</td><td>{l.start_date}~{l.end_date}</td><td>{l.days}일</td><td className="muted">{l.reason}</td><td className="muted small">{dateKST(l.created_at) || "—"}</td><td><span className={"badge " + (SB[l.status] || "s-mute")}>{l.status}</span></td><td className="muted">{l.status === "승인" || l.status === "반려" ? uname(l.approver_id || "") : "—"}</td></tr>)}
+            {mineView.map((l) => <tr key={l.id}><td>{l.type}</td><td>{l.start_date}~{l.end_date}</td><td>{l.days}일</td><td className="muted">{l.reason}</td><td className="muted small">{dateKST(l.created_at) || "—"}</td><td><span className={"badge " + (SB[l.status] || "s-mute")}>{l.status}</span></td><td className="muted">{l.status === "승인" || l.status === "반려" ? uname(l.approver_id || "") : "—"}</td></tr>)}
             {!shownMine.length && <tr><td colSpan={7} className="muted">{(from || to) ? "해당 기간 신청 내역 없음" : "신청 내역 없음"}</td></tr>}
           </tbody>
         </table>
+        <Pager page={mineCur} pages={minePages} set={setMinePage} />
       </div>
     </div>
   );

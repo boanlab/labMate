@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Pager } from "../ui/pageTable";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
@@ -40,8 +41,15 @@ export default function Attendance() {
 
   const todayRec = mine.find((a) => a.date === today);
   const sortedMine = [...mine].sort((a, b) => b.date.localeCompare(a.date));
-  const shownMine = (from || to) ? sortedMine.filter((a) => (!from || a.date >= from) && (!to || a.date <= to)) : sortedMine.slice(0, 10);
+  const shownMine = (from || to) ? sortedMine.filter((a) => (!from || a.date >= from) && (!to || a.date <= to)) : sortedMine;
   const myReqs = reqs.filter((r) => r.uid === me?.id);
+  const [minePage, setMinePage] = useState(0);
+  const [reqPage, setReqPage] = useState(0);
+  useEffect(() => setMinePage(0), [from, to]);
+  const minePages = Math.max(1, Math.ceil(shownMine.length / 10)), mineCur = Math.min(minePage, minePages - 1);
+  const mineView = shownMine.slice(mineCur * 10, mineCur * 10 + 10);
+  const reqPages = Math.max(1, Math.ceil(myReqs.length / 10)), reqCur = Math.min(reqPage, reqPages - 1);
+  const reqView = myReqs.slice(reqCur * 10, reqCur * 10 + 10);
 
   async function checkIn() { try { await api.post("/attendance/attendance/check-in", { status: "업무 중", note: "" }); load(); } catch (e) { setErr(apiError(e)); } }
   async function checkOut() { try { await api.post("/attendance/attendance/check-out"); load(); } catch (e) { setErr(apiError(e)); } }
@@ -85,18 +93,19 @@ export default function Attendance() {
             <input type="date" data-testid="att-from" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 150, margin: 0 }} />
             <span className="muted small">~</span>
             <input type="date" data-testid="att-to" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 150, margin: 0 }} />
-            {(from || to) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); }}>초기화</button> : <span className="muted small">최근 10건</span>}
+            {(from || to) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); }}>초기화</button> : <span className="muted small">{shownMine.length}건</span>}
           </span>
         </div>
         <table className="tbl" data-testid="att-table">
           <thead><tr><th>일자</th><th>상태</th><th>출근</th><th>퇴근</th><th>근무</th><th>비고</th></tr></thead>
           <tbody>
-            {shownMine.map((a) => (
+            {mineView.map((a) => (
               <tr key={a.id}><td>{a.date}{a.corrected && <span className="badge s-wait" style={{ marginLeft: 6 }}>보정</span>}</td><td>{a.status}</td><td>{a.check_in || "—"}</td><td>{a.check_out || "—"}</td><td className="small">{fmtWork(workMin(a))}</td><td className="muted small">{a.note}</td></tr>
             ))}
             {!shownMine.length && <tr><td colSpan={5} className="muted">{(from || to) ? "해당 기간 기록 없음" : "기록 없음"}</td></tr>}
           </tbody>
         </table>
+        <Pager page={mineCur} pages={minePages} set={setMinePage} />
       </div>
 
       <div className="card">
@@ -104,7 +113,7 @@ export default function Attendance() {
         <table className="tbl" data-testid="att-myreqs">
           <thead><tr><th>일자</th><th>요청 (상태 / 출근~퇴근)</th><th>사유</th><th>처리</th></tr></thead>
           <tbody>
-            {myReqs.map((r) => (
+            {reqView.map((r) => (
               <tr key={r.id}>
                 <td>{r.date}</td>
                 <td className="muted small">{r.requested_status} · {r.check_in || "—"}~{r.check_out || "—"}</td>
@@ -115,6 +124,7 @@ export default function Attendance() {
             {!myReqs.length && <tr><td colSpan={4} className="muted">정정 요청 없음</td></tr>}
           </tbody>
         </table>
+        <Pager page={reqCur} pages={reqPages} set={setReqPage} />
       </div>
 
       {reqForm && (

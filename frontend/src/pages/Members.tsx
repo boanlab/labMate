@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
@@ -100,6 +101,13 @@ export default function Members() {
     .filter((u) => (statusFilter === "all" ? true : statusFilter === "active" ? u.active : !u.active))
     .filter((u) => !q || [u.name, u.name_en, u.email, u.dept, u.student_id, u.major, u.phone].some((f) => (f || "").toLowerCase().includes(q)))
     .sort(sortMembers);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [query, statusFilter]);
+  const pageSize = useAutoPageSize(listRef, visible.length);
+  const pages = Math.max(1, Math.ceil(visible.length / pageSize));
+  const cur = Math.min(page, pages - 1);
+  const view = visible.slice(cur * pageSize, cur * pageSize + pageSize);
 
   return (
     <div data-testid="page-members">
@@ -157,12 +165,12 @@ export default function Members() {
         </form>
       )}
 
-      <div className="card scroll">
+      <div className="card scroll" ref={listRef}>
         <table className="tbl" data-testid="member-table">
           <thead><tr><th>이름</th><th>직급</th><th>이메일</th><th>과학기술인번호</th><th>최종학위</th><th>전공</th><th>상태</th>{canManageUsers && <th>관리</th>}</tr></thead>
           <tbody>
             {visible.length === 0 && <tr><td colSpan={canManageUsers ? 8 : 7} className="muted" style={{ textAlign: "center", padding: 16 }}>표시할 구성원이 없습니다.</td></tr>}
-            {visible.map((u) => (
+            {view.map((u) => (
               <tr key={u.id}>
                 <td><a className="lnk" style={{ fontWeight: 700 }} data-testid={`member-open-${u.email}`} onClick={() => setDetail(u)}>{u.name}</a>{u.delegated_admin ? <span className="badge s-pur" style={{ marginLeft: 6 }}>행정위임</span> : ""}{u.infra_manager ? <span className="badge s-info" style={{ marginLeft: 6 }}>인프라담당</span> : ""}</td>
                 <td>{ROLE_KO[u.role] || u.role}</td>
@@ -185,6 +193,7 @@ export default function Members() {
           </tbody>
         </table>
       </div>
+      <Pager page={cur} pages={pages} set={setPage} />
 
       {detail && (
         <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) setDetail(null); }}>
