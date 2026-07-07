@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { richHtml } from "../ui/richHtml";
 import { todayKST } from "../lib/date";
 import { useSearchParams } from "react-router-dom";
@@ -279,6 +280,13 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const shown = items
     .filter((p) => filter === "전체" || liveStatus(p) === filter)
     .filter((p) => !ql || `${p.code} ${p.name} ${p.agency} ${p.program} ${uname(p.lead_id)} ${uname(p.pm_id)}`.toLowerCase().includes(ql));
+  const listRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [q, filter]);
+  const pageSize = useAutoPageSize(listRef, shown.length);
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const cur = Math.min(page, pages - 1);
+  const view = shown.slice(cur * pageSize, cur * pageSize + pageSize);
   // 담당자·구성원 후보 — 기간 내 재직자. 수정 시 기존 담당자는 후보에서 빠져도 유지
   const memberOpts = users.filter((u) => u.role !== "admin" && memberInProjectPeriod(u, ...formPeriod(form, isGrant)));
   const pmOpts = (form.pm_id && !memberOpts.some((u) => u.id === form.pm_id) && users.find((u) => u.id === form.pm_id))
@@ -582,13 +590,13 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
           items={["진행 중", "예정", "완료", "전체"].map((f) => ({ key: f, count: f === "전체" ? items.length : items.filter((p) => liveStatus(p) === f).length }))} />
         <input className="tsearch" data-testid="proj-search" placeholder={`${LABEL} 검색 (코드·명칭·기관·담당자)`} value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 280 }} />
       </div>
-      <div className="card scroll">
+      <div className="card scroll" ref={listRef}>
         <table className="tbl" data-testid="project-table">
           {isGrant
             ? <thead><tr><th>관리코드</th><th>과제명</th><th>전담기관</th><th>사업명</th><th>기간</th><th>상태</th></tr></thead>
             : <thead><tr><th>관리코드</th><th>명칭</th><th>분류</th><th>담당자</th><th>기간</th><th>상태</th></tr></thead>}
           <tbody>
-            {shown.map((p) => (
+            {view.map((p) => (
               <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => openDetail(p)}>
                 <td><a style={{ cursor: "pointer", fontWeight: 700 }} data-testid={`proj-open-${p.code}`} onClick={(e) => { e.stopPropagation(); openDetail(p); }}>{p.code}</a></td>
                 <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={p.name}>{p.name}</td>
@@ -601,6 +609,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
           </tbody>
         </table>
       </div>
+      <Pager page={cur} pages={pages} set={setPage} />
     </div>
   );
 }

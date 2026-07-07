@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
@@ -113,6 +114,13 @@ export default function Board() {
 
   const ql = q.trim().toLowerCase();
   const filtered = items.filter((p) => (tab === "전체" || p.cat === tab) && (!ql || `${p.title} ${stripHtml(p.body || "")} ${uname(p.by_id)}`.toLowerCase().includes(ql)));
+  const listRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [q, tab]);
+  const pageSize = useAutoPageSize(listRef, filtered.length);
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const cur = Math.min(page, pages - 1);
+  const view = filtered.slice(cur * pageSize, cur * pageSize + pageSize);
 
   if (open) {
     return (
@@ -227,10 +235,11 @@ export default function Board() {
 
       <div className="tbar" style={{ marginBottom: 8 }}><input className="tsearch" data-testid="board-search" placeholder="제목·내용·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{filtered.length}건</span></div>
       <Card pad={false}>
+        <div ref={listRef}>
         <table className="tbl" data-testid="board-table">
           <thead><tr><th>분류</th><th>제목</th><th>작성자</th><th>작성일</th><th>댓글</th><th>조회</th></tr></thead>
           <tbody>
-            {filtered.map((p) => (
+            {view.map((p) => (
               <tr key={p.id}>
                 <td><span className={"badge " + (CBADGE[p.cat] || "s-mute")}>{p.cat}</span></td>
                 <td><a style={{ cursor: "pointer", fontWeight: 600 }} data-testid={`post-open-${p.id}`} onClick={() => openPost(p)}>{p.title}</a>{p.min_role ? <span className="badge s-wait" style={{ marginLeft: 6 }} title={minRoleLabel(p.min_role)}>🔒 {minRoleLabel(p.min_role)}</span> : null}<div className="muted small">{stripHtml(p.body)}</div></td>
@@ -242,7 +251,9 @@ export default function Board() {
             {!filtered.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 18 }}>게시글 없음</td></tr>}
           </tbody>
         </table>
+        </div>
       </Card>
+      <Pager page={cur} pages={pages} set={setPage} />
     </div>
   );
 }

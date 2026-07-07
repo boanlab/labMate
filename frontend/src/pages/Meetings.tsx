@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { richHtml } from "../ui/richHtml";
+import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
@@ -41,6 +42,13 @@ export default function Meetings() {
   const projName = (id?: string) => { const p = [...grants, ...activities].find((x) => x.id === id); return p ? `${p.code} · ${p.name}` : ""; };
   const projCode = (id?: string) => [...grants, ...activities].find((x) => x.id === id)?.code || "";
   const shown = items.filter((m) => !q.trim() || `${m.title} ${m.decisions || ""} ${projCode(m.project_id)} ${uname(m.by_id)}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const listRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [q]);
+  const pageSize = useAutoPageSize(listRef, shown.length);
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const cur = Math.min(page, pages - 1);
+  const view = shown.slice(cur * pageSize, cur * pageSize + pageSize);
   // 관련 프로젝트 후보 — 본인 참여+진행 중(기존 선택은 유지)
   const mineProj = (p: any) => !!me && (p.lead_id === me.id || p.pm_id === me.id || (p.members || []).includes(me.id));
   const ongoingGrants = grants.filter((p) => (ongoing(p, true) && mineProj(p)) || p.id === form.project_id);
@@ -205,11 +213,11 @@ export default function Meetings() {
       {err && <div className="form-err" data-testid="meeting-error">{err}</div>}
 
       <div className="tbar"><input className="tsearch" data-testid="meeting-search" placeholder="제목·결정사항·프로젝트·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
-      <div className="card">
+      <div className="card" ref={listRef}>
         <table className="tbl" data-testid="meeting-table">
           <thead><tr><th style={{ width: 110 }}>일자</th><th style={{ width: 130 }}>관리코드</th><th>제목</th><th style={{ width: 100 }}>작성자</th><th style={{ width: 70 }}>참석</th><th style={{ width: 120 }}>액션(완료/전체)</th></tr></thead>
           <tbody>
-            {shown.map((m) => {
+            {view.map((m) => {
               const done = (m.actions || []).filter((a) => isDone(a)).length;
               return (
                 <tr key={m.id} style={{ cursor: "pointer" }} onClick={() => setOpen(m)}>
@@ -226,6 +234,7 @@ export default function Meetings() {
           </tbody>
         </table>
       </div>
+      <Pager page={cur} pages={pages} set={setPage} />
     </div>
   );
 }

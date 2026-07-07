@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Pager } from "../ui/pageTable";
 import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
@@ -52,6 +53,8 @@ export default function Approvals() {
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState<null | { id?: string; resubmit?: boolean; status?: string }>(null);
   const [viewing, setViewing] = useState<Appr | null>(null);
+  const [inPage, setInPage] = useState(0);
+  const [minePage, setMinePage] = useState(0);
   const [reject, setReject] = useState<null | Appr>(null);
   const [rejectMsg, setRejectMsg] = useState("");
   const [addApprover, setAddApprover] = useState("");
@@ -248,6 +251,10 @@ export default function Approvals() {
   const vMyTurn = !!viewing && viewing.status === "진행" && vIdx >= 0 && viewing.steps[vIdx]?.uid === me?.id;
   const vUndoIdx = viewing ? viewing.steps.findIndex((s) => s.uid === me?.id && !!s.decision) : -1;
   const vCanUndo = !!viewing && vUndoIdx >= 0 && !viewing.steps.slice(vUndoIdx + 1).some((s) => !!s.decision);
+  const inPages = Math.max(1, Math.ceil(inbox.length / 10)), inCur = Math.min(inPage, inPages - 1);
+  const inView = inbox.slice(inCur * 10, inCur * 10 + 10);
+  const minePages = Math.max(1, Math.ceil(mine.length / 10)), mineCur = Math.min(minePage, minePages - 1);
+  const mineView = mine.slice(mineCur * 10, mineCur * 10 + 10);
 
   // ── 목록(수신함·상신함) ──
   return (
@@ -264,7 +271,7 @@ export default function Approvals() {
           <table className="tbl" data-testid="appr-inbox">
             <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>기안자</th><th>상신일</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
             <tbody>
-              {inbox.map((a) => {
+              {inView.map((a) => {
                 const idx = currentIdx(a.steps);
                 const myTurn = idx >= 0 && a.steps[idx]?.uid === me?.id;
                 const iAmPending = a.steps.some((s) => s.uid === me?.id && !s.decision);
@@ -286,6 +293,7 @@ export default function Approvals() {
               {!inbox.length && <tr><td colSpan={8} className="muted">수신 결재 없음</td></tr>}
             </tbody>
           </table>
+          <Pager page={inCur} pages={inPages} set={setInPage} />
         </div>
       )}
 
@@ -294,7 +302,7 @@ export default function Approvals() {
         <table className="tbl" data-testid="appr-mine">
           <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>상신일</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
           <tbody>
-            {mine.map((a) => {
+            {mineView.map((a) => {
               const started = a.steps.some((s) => s.decision);
               return (
                 <tr key={a.id}>
@@ -315,6 +323,7 @@ export default function Approvals() {
             {!mine.length && <tr><td colSpan={7} className="muted">상신 문서 없음</td></tr>}
           </tbody>
         </table>
+        <Pager page={mineCur} pages={minePages} set={setMinePage} />
       </div>
 
       {reject && (
