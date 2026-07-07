@@ -216,18 +216,18 @@ export default function Meetings() {
 
       <div className="tbar"><input className="tsearch" data-testid="meeting-search" placeholder="제목·결정사항·프로젝트·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
       <div className="card" ref={listRef}>
-        <table className="tbl" data-testid="meeting-table">
-          <thead><tr><th style={{ width: 110 }}>일자</th><th style={{ width: 130 }}>관리코드</th><th>제목</th><th style={{ width: 100 }}>작성자</th><th style={{ width: 70 }}>참석</th><th style={{ width: 120 }}>액션(완료/전체)</th></tr></thead>
+        <table className="tbl fit" data-testid="meeting-table">
+          <thead><tr><th style={{ width: 104 }}>일자</th><th className="hide-sm" style={{ width: 130 }}>관리코드</th><th>제목</th><th className="hide-sm" style={{ width: 100 }}>작성자</th><th className="hide-sm" style={{ width: 64 }}>참석</th><th style={{ width: 104 }}>액션</th></tr></thead>
           <tbody>
             {view.map((m) => {
               const done = (m.actions || []).filter((a) => isDone(a)).length;
               return (
                 <tr key={m.id} style={{ cursor: "pointer" }} onClick={() => setOpen(m)}>
                   <td>{m.date}</td>
-                  <td className="small muted">{projCode(m.project_id) || "-"}</td>
+                  <td className="small muted hide-sm">{projCode(m.project_id) || "-"}</td>
                   <td><a style={{ cursor: "pointer", fontWeight: 600 }} data-testid={`mt-open-${m.id}`} onClick={(e) => { e.stopPropagation(); setOpen(m); }}>{m.title}</a></td>
-                  <td className="small muted">{uname(m.by_id)}</td>
-                  <td>{(m.attendees || []).length}명</td>
+                  <td className="small muted hide-sm">{uname(m.by_id)}</td>
+                  <td className="hide-sm">{(m.attendees || []).length}명</td>
                   <td><span className={"badge " + (m.actions?.length && done === m.actions.length ? "s-ok" : "s-info")}>{done}/{m.actions?.length || 0}</span></td>
                 </tr>
               );

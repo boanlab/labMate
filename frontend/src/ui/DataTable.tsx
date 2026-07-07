@@ -8,6 +8,7 @@ export interface Col<T> {
   value?: (row: T) => string | number;   // 정렬·검색용
   sortable?: boolean;
   nowrap?: boolean;
+  width?: number | string;   // fit 모드에서 컬럼 폭(px 고정 또는 '30%' 비율). 미지정 시 남는 폭 균등 배분+말줄임.
 }
 
 interface Props<T> {
@@ -17,6 +18,7 @@ interface Props<T> {
   searchPlaceholder?: string;
   searchKeys?: (row: T) => string;
   pageSize?: number;
+  fit?: boolean;          // 컬럼을 폭 비율대로 배분하고 넘치는 내용은 말줄임(브라우저 폭 반응)
   autoHeight?: boolean;   // 브라우저 높이에 맞춰 페이지 크기를 자동 계산(페이지 수 최소화)
   defaultSort?: string;
   defaultDir?: 1 | -1;
@@ -24,7 +26,7 @@ interface Props<T> {
   empty?: string;
 }
 
-export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색…", searchKeys, pageSize = 10, autoHeight = false, defaultSort, defaultDir = 1, chips, empty = "데이터 없음" }: Props<T>) {
+export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색…", searchKeys, pageSize = 10, fit = false, autoHeight = false, defaultSort, defaultDir = 1, chips, empty = "데이터 없음" }: Props<T>) {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<string | null>(defaultSort ?? null);
   const [dir, setDir] = useState<1 | -1>(defaultDir);
@@ -84,7 +86,8 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
         <span className="muted small" style={{ marginLeft: "auto" }}>{filtered.length}건</span>
       </div>
       <div className="card scroll" style={{ margin: 0 }} ref={wrapRef}>
-        <table className="tbl">
+        <table className={"tbl" + (fit ? " fit" : "")}>
+          {fit && <colgroup>{cols.map((c) => <col key={c.key} style={c.width != null ? { width: c.width } : undefined} />)}</colgroup>}
           <thead>
             <tr>
               {cols.map((c) => (
