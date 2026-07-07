@@ -61,6 +61,8 @@ export default function Board() {
   }
   async function add(e: React.FormEvent) {
     e.preventDefault(); setErr("");
+    if (!form.title.trim()) return setErr("제목을 입력하세요");
+    if (!body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return setErr("내용을 입력하세요");
     try {
       if (editId) await api.put(`/boards/posts/${editId}`, { ...form, body });
       else await api.post("/boards/posts", { ...form, body });

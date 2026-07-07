@@ -47,6 +47,9 @@ export default function Leave() {
 
   async function apply(e: React.FormEvent) {
     e.preventDefault(); setErr("");
+    if (!form.start_date) return setErr("시작일을 입력하세요");
+    if (!form.end_date) return setErr("종료일을 입력하세요");
+    if (!form.reason.trim()) return setErr("사유를 입력하세요");
     try {
       const lv = (await api.post<Lv>("/attendance/leaves", { ...form, days: Number(form.days) })).data;
       // 휴가 → 전자결재 자동 상신 (승인자: 지도교수, 없으면 행정/관리자)

@@ -78,6 +78,8 @@ export default function Meetings() {
 
   async function save() {
     setErr("");
+    if (!form.title.trim()) return setErr("제목을 입력하세요");
+    if (!dec.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return setErr("결정사항을 입력하세요");
     const actions = form.actions.map((a) => ({ ...a }));
     // 관련 과제가 있으면 신규 액션을 세부 업무(예정)로 등록하고 task_id 연결
     if (form.project_id) {
