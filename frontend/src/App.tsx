@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import MyPage from "./pages/MyPage";
 import Projects from "./pages/Projects";
+import MyTasks from "./pages/MyTasks";
 import Publications from "./pages/Publications";
 import Expenses from "./pages/Expenses";
 import Payroll from "./pages/Payroll";
@@ -60,6 +61,7 @@ function App() {
           <Route path="/" element={<Protected><Dashboard /></Protected>} />
           <Route path="/grants" element={<Protected roles={STUDENT5}><Projects key="grant" kind="grant" /></Protected>} />
           <Route path="/projects" element={<Protected roles={NO_STAFF}><Projects key="activity" kind="activity" /></Protected>} />
+          <Route path="/tasks" element={<Protected roles={STUDENT5}><MyTasks /></Protected>} />
           <Route path="/notes" element={<Protected roles={NO_STAFF}><Notes /></Protected>} />
           <Route path="/publications" element={<Protected roles={STUDENT5}><Publications /></Protected>} />
           <Route path="/expenses" element={<Protected roles={["prof", "staff"]}><Expenses /></Protected>} />
