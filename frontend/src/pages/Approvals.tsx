@@ -131,6 +131,14 @@ export default function Approvals() {
           try { await api.post(`/funds/expenses/${upd.source_ref.slice(8)}/decide?decision=${encodeURIComponent(upd.status)}`); } catch { /* 무시 */ }
         }
       }
+      setViewing((v) => (v && v.id === a.id ? upd : v));
+      load();
+    } catch (e) { setErr(apiError(e)); }
+  }
+  async function undo(a: Appr) {
+    try {
+      const upd = (await api.post<Appr>(`/boards/approvals/${a.id}/undo`, {})).data;
+      setViewing((v) => (v && v.id === a.id ? upd : v));   // 팝업 갱신 → 진행 상태로 재결재
       load();
     } catch (e) { setErr(apiError(e)); }
   }
@@ -234,6 +242,12 @@ export default function Approvals() {
       </div>
     );
   }
+
+  // 상세 팝업 결재 상태 — 내 차례(재결재 가능) / 내가 결재했고 다음 결재자가 아직 미결재(승인취소 가능)
+  const vIdx = viewing ? currentIdx(viewing.steps) : -1;
+  const vMyTurn = !!viewing && viewing.status === "진행" && vIdx >= 0 && viewing.steps[vIdx]?.uid === me?.id;
+  const vUndoIdx = viewing ? viewing.steps.findIndex((s) => s.uid === me?.id && !!s.decision) : -1;
+  const vCanUndo = !!viewing && vUndoIdx >= 0 && !viewing.steps.slice(vUndoIdx + 1).some((s) => !!s.decision);
 
   // ── 목록(수신함·상신함) ──
   return (
@@ -351,6 +365,17 @@ export default function Approvals() {
               </div>
               <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: richHtml(viewing.content) || "<span class='muted'>본문 없음</span>" }} />
             </div>
+            {(vMyTurn || vCanUndo) && (
+              <div className="modal-f" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ display: "flex", gap: 6 }}>
+                  {vMyTurn && <>
+                    <button className="btn ghost sm" data-testid="v-approve" onClick={() => decide(viewing, "승인")}>승인</button>
+                    <button className="btn ghost sm" style={{ color: "var(--bad)" }} onClick={() => { setReject(viewing); setRejectMsg(""); }}>반려</button>
+                  </>}
+                </span>
+                {vCanUndo && <a className="lnk small" data-testid="v-undo" style={{ cursor: "pointer", color: "var(--sub)" }} onClick={() => undo(viewing)}>승인취소</a>}
+              </div>
+            )}
           </div>
         </div>
       )}
