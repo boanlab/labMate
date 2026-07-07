@@ -3,26 +3,32 @@
 import { RefObject, useEffect, useState } from "react";
 
 // wrapRef: 테이블 래퍼(thead/tbody 포함) div. dep: 목록 길이 등 재계산 트리거.
+// 페이저 + 카드 하단 margin(10) + .content 하단 패딩(16) + 안전 여백 ≈ 72px를 아래로 예약.
+const BOTTOM_RESERVE = 72;
 export function useAutoPageSize(wrapRef: RefObject<HTMLElement>, dep: number): number {
-  const [size, setSize] = useState(12);
+  const [size, setSize] = useState(10);
   useEffect(() => {
     const calc = () => {
       const el = wrapRef.current;
       if (!el) return;
-      const top = el.getBoundingClientRect().top;                    // 래퍼 상단(필터/검색 아래)
-      const rowEl = el.querySelector("tbody tr") as HTMLElement | null;
       const headEl = el.querySelector("thead") as HTMLElement | null;
-      const rowH = Math.max(24, rowEl ? rowEl.getBoundingClientRect().height : 42);
-      const headH = headEl ? headEl.getBoundingClientRect().height : 40;
-      const avail = window.innerHeight - top - headH - 60;           // 페이저+하단 여백
+      const rowEl = el.querySelector("tbody tr") as HTMLElement | null;
+      // 데이터 첫 행이 시작되는 화면상 Y좌표 — 상단 제목·크럼·필터/검색·카드 여백·컬럼 헤더를 한 번에 반영.
+      const headRect = headEl?.getBoundingClientRect();
+      const rowsTop = headRect ? headRect.bottom : el.getBoundingClientRect().top;
+      const rowH = Math.max(28, rowEl ? rowEl.getBoundingClientRect().height : 42);
+      const avail = window.innerHeight - rowsTop - BOTTOM_RESERVE;
       const n = Math.max(6, Math.floor(avail / rowH));
       setSize((prev) => (prev === n ? prev : n));
     };
     const raf = requestAnimationFrame(calc);       // 최초 레이아웃 확정 후 측정
+    const t = setTimeout(calc, 180);               // 폰트·비동기 렌더 확정 후 재측정(top이 커지며 행 과다 계산 방지)
+    const fonts = (document as any).fonts;
+    if (fonts?.ready) fonts.ready.then(calc).catch(() => {});
     window.addEventListener("resize", calc);
     const ro = new ResizeObserver(calc);           // 폼 열림/닫힘 등 상단 변화 감지(기준 window 고정이라 루프 없음)
     ro.observe(document.body);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", calc); ro.disconnect(); };
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); window.removeEventListener("resize", calc); ro.disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dep]);
   return size;
