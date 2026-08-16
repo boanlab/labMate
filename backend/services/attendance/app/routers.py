@@ -310,6 +310,13 @@ def cancel_leave(lid: str, user: CurrentUser = Depends(get_current_user), db: Se
 
 
 @router.get("/leaves/approved", response_model=list[schemas.LeaveOut])
-def approved_leaves(_: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+def approved_leaves(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     """캘린더 통합용 — 승인된 휴가 전체."""
-    return list(db.scalars(select(Leave).where(Leave.status == "승인").order_by(Leave.start_date)))
+    hr = _hr_admin(user)
+    out: list[schemas.LeaveOut] = []
+    for lv in db.scalars(select(Leave).where(Leave.status == "승인").order_by(Leave.start_date)):
+        item = schemas.LeaveOut.model_validate(lv)
+        if not hr and lv.uid != user.id:
+            item.reason = ""
+        out.append(item)
+    return out
