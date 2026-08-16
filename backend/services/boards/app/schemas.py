@@ -118,6 +118,7 @@ class ApprovalOut(BaseModel):
     content: str
     steps: list[dict]
     status: str
+    created_at: datetime | None = None
     model_config = {"from_attributes": True}
 
 
