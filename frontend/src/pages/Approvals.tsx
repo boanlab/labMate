@@ -333,12 +333,18 @@ export default function Approvals() {
               <div className="card" style={{ marginBottom: 12 }}>
                 <div className="bd" style={{ padding: 10 }}>
                   {viewing.steps.map((s, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
-                      <span className="badge s-info">{i + 1}</span>
-                      <span style={{ flex: 1 }}>{uname(s.uid)} <span className="muted small">({urole(s.uid)})</span></span>
-                      <span className={"badge " + (s.decision === "승인" ? "s-ok" : s.decision === "반려" ? "s-bad" : "s-mute")}>{s.decision || "대기"}</span>
-                      {s.at && <span className="muted small">{s.at}</span>}
-                      {s.comment && <span className="muted small" title={s.comment}>💬</span>}
+                    <div key={i} style={{ padding: "3px 0" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="badge s-info">{i + 1}</span>
+                        <span style={{ flex: 1 }}>{uname(s.uid)} <span className="muted small">({urole(s.uid)})</span></span>
+                        <span className={"badge " + (s.decision === "승인" ? "s-ok" : s.decision === "반려" ? "s-bad" : "s-mute")}>{s.decision || "대기"}</span>
+                        {s.at && <span className="muted small">{s.at}</span>}
+                      </div>
+                      {s.comment && (
+                        <div className="small" data-testid={`a-step-comment-${i}`} style={{ margin: "5px 0 2px 30px", padding: "7px 10px", borderRadius: 8, background: "var(--soft)", border: "1px solid var(--line2)", overflowWrap: "anywhere", lineHeight: 1.5 }}>
+                          <span className="muted">{s.decision === "반려" ? "반려 사유" : "의견"}</span> · {s.comment}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
