@@ -81,6 +81,7 @@ class LeaveOut(LeaveIn):
     uid: str
     status: str
     approver_id: str
+    created_at: datetime | None = None
     model_config = {"from_attributes": True}
 
 
