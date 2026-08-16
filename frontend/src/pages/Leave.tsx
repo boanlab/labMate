@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { todayKST } from "../lib/date";
+import { todayKST, dateKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
 
-interface Lv { id: string; uid: string; type: string; start_date: string; end_date: string; days: number; reason: string; status: string; }
+interface Lv { id: string; uid: string; type: string; start_date: string; end_date: string; days: number; reason: string; status: string; approver_id?: string; created_at?: string; }
 interface Bal { uid: string; granted: number; used: number; }
 const TYPES_FB = ["연차", "반차", "병가", "공가", "학회", "출장"];
 // 일수 자동 계산 (반차=0.5, 그 외 시작~종료 양끝 포함)
@@ -27,6 +27,7 @@ export default function Leave() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const SB: Record<string, string> = { "대기": "s-wait", "승인": "s-ok", "반려": "s-bad", "취소": "s-mute" };
+  const uname = (id: string) => users.find((u) => u.id === id)?.name || "—";
   const sortedMine = [...mine].sort((a, b) => b.start_date.localeCompare(a.start_date));
   const shownMine = (from || to) ? sortedMine.filter((l) => (!from || l.end_date >= from) && (!to || l.start_date <= to)) : sortedMine.slice(0, 10);
 
@@ -90,10 +91,10 @@ export default function Leave() {
           </span>
         </div>
         <table className="tbl" data-testid="leave-table">
-          <thead><tr><th>종류</th><th>기간</th><th>일수</th><th>사유</th><th>상태</th></tr></thead>
+          <thead><tr><th>종류</th><th>기간</th><th>일수</th><th>사유</th><th>신청일</th><th>상태</th><th>승인자</th></tr></thead>
           <tbody>
-            {shownMine.map((l) => <tr key={l.id}><td>{l.type}</td><td>{l.start_date}~{l.end_date}</td><td>{l.days}일</td><td className="muted">{l.reason}</td><td><span className={"badge " + (SB[l.status] || "s-mute")}>{l.status}</span></td></tr>)}
-            {!shownMine.length && <tr><td colSpan={5} className="muted">{(from || to) ? "해당 기간 신청 내역 없음" : "신청 내역 없음"}</td></tr>}
+            {shownMine.map((l) => <tr key={l.id}><td>{l.type}</td><td>{l.start_date}~{l.end_date}</td><td>{l.days}일</td><td className="muted">{l.reason}</td><td className="muted small">{dateKST(l.created_at) || "—"}</td><td><span className={"badge " + (SB[l.status] || "s-mute")}>{l.status}</span></td><td className="muted">{l.status === "승인" || l.status === "반려" ? uname(l.approver_id || "") : "—"}</td></tr>)}
+            {!shownMine.length && <tr><td colSpan={7} className="muted">{(from || to) ? "해당 기간 신청 내역 없음" : "신청 내역 없음"}</td></tr>}
           </tbody>
         </table>
       </div>

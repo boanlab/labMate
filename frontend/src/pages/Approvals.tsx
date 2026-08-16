@@ -6,10 +6,10 @@ import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { printDoc } from "../ui/pdf";
-import { todayKST } from "../lib/date";
+import { todayKST, dateKST } from "../lib/date";
 
 interface Step { uid: string; decision: string | null; at: string; comment?: string; }
-interface Appr { id: string; doc_no: string; type: string; title: string; by_id: string; project_id: string; content: string; steps: Step[]; status: string; source_ref?: string; }
+interface Appr { id: string; doc_no: string; type: string; title: string; by_id: string; project_id: string; content: string; steps: Step[]; status: string; source_ref?: string; created_at?: string; }
 interface Project { id: string; code: string; name: string; kind: string; start?: string | null; end?: string | null; meta?: Record<string, any>; lead_id?: string; pm_id?: string; members?: string[]; }
 // 진행 중 여부 — 연구과제는 해당 연도 기간(미입력 시 총 기간), 프로젝트는 총 기간 기준.
 function isOngoing(p: Project): boolean {
@@ -248,7 +248,7 @@ export default function Approvals() {
         <div className="card">
           <div className="card-h"><b>결재 수신함</b></div>
           <table className="tbl" data-testid="appr-inbox">
-            <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
+            <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>기안자</th><th>상신일</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
             <tbody>
               {inbox.map((a) => {
                 const idx = currentIdx(a.steps);
@@ -258,6 +258,8 @@ export default function Approvals() {
                   <tr key={a.id}>
                     <td>{a.doc_no}</td><td style={{ maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis" }} title={a.type}>{a.type}</td>
                     <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={a.title}><a className="lnk" onClick={() => setViewing(a)}>{a.title}</a></td>
+                    <td>{uname(a.by_id)}</td>
+                    <td className="muted small">{dateKST(a.created_at) || "—"}</td>
                     <td className="muted small" style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={lineSummary(a)}>{lineSummary(a)}</td>
                     <td><span className={"badge " + (SBADGE[a.status] || "s-mute")}>{a.status}</span></td>
                     <td>{a.status === "진행" && iAmPending ? (myTurn ? (<>
@@ -267,7 +269,7 @@ export default function Approvals() {
                   </tr>
                 );
               })}
-              {!inbox.length && <tr><td colSpan={6} className="muted">수신 결재 없음</td></tr>}
+              {!inbox.length && <tr><td colSpan={8} className="muted">수신 결재 없음</td></tr>}
             </tbody>
           </table>
         </div>
@@ -276,13 +278,14 @@ export default function Approvals() {
       <div className="card">
         <div className="card-h"><b>내 상신함</b></div>
         <table className="tbl" data-testid="appr-mine">
-          <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
+          <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>상신일</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
           <tbody>
             {mine.map((a) => {
               const started = a.steps.some((s) => s.decision);
               return (
                 <tr key={a.id}>
                   <td>{a.doc_no}</td><td style={{ maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis" }} title={a.type}>{a.type}</td><td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={a.title}>{a.title}</td>
+                  <td className="muted small">{dateKST(a.created_at) || "—"}</td>
                   <td className="muted small" style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={lineSummary(a)}>{lineSummary(a)}</td>
                   <td><span className={"badge " + (SBADGE[a.status] || "s-mute")}>{a.status}</span></td>
                   <td>
@@ -295,7 +298,7 @@ export default function Approvals() {
                 </tr>
               );
             })}
-            {!mine.length && <tr><td colSpan={6} className="muted">상신 문서 없음</td></tr>}
+            {!mine.length && <tr><td colSpan={7} className="muted">상신 문서 없음</td></tr>}
           </tbody>
         </table>
       </div>
@@ -330,12 +333,18 @@ export default function Approvals() {
               <div className="card" style={{ marginBottom: 12 }}>
                 <div className="bd" style={{ padding: 10 }}>
                   {viewing.steps.map((s, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
-                      <span className="badge s-info">{i + 1}</span>
-                      <span style={{ flex: 1 }}>{uname(s.uid)} <span className="muted small">({urole(s.uid)})</span></span>
-                      <span className={"badge " + (s.decision === "승인" ? "s-ok" : s.decision === "반려" ? "s-bad" : "s-mute")}>{s.decision || "대기"}</span>
-                      {s.at && <span className="muted small">{s.at}</span>}
-                      {s.comment && <span className="muted small" title={s.comment}>💬</span>}
+                    <div key={i} style={{ padding: "3px 0" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="badge s-info">{i + 1}</span>
+                        <span style={{ flex: 1 }}>{uname(s.uid)} <span className="muted small">({urole(s.uid)})</span></span>
+                        <span className={"badge " + (s.decision === "승인" ? "s-ok" : s.decision === "반려" ? "s-bad" : "s-mute")}>{s.decision || "대기"}</span>
+                        {s.at && <span className="muted small">{s.at}</span>}
+                      </div>
+                      {s.comment && (
+                        <div className="small" data-testid={`a-step-comment-${i}`} style={{ margin: "5px 0 2px 30px", padding: "7px 10px", borderRadius: 8, background: "var(--soft)", border: "1px solid var(--line2)", overflowWrap: "anywhere", lineHeight: 1.5 }}>
+                          <span className="muted">{s.decision === "반려" ? "반려 사유" : "의견"}</span> · {s.comment}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
