@@ -10,12 +10,13 @@ import HtmlEditor from "../ui/HtmlEditorLazy";
 interface Item { id: string; title: string; date: string; time?: string; type: string; scope?: string; detail?: string; link?: string; attendees?: string[]; start?: string; end?: string; src: string; recurring?: boolean; by_id?: string; }
 const SCOPES = ["개인", "전체 구성원", "구성원 선택"];
 const REPEATS = ["없음", "매주", "격주", "매월"];
-// 레이어 표시 순서 (고정). 일정 추가 '구분' 옵션과는 별개.
 const LAYERS = ["업무", "회의", "마감", "예약", "출장", "휴가", "개인", "기타"];
 const TCOL: Record<string, string> = {
   "업무": "#3f5d7d", "회의": "#284072", "마감": "#d8584f", "출장": "#3a9b9b", "개인": "#7b66c4", "기타": "#5a6478",
   "휴가": "#caa53d", "예약": "#2e9e6b",
 };
+
+const leaveLayer = (t: string) => (LAYERS.includes(t) ? t : "휴가");
 
 // 로컬 날짜 기준 yyyy-mm-dd (toISOString의 UTC 변환은 KST에서 하루 밀림)
 function ymd(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
@@ -55,7 +56,15 @@ export default function Calendar() {
   function toggleAttendee(uid: string) {
     setForm((f) => ({ ...f, attendees: f.attendees.includes(uid) ? f.attendees.filter((x) => x !== uid) : [...f.attendees, uid] }));
   }
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
+  const uname = (id: string) => users.find((u) => u.id === id)?.name || "";
+  const evLabel = (e: Item) => {
+    const n = uname(e.by_id || "");
+    if (!n) return e.title;
+    if (e.src === "leave") return `${n} · ${e.title}`;
+    if (e.src === "booking") return `${e.title} · ${n}`;
+    return e.title;
+  };
+  const canSeeLeaveReason = (uid: string) => isMgr || uid === me?.id;
 
   async function load() {
     setErr("");
@@ -68,11 +77,18 @@ export default function Calendar() {
       });
       try {
         const lvs = (await api.get<any[]>("/attendance/leaves/approved")).data;
-        lvs.forEach((l) => eachDay(l.start_date, l.end_date).forEach((d) => out.push({ id: `lv-${l.id}-${d}`, title: `휴가 · ${l.type}`, date: d, type: "휴가", src: "leave", detail: l.reason })));
+        lvs.forEach((l) => eachDay(l.start_date, l.end_date).forEach((d) => out.push({
+          id: `lv-${l.id}-${d}`, title: l.type, date: d, type: leaveLayer(l.type), src: "leave",
+          by_id: l.uid, start: l.start_date, end: l.end_date,
+          detail: canSeeLeaveReason(l.uid) ? l.reason : "",
+        })));
       } catch { /* optional */ }
       try {
         const bks = (await api.get<any[]>("/resource/bookings")).data;
-        bks.forEach((b) => out.push({ id: `bk-${b.id}`, title: `예약 · ${b.resource}`, date: b.date, time: b.start, type: "예약", src: "booking", detail: b.purpose }));
+        bks.forEach((b) => out.push({
+          id: `bk-${b.id}`, title: b.resource, date: b.date, type: "예약", src: "booking",
+          time: b.end ? `${b.start}~${b.end}` : b.start, by_id: b.by_id, detail: b.purpose,
+        }));
       } catch { /* optional */ }
       setItems(out);
     } catch (e) { setErr(apiError(e)); }
@@ -173,7 +189,7 @@ export default function Calendar() {
               return (
                 <div key={i} className={"day" + (!inMonth ? " off" : "") + (ds === todayStr ? " today" : "")} onClick={() => inMonth && setDayModal(ds)}>
                   <div className="dn">{d.getDate()}</div>
-                  {evs.slice(0, 4).map((e) => <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={e.title}>{e.recurring ? "🔁 " : ""}{e.title}</span>)}
+                  {evs.slice(0, 4).map((e) => <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={evLabel(e)}>{e.recurring ? "🔁 " : ""}{evLabel(e)}</span>)}
                   {evs.length > 4 && <span className="more">+{evs.length - 4}건</span>}
                 </div>
               );
@@ -193,14 +209,14 @@ export default function Calendar() {
                   <div key={e.id} style={{ border: "1px solid var(--line)", borderLeft: `3px solid ${col}`, borderRadius: 10, padding: "12px 14px", background: "var(--soft)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.3 }}>{e.recurring ? "🔁 " : ""}{e.title}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.3 }}>{e.recurring ? "🔁 " : ""}{evLabel(e)}</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
                           <span className="badge" style={{ background: col + "1f", color: col }}>{e.type}</span>
                           {e.time && <span className="muted small">🕘 {e.time}</span>}
                           {e.scope && <span className="muted small">{e.scope}</span>}
                         </div>
                         {e.end && e.start && e.end > e.start && <div className="muted small" style={{ marginTop: 4 }}>📅 {e.start} ~ {e.end}</div>}
-                        {e.attendees && e.attendees.length > 0 && <div className="muted small" style={{ marginTop: 4 }}>👥 {e.attendees.map(uname).join(", ")}</div>}
+                        {e.attendees && e.attendees.length > 0 && <div className="muted small" style={{ marginTop: 4 }}>👥 {e.attendees.map((id) => uname(id) || id.slice(0, 6)).join(", ")}</div>}
                       </div>
                       {e.src === "event" && canEditEvent(e) && <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                         <button className="btn ghost sm" data-testid={`ev-edit-${e.id}`} onClick={() => editEvent(e)}>수정</button>
