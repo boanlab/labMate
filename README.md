@@ -1,5 +1,7 @@
 # LabMate
 
+[![CI](https://github.com/boanlab/labmate/actions/workflows/ci.yml/badge.svg)](https://github.com/boanlab/labmate/actions/workflows/ci.yml)
+
 연구실 그룹웨어 — 구성원·연구과제·연구비·근태·소통·자원을 한곳에서 관리하는 마이크로서비스 기반 웹 애플리케이션.
 
 - **프론트엔드**: React + Vite (TypeScript)
