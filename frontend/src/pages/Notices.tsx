@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { richHtml } from "../ui/richHtml";
-import { todayKST } from "../lib/date";
+import { todayKST, dateKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
@@ -194,7 +194,7 @@ export default function Notices() {
       <div className="tbar"><input className="tsearch" data-testid="notice-search" placeholder="제목·내용 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
       <div className="card">
         <table className="tbl" data-testid="notice-table">
-          <thead><tr><th>공지</th><th>대상</th><th>마감</th><th>내 확인</th>{isMgr && <th>현황</th>}</tr></thead>
+          <thead><tr><th>공지</th><th>작성자</th><th>작성일</th><th>대상</th><th>마감</th><th>내 확인</th>{isMgr && <th>현황</th>}</tr></thead>
           <tbody>
             {shown.map((n) => {
               const acked = me ? n.acked_user_ids.includes(me.id) : false;
@@ -203,6 +203,8 @@ export default function Notices() {
               return (
                 <tr key={n.id}>
                   <td>{n.required && <span className="badge s-bad" style={{ marginRight: 6 }}>필독</span>}<a className="lnk" style={{ fontWeight: 600 }} data-testid={`notice-open-${n.id}`} onClick={() => setOpen(n)}>{n.title}</a><div className="muted small">{stripHtml(n.body)}{(n.files && n.files.length) ? ` 📎${n.files.length}` : ""}{n.link ? " 🔗" : ""}</div></td>
+                  <td>{uname(n.by_id)}</td>
+                  <td className="small muted">{dateKST(n.created_at) || "—"}</td>
                   <td className="small muted">{(n.target_user_ids && n.target_user_ids.length) ? `선택 ${n.target_user_ids.length}명` : "전체"}</td>
                   <td>{n.due ? <span className={overdue ? "badge s-bad" : "muted small"}>{n.due}{overdue ? " 초과" : ""}</span> : <span className="muted small">—</span>}</td>
                   <td>{mustAck(n) ? (acked ? <span className="badge s-ok">✓ 확인</span> : <span className="badge s-wait">미확인</span>) : <span className="muted small">대상 아님</span>}</td>
@@ -210,7 +212,7 @@ export default function Notices() {
                 </tr>
               );
             })}
-            {!shown.length && <tr><td colSpan={isMgr ? 5 : 4} className="muted">{items.length ? "검색 결과 없음" : "공지 없음"}</td></tr>}
+            {!shown.length && <tr><td colSpan={isMgr ? 7 : 6} className="muted">{items.length ? "검색 결과 없음" : "공지 없음"}</td></tr>}
           </tbody>
         </table>
       </div>
