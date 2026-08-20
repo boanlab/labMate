@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, AuthorMeta } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { richHtml } from "../ui/richHtml";
@@ -60,6 +61,7 @@ export default function Board() {
   }
   async function add(e: React.FormEvent) {
     e.preventDefault(); setErr("");
+    if (!form.title.trim()) return setErr("제목을 입력하세요");
     try {
       if (editId) await api.put(`/boards/posts/${editId}`, { ...form, body });
       else await api.post("/boards/posts", { ...form, body });
@@ -113,6 +115,13 @@ export default function Board() {
 
   const ql = q.trim().toLowerCase();
   const filtered = items.filter((p) => (tab === "전체" || p.cat === tab) && (!ql || `${p.title} ${stripHtml(p.body || "")} ${uname(p.by_id)}`.toLowerCase().includes(ql)));
+  const listRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [q, tab]);
+  const pageSize = useAutoPageSize(listRef, filtered.length);
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const cur = Math.min(page, pages - 1);
+  const view = filtered.slice(cur * pageSize, cur * pageSize + pageSize);
 
   if (open) {
     return (
@@ -193,7 +202,7 @@ export default function Board() {
         <form className="card" onSubmit={add} data-testid="board-form">
           <div className="card-h"><b>{editId ? "게시물 수정" : "글쓰기"}</b></div>
           <div className="bd grid2">
-            <div style={{ gridColumn: "1 / -1" }}><label>제목</label><input data-testid="b-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label>제목<Req/></label><input data-testid="b-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div><label>분류</label><select data-testid="b-cat" value={form.cat} onChange={(e) => setForm({ ...form, cat: e.target.value })}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
             <div><label>공개 범위</label><select data-testid="b-minrole" value={form.min_role} onChange={(e) => setForm({ ...form, min_role: e.target.value })}>{MIN_ROLE_OPTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
             <div style={{ gridColumn: "1 / -1" }}><label>본문</label><HtmlEditor value={body} onChange={setBody} testid="b-body" minHeight={200} /></div>
@@ -227,22 +236,25 @@ export default function Board() {
 
       <div className="tbar" style={{ marginBottom: 8 }}><input className="tsearch" data-testid="board-search" placeholder="제목·내용·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{filtered.length}건</span></div>
       <Card pad={false}>
-        <table className="tbl" data-testid="board-table">
-          <thead><tr><th>분류</th><th>제목</th><th>작성자</th><th>작성일</th><th>댓글</th><th>조회</th></tr></thead>
+        <div ref={listRef}>
+        <table className="tbl fit" data-testid="board-table">
+          <thead><tr><th style={{ width: 78 }}>분류</th><th>제목</th><th className="hide-sm" style={{ width: 88 }}>작성자</th><th style={{ width: 96 }}>작성일</th><th className="hide-sm" style={{ width: 52 }}>댓글</th><th className="hide-sm" style={{ width: 52 }}>조회</th></tr></thead>
           <tbody>
-            {filtered.map((p) => (
+            {view.map((p) => (
               <tr key={p.id}>
                 <td><span className={"badge " + (CBADGE[p.cat] || "s-mute")}>{p.cat}</span></td>
                 <td><a style={{ cursor: "pointer", fontWeight: 600 }} data-testid={`post-open-${p.id}`} onClick={() => openPost(p)}>{p.title}</a>{p.min_role ? <span className="badge s-wait" style={{ marginLeft: 6 }} title={minRoleLabel(p.min_role)}>🔒 {minRoleLabel(p.min_role)}</span> : null}<div className="muted small">{stripHtml(p.body)}</div></td>
-                <td className="small muted">{uname(p.by_id)}</td>
+                <td className="small muted hide-sm">{uname(p.by_id)}</td>
                 <td className="small muted">{p.created_at ? dateKST(p.created_at) : "—"}</td>
-                <td>{p.comments?.length || 0}</td><td>{p.views}</td>
+                <td className="hide-sm">{p.comments?.length || 0}</td><td className="hide-sm">{p.views}</td>
               </tr>
             ))}
             {!filtered.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 18 }}>게시글 없음</td></tr>}
           </tbody>
         </table>
+        </div>
       </Card>
+      <Pager page={cur} pages={pages} set={setPage} />
     </div>
   );
 }

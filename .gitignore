@@ -25,3 +25,7 @@ frontend/dist/
 # 테스트용 업로드 양식(소스 아님)
 /*.xlsx
 /data/backups/
+frontend/e2e/node_modules/
+frontend/e2e/shots/
+frontend/e2e/report.json
+frontend/e2e/package*.json

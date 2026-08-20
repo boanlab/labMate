@@ -185,6 +185,19 @@ export default function Payroll() {
   const grantYear = (p: Project) => (projPeriod(p)[0]?.slice(0, 4)) || (p.code.match(/\((\d{4})\)/)?.[1]) || "0";
   const equalSpentAll = projects.filter((p) => isEqualGrant(p) && grantYear(p) <= year).reduce((a, p) => a + stuBudget(p.id).allocated, 0);
   const equalSpent = curPool ? equalSpentAll : 0;
+  // 통합 그룹(payroll_pool ≥2 과제)별 잔여 — 개별 과제 초과집행을 0으로 표기할지 판정(그룹 잔여>0이면 그룹이 커버)
+  const poolRemMap: Record<string, number> = {};
+  {
+    const g: Record<string, Project[]> = {};
+    projects.forEach((p) => { const [s] = projPeriod(p); if (s && s.slice(0, 4) > year) return; const k = String(p.meta?.payroll_pool || "").trim(); if (k) (g[k] ||= []).push(p); });
+    Object.entries(g).forEach(([k, ps]) => {
+      if (ps.length < 2) return;
+      const alloc = ps.reduce((a, p) => a + stuBudget(p.id).allocated, 0);
+      const spent = ps.reduce((a, p) => a + stuBudget(p.id).spent - projFuturePaid(p.id), 0) + equalSpentAll;
+      const pend = ps.reduce((a, p) => a + projFutureAll(p.id), 0);
+      poolRemMap[k] = alloc - spent - pend;
+    });
+  }
   // 같은 풀 타 과제 사용액(확정+예정) — 이 과제 몫은 현재 편성으로 대체
   const otherUsed = poolProjects.reduce((a, p) => a + (p.id === pid ? 0 : stuBudget(p.id).spent + projPend(p.id)), 0);
   const remainForThis = sb.allocated - otherUsed - equalSpent - planAnnual;   // 잔여 = 재원 − 타 과제 사용 − 균등 확정집행 − 이 과제 현재 편성
@@ -337,14 +350,21 @@ export default function Payroll() {
           <table className="tbl" data-testid="exec-table">
             <thead><tr><th>과제</th><th>편성(학생인건비)</th><th>지급확정 집행</th><th>예정(미확정)</th><th>잔여</th><th>집행률</th></tr></thead>
             <tbody>
-              {yearProjects.map((p) => { const b = stuBudget(p.id); const pend = projPend(p.id); const r = b.allocated ? Math.round(b.spent / b.allocated * 100) : 0; return (
+              {yearProjects.map((p) => {
+                const b = stuBudget(p.id); const pend = projPend(p.id);
+                const r = b.allocated ? Math.round(b.spent / b.allocated * 100) : 0;
+                const pool = String(p.meta?.payroll_pool || "").trim();
+                const covered = pool in poolRemMap && poolRemMap[pool] > 0;   // 통합 그룹 잔여>0 → 개별 초과집행을 0/100%로(그룹이 커버)
+                const rem = covered ? Math.max(0, b.allocated - b.spent) : b.allocated - b.spent;
+                const rate = covered ? Math.min(100, r) : r;
+                return (
                 <tr key={p.id}>
                   <td><b>{p.code}</b></td>
                   <td>{won(b.allocated)}</td>
                   <td>{won(b.spent)}</td>
                   <td className="muted">{pend ? won(pend) : "—"}</td>
-                  <td style={{ color: b.allocated - b.spent < 0 ? "var(--bad)" : "inherit" }}>{won(b.allocated - b.spent)}</td>
-                  <td><div className="bar" style={{ width: 80, display: "inline-block", verticalAlign: "middle" }}><i style={{ width: `${Math.min(r, 100)}%`, background: r > 90 ? "var(--bad)" : "var(--brand)" }} /></div> {r}%</td>
+                  <td style={{ color: rem < 0 ? "var(--bad)" : "inherit" }}>{won(rem)}</td>
+                  <td><div className="bar" style={{ width: 80, display: "inline-block", verticalAlign: "middle" }}><i style={{ width: `${Math.min(rate, 100)}%`, background: rate > 90 ? "var(--bad)" : "var(--brand)" }} /></div> {rate}%</td>
                 </tr>
               ); })}
             </tbody>

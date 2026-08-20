@@ -139,7 +139,8 @@ export default function Expenses() {
   const q = query.trim().toLowerCase();
   const matchQ = (x: Exp) => !q || [code(x.project_id), x.category, x.subcategory, x.title, uname(x.by_id), x.claim_date, String(x.amount)].some((v) => (v || "").toLowerCase().includes(q));
   const base = items.filter((x) => (!filterPid || x.project_id === filterPid) && matchQ(x));
-  const shown = base.filter((x) => statusFilter === "전체" || statusOf(x.project_id) === statusFilter);
+  const shown = base.filter((x) => statusFilter === "전체" || statusOf(x.project_id) === statusFilter)
+    .sort((a, b) => (b.claim_date || "").localeCompare(a.claim_date || ""));   // 집행일자 최신순
   const statusCount = (t: string) => t === "전체" ? base.length : base.filter((x) => statusOf(x.project_id) === t).length;
   const total = shown.reduce((a, x) => a + x.amount, 0);
 
@@ -204,19 +205,19 @@ export default function Expenses() {
             <span className="pill">합계 {total.toLocaleString()}원</span>
           </span>
         </div>
-        <table className="tbl" data-testid="exp-table">
-          <thead><tr><th>집행일자</th><th>과제</th><th>비목/세목</th><th>집행 내용</th>{isAdmin && <th>등록자</th>}<th>금액</th><th>증빙</th><th>처리</th></tr></thead>
+        <table className="tbl fit" data-testid="exp-table">
+          <thead><tr><th style={{ width: 92 }}>집행일자</th><th className="hide-sm" style={{ width: 100 }}>과제</th><th className="hide-sm" style={{ width: 130 }}>비목/세목</th><th>집행 내용</th>{isAdmin && <th className="hide-sm" style={{ width: 90 }}>등록자</th>}<th style={{ width: 104 }}>금액</th><th className="hide-sm" style={{ width: 64 }}>증빙</th><th className="hide-sm" style={{ width: 96 }}>처리</th></tr></thead>
           <tbody>
             {shown.map((x) => (
               <tr key={x.id}>
                 <td className="small muted">{x.claim_date || "—"}</td>
-                <td>{code(x.project_id)}</td>
-                <td>{x.category}{x.subcategory ? <span className="muted small"> · {x.subcategory}</span> : ""}</td>
+                <td className="hide-sm">{code(x.project_id)}</td>
+                <td className="hide-sm">{x.category}{x.subcategory ? <span className="muted small"> · {x.subcategory}</span> : ""}</td>
                 <td className="ell" title={x.title}>{x.title}</td>
-                {isAdmin && <td className="muted">{uname(x.by_id)}</td>}
+                {isAdmin && <td className="muted hide-sm">{uname(x.by_id)}</td>}
                 <td>{x.amount.toLocaleString()}원</td>
-                <td className="small">{x.files?.length ? x.files.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noreferrer" title={f.name} style={{ marginRight: 6 }}>📎{x.files!.length > 1 ? i + 1 : ""}</a>) : <span className="muted">—</span>}</td>
-                <td>
+                <td className="small hide-sm">{x.files?.length ? x.files.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noreferrer" title={f.name} style={{ marginRight: 6 }}>📎{x.files!.length > 1 ? i + 1 : ""}</a>) : <span className="muted">—</span>}</td>
+                <td className="hide-sm">
                   {(x.by_id === me?.id || isAdmin) && <button className="btn ghost sm" data-testid={`e-edit-${x.id}`} onClick={() => editExpense(x)}>수정</button>}{" "}
                   {(x.by_id === me?.id || isAdmin) && <button className="btn ghost sm" data-testid={`e-del-${x.id}`} style={{ color: "var(--bad)" }} onClick={() => del(x)}>삭제</button>}
                 </td>

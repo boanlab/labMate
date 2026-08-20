@@ -537,10 +537,10 @@ export default function Admin() {
           )}
           {isAdmin && (
             <Card title="문서 내보내기 (ZIP)" testid="docs-export">
-              <div className="muted small" style={{ marginBottom: 12 }}>연구노트·자료실은 트리 문서라 시트 대신 <b>ZIP</b>으로 내보냅니다. (트리=폴더, 페이지=HTML, 자료실은 첨부파일 포함)</div>
+              <div className="muted small" style={{ marginBottom: 12 }}>연구노트·아카이브는 트리 문서라 시트 대신 <b>ZIP</b>으로 내보냅니다. (트리=폴더, 페이지=HTML, 아카이브는 첨부파일 포함)</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button className="btn ghost" data-testid="export-notes-zip" onClick={() => downloadBlob("/projects/notes/export", "labmate-연구노트.zip").catch((e) => setSheetResult({ label: "연구노트", msg: apiError(e), errors: [] }))}>⬇ 연구노트 ZIP</button>
-                <button className="btn ghost" data-testid="export-archive-zip" onClick={() => downloadBlob("/projects/archive/export", "labmate-자료실.zip").catch((e) => setSheetResult({ label: "자료실", msg: apiError(e), errors: [] }))}>⬇ 자료실 ZIP</button>
+                <button className="btn ghost" data-testid="export-archive-zip" onClick={() => downloadBlob("/projects/archive/export", "labmate-아카이브.zip").catch((e) => setSheetResult({ label: "아카이브", msg: apiError(e), errors: [] }))}>⬇ 아카이브 ZIP</button>
               </div>
             </Card>
           )}

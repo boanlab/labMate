@@ -278,17 +278,39 @@ def decide_leave(lid: str, body: schemas.DecideIn, user: CurrentUser = Depends(g
     lv = db.get(Leave, lid)
     if not lv:
         raise HTTPException(404, "휴가 없음")
-    if lv.status != "대기":
-        raise HTTPException(409, "이미 처리된 휴가입니다")
-    lv.status = "승인" if body.decision == "승인" else "반려"
-    lv.approver_id = user.id
+    if lv.status == "취소":
+        raise HTTPException(409, "취소된 휴가입니다")
+    new_status = "승인" if body.decision == "승인" else "반려"
+    if lv.status != new_status:                          # 재결재(승인↔반려) 지원 — 잔여 조정
+        deduct = _leave_rule(db, lv.type).get("deduct", True)
+        if deduct and lv.status == "승인":               # 기존 승인 해제 → 잔여 복원
+            _ensure_balance(db, lv.uid).used -= lv.days
+        lv.status = new_status
+        lv.approver_id = user.id
+        if deduct and new_status == "승인":              # 새 승인 → 잔여 차감
+            _ensure_balance(db, lv.uid).used += lv.days
+        record(db, user, f"휴가 {lv.status}", lv.type, f"{lv.start_date}~{lv.end_date} ({lv.days}일)")
+        notify(db, recipients=[lv.uid], kind="leave", title=f"휴가 {lv.status}",
+               body=f"{user.name}님이 {lv.type} 신청({lv.start_date}~{lv.end_date})을 {lv.status}했습니다", link="/leave",
+               actor=user, ref_id=lv.id)
+    db.commit(); db.refresh(lv)
+    return lv
+
+
+@router.post("/leaves/{lid}/reopen", response_model=schemas.LeaveOut)
+def reopen_leave(lid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """전자결재 승인취소 연동 — 휴가를 대기로 되돌림(승인 상태였으면 잔여 복원)."""
+    if not _hr_admin(user):
+        raise HTTPException(403, "권한이 없습니다")
+    lv = db.get(Leave, lid)
+    if not lv:
+        raise HTTPException(404, "휴가 없음")
+    if lv.status == "취소":
+        raise HTTPException(409, "취소된 휴가입니다")
     if lv.status == "승인" and _leave_rule(db, lv.type).get("deduct", True):
-        bal = _ensure_balance(db, lv.uid)
-        bal.used += lv.days
-    record(db, user, f"휴가 {lv.status}", lv.type, f"{lv.start_date}~{lv.end_date} ({lv.days}일)")
-    notify(db, recipients=[lv.uid], kind="leave", title=f"휴가 {lv.status}",
-           body=f"{user.name}님이 {lv.type} 신청({lv.start_date}~{lv.end_date})을 {lv.status}했습니다", link="/leave",
-           actor=user, ref_id=lv.id)
+        _ensure_balance(db, lv.uid).used -= lv.days
+    lv.status = "대기"
+    lv.approver_id = ""
     db.commit(); db.refresh(lv)
     return lv
 

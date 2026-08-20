@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { richHtml } from "../ui/richHtml";
+import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, AuthorMeta } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface Action { id?: string; title: string; assignee_id: string; due: string; done: boolean; task_id?: string; }
@@ -41,6 +42,13 @@ export default function Meetings() {
   const projName = (id?: string) => { const p = [...grants, ...activities].find((x) => x.id === id); return p ? `${p.code} · ${p.name}` : ""; };
   const projCode = (id?: string) => [...grants, ...activities].find((x) => x.id === id)?.code || "";
   const shown = items.filter((m) => !q.trim() || `${m.title} ${m.decisions || ""} ${projCode(m.project_id)} ${uname(m.by_id)}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const listRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [q]);
+  const pageSize = useAutoPageSize(listRef, shown.length);
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const cur = Math.min(page, pages - 1);
+  const view = shown.slice(cur * pageSize, cur * pageSize + pageSize);
   // 관련 프로젝트 후보 — 본인 참여+진행 중(기존 선택은 유지)
   const mineProj = (p: any) => !!me && (p.lead_id === me.id || p.pm_id === me.id || (p.members || []).includes(me.id));
   const ongoingGrants = grants.filter((p) => (ongoing(p, true) && mineProj(p)) || p.id === form.project_id);
@@ -70,6 +78,8 @@ export default function Meetings() {
 
   async function save() {
     setErr("");
+    if (!form.title.trim()) return setErr("제목을 입력하세요");
+    if (!dec.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return setErr("결정사항을 입력하세요");
     const actions = form.actions.map((a) => ({ ...a }));
     // 관련 과제가 있으면 신규 액션을 세부 업무(예정)로 등록하고 task_id 연결
     if (form.project_id) {
@@ -104,7 +114,7 @@ export default function Meetings() {
         <PageHeader crumb="소통 › 회의록" title={editing.id ? "회의록 수정" : "회의록 작성"} action={<button className="btn ghost" onClick={() => setEditing(null)}>목록</button>} />
         {err && <div className="form-err" data-testid="meeting-error">{err}</div>}
         <Card>
-          <div><label>제목</label><input data-testid="mt-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+          <div><label>제목<Req/></label><input data-testid="mt-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
           <div className="grid2" style={{ marginBottom: 10 }}>
             <div><label>일자</label><input data-testid="mt-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
             <div><label>관련 프로젝트 <span className="muted small">(선택 시 액션아이템이 세부 업무로 등록)</span></label>
@@ -119,7 +129,7 @@ export default function Meetings() {
           <div className="fchips" data-testid="mt-attendees" style={{ marginBottom: 10 }}>
             {users.filter((u) => u.role !== "admin" && u.active !== false).map((u) => <button type="button" key={u.id} className={"chip" + (form.attendees.includes(u.id) ? " on" : "")} onClick={() => toggleAttendee(u.id)}>{u.name}</button>)}
           </div>
-          <label>결정사항</label>
+          <label>결정사항<Req/></label>
           <HtmlEditor value={dec} onChange={setDec} testid="mt-decisions" minHeight={120} />
           <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>액션아이템
             <button type="button" className="btn ghost sm" data-testid="mt-action-add" onClick={addAction}>+ 추가</button>
@@ -178,7 +188,7 @@ export default function Meetings() {
                       <td style={{ whiteSpace: "normal", textDecoration: done ? "line-through" : "none", color: done ? "var(--sub)" : "inherit" }}>{a.title || "—"}</td>
                       <td className="small muted">{a.assignee_id ? uname(a.assignee_id) : "미정"}</td>
                       <td className="small muted">{a.due || "—"}</td>
-                      <td className="small">{a.task_id ? (linked ? <span className={"badge " + (linked.status === "완료" ? "s-ok" : linked.status === "진행" ? "s-info" : "s-mute")}>{linked.status}</span> : <span className="muted">삭제됨</span>) : <span className="muted">—</span>}</td>
+                      <td className="small">{a.task_id ? (linked ? <span className={"badge " + (linked.status === "완료" ? "s-ok" : linked.status === "진행 중" ? "s-info" : "s-mute")}>{linked.status}</span> : <span className="muted">삭제됨</span>) : <span className="muted">—</span>}</td>
                     </tr>
                   );
                 })}
@@ -205,19 +215,19 @@ export default function Meetings() {
       {err && <div className="form-err" data-testid="meeting-error">{err}</div>}
 
       <div className="tbar"><input className="tsearch" data-testid="meeting-search" placeholder="제목·결정사항·프로젝트·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
-      <div className="card">
-        <table className="tbl" data-testid="meeting-table">
-          <thead><tr><th style={{ width: 110 }}>일자</th><th style={{ width: 130 }}>관리코드</th><th>제목</th><th style={{ width: 100 }}>작성자</th><th style={{ width: 70 }}>참석</th><th style={{ width: 120 }}>액션(완료/전체)</th></tr></thead>
+      <div className="card" ref={listRef}>
+        <table className="tbl fit" data-testid="meeting-table">
+          <thead><tr><th style={{ width: 104 }}>일자</th><th className="hide-sm" style={{ width: 130 }}>관리코드</th><th>제목</th><th className="hide-sm" style={{ width: 100 }}>작성자</th><th className="hide-sm" style={{ width: 64 }}>참석</th><th style={{ width: 104 }}>액션</th></tr></thead>
           <tbody>
-            {shown.map((m) => {
+            {view.map((m) => {
               const done = (m.actions || []).filter((a) => isDone(a)).length;
               return (
                 <tr key={m.id} style={{ cursor: "pointer" }} onClick={() => setOpen(m)}>
                   <td>{m.date}</td>
-                  <td className="small muted">{projCode(m.project_id) || "-"}</td>
+                  <td className="small muted hide-sm">{projCode(m.project_id) || "-"}</td>
                   <td><a style={{ cursor: "pointer", fontWeight: 600 }} data-testid={`mt-open-${m.id}`} onClick={(e) => { e.stopPropagation(); setOpen(m); }}>{m.title}</a></td>
-                  <td className="small muted">{uname(m.by_id)}</td>
-                  <td>{(m.attendees || []).length}명</td>
+                  <td className="small muted hide-sm">{uname(m.by_id)}</td>
+                  <td className="hide-sm">{(m.attendees || []).length}명</td>
                   <td><span className={"badge " + (m.actions?.length && done === m.actions.length ? "s-ok" : "s-info")}>{done}/{m.actions?.length || 0}</span></td>
                 </tr>
               );
@@ -226,6 +236,7 @@ export default function Meetings() {
           </tbody>
         </table>
       </div>
+      <Pager page={cur} pages={pages} set={setPage} />
     </div>
   );
 }

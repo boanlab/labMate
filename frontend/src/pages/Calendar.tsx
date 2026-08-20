@@ -3,7 +3,7 @@ import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card } from "../ui/kit";
+import { PageHeader, Card, Req } from "../ui/kit";
 import { useConfig, names } from "../api/config";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
@@ -93,10 +93,22 @@ export default function Calendar() {
       setItems(out);
     } catch (e) { setErr(apiError(e)); }
   }
-  useEffect(() => { load(); api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {}); }, []);
+  useEffect(() => {
+    load();
+    api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {});
+    // 탭 복귀·포커스 시 재조회 — 휴가 승인/취소 등 외부 변경을 실시간 반영
+    const onFocus = () => load();
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    return () => { window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVis); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
+    if (!form.title.trim()) return setErr("제목을 입력하세요");
+    if (!form.date) return setErr("시작일을 입력하세요");
     const payload = { title: form.title, date: form.date, end_date: form.end && form.end > form.date ? form.end : null, time: form.time, type: form.type, scope: form.scope, detail, link: form.link, repeat: form.repeat, until: form.until || null, attendees: form.scope === "구성원 선택" ? form.attendees : [] };
     try {
       if (form.id) await api.put(`/boards/events/${form.id}`, payload);
@@ -132,8 +144,8 @@ export default function Calendar() {
         <form className="card" onSubmit={save} data-testid="event-form">
           <div className="bd grid3">
             <div><label>구분</label><select data-testid="ev-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{EVTYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
-            <div style={{ gridColumn: "span 2" }}><label>제목</label><input data-testid="ev-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div><label>시작일</label><input data-testid="ev-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+            <div style={{ gridColumn: "span 2" }}><label>제목<Req/></label><input data-testid="ev-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+            <div><label>시작일<Req/></label><input data-testid="ev-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
             <div><label>종료일(선택)</label><input data-testid="ev-end" type="date" min={form.date} value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></div>
             <div><label>시간(선택)</label><input data-testid="ev-time" type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
