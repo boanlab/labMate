@@ -65,17 +65,17 @@ export default function AuditLog() {
               <span className="muted small">{fAudit.length}건{busy ? " · 불러오는 중…" : ""}</span>
             </span>
           </div>
-          <table className="tbl" data-testid="audit-table">
-            <thead><tr><th>시각</th><th>행위자</th><th>행위</th><th>대상</th><th>상세</th><th>서비스</th></tr></thead>
+          <table className="tbl fit" data-testid="audit-table">
+            <thead><tr><th style={{ width: 132 }}>시각</th><th className="hide-sm" style={{ width: 90 }}>행위자</th><th style={{ width: 88 }}>행위</th><th className="hide-sm" style={{ width: 100 }}>대상</th><th>상세</th><th className="hide-sm" style={{ width: 104 }}>서비스</th></tr></thead>
             <tbody>
               {fAudit.slice(apg * PAGE, apg * PAGE + PAGE).map((a, i) => (
                 <tr key={i}>
                   <td className="muted small" style={{ whiteSpace: "nowrap" }}>{dtKST(a.at)}</td>
-                  <td><b>{a.actor}</b></td>
+                  <td className="hide-sm"><b>{a.actor}</b></td>
                   <td><span className="badge s-info">{a.action}</span></td>
-                  <td>{a.entity || "—"}</td>
+                  <td className="hide-sm">{a.entity || "—"}</td>
                   <td className="muted small">{a.detail}</td>
-                  <td className="muted small">{a.service}</td>
+                  <td className="muted small hide-sm">{a.service}</td>
                 </tr>
               ))}
               {!fAudit.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 16 }}>{audit.length ? "검색 결과 없음" : "기록 없음"}</td></tr>}

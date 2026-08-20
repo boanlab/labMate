@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { richHtml } from "../ui/richHtml";
 import { todayKST, dtKST } from "../lib/date";
+import { FIXED_KINDS, seriesOf } from "../lib/pubClass";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
@@ -46,15 +47,9 @@ interface User { id: string; name: string; role: string; active: boolean; join_d
 const STCOL: Record<string, string> = { "업무 중": "#2e9e6b", "외근": "#7b66c4", "출장": "#3a9b9b", "휴가": "#c2891b", "퇴근": "#5a6478", "미체크": "#d8584f" };
 const ROLE_KO: Record<string, string> = { prof: "교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리" };
 
-// 포트폴리오 성과 지표 순서 [시스템키, 표시라벨] — SCI/KCI/국제·국내학술대회/국제·국내특허.
-const PORT_INDS: [string, string][] = [["SCI", "SCI"], ["KCI", "KCI"], ["국제학술대회", "국제학술대회"], ["국내학술대회", "국내학술대회"], ["국외특허", "국제특허"], ["국내특허", "국내특허"]];
+// 포트폴리오 성과 지표 = 실적 분류(국제/국내논문지·학술대회·특허). 실적·과제 목표와 동일 기준.
+const PORT_INDS: [string, string][] = FIXED_KINDS.map((k) => [k, k]);
 const nfNum = (n: number) => Number.isInteger(n) ? String(n) : n.toFixed(1);
-function metric(p: Pub): string {
-  if (p.kind === "논문") { const ix = p.index_grade || p.index_type; return /SCI|SSCI|SCOPUS/i.test(ix) ? "SCI" : "KCI"; }
-  if (p.kind === "학술대회") return p.scope === "국외" ? "국제학술대회" : "국내학술대회";
-  if (p.kind === "특허") return p.scope === "국외" ? "국외특허" : "국내특허";
-  return p.kind;
-}
 function currentIdx(line: any[]): number {
   for (let i = 0; i < line.length; i++) { if (!line[i].decision) return i; if (line[i].decision === "반려") return -1; }
   return -1;
@@ -126,7 +121,7 @@ export default function Dashboard() {
     const g = p.goals || {};
     const tg = Object.values(g).reduce((a, v) => a + v, 0);
     const counts: Record<string, number> = {};
-    pubs.filter((u) => pubFundsProject(u, p)).forEach((u) => { const m = metric(u); counts[m] = (counts[m] || 0) + pubShare(u); });
+    pubs.filter((u) => pubFundsProject(u, p)).forEach((u) => { const m = seriesOf(u); counts[m] = (counts[m] || 0) + pubShare(u); });
     const ta = +Object.keys(g).reduce((a, k) => a + Math.min(counts[k] || 0, g[k]), 0).toFixed(1);
     const tot = +Object.values(counts).reduce((a, v) => a + v, 0).toFixed(1);   // 목표 미설정이어도 실적 총 달성수
     return { ta, tg, tot, counts };
@@ -328,7 +323,7 @@ export default function Dashboard() {
       <Card title="과제 포트폴리오" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/grants")}>과제관리 →</a>}>
         <div className="card scroll" style={{ margin: 0, border: "none" }}>
           <table className="tbl" data-testid="dash-portfolio" style={{ tableLayout: "fixed", width: "100%" }}>
-            <thead><tr><th>과제</th><th style={{ width: 84 }}>기관</th>{canBudget && <th style={{ width: 150 }}>예산 집행률</th>}<th style={{ width: 150 }} title="SCI / KCI / 국제학술대회 / 국내학술대회 / 국제특허 / 국내특허">성과</th><th style={{ width: 72 }}>기한</th></tr></thead>
+            <thead><tr><th>과제</th><th style={{ width: 84 }}>기관</th>{canBudget && <th style={{ width: 150 }}>예산 집행률</th>}<th style={{ width: 150 }} title={FIXED_KINDS.join(" / ")}>성과</th><th style={{ width: 72 }}>기한</th></tr></thead>
             <tbody>
               {ps.map((p) => {
                 const ex = budgetOf(p.id); const ach = achievedOf(p); const dd = dday(grantEnd(p));
@@ -372,7 +367,7 @@ export default function Dashboard() {
           <Card title="세부 업무 현황" extra={<span className="muted small">내 업무 {myTasks.length}건</span>} testid="dash-tasks">
             <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 16px", marginBottom: 8 }}>
               <span className="small"><b style={{ color: "#9aa3ad" }}>●</b> 예정 <b>{taskCount["예정"] || 0}</b></span>
-              <span className="small"><b style={{ color: "#3f5d7d" }}>●</b> 진행 <b>{taskCount["진행"] || 0}</b></span>
+              <span className="small"><b style={{ color: "#3f5d7d" }}>●</b> 진행 중 <b>{taskCount["진행 중"] || 0}</b></span>
               <span className="small"><b style={{ color: "#2e9e6b" }}>●</b> 완료 <b>{taskCount["완료"] || 0}</b></span>
               {overdueTasks.length > 0 && <span className="small"><b style={{ color: "var(--bad)" }}>●</b> 지연 <b>{overdueTasks.length}</b></span>}
             </div>

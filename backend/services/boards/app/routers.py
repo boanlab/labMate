@@ -577,6 +577,26 @@ def decide_approval(aid: str, body: schemas.DecideIn, user: CurrentUser = Depend
     return a
 
 
+@router.post("/approvals/{aid}/undo", response_model=schemas.ApprovalOut)
+def undo_approval(aid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """승인/반려 사후 취소 — 본인 결재 단계와 그 이후를 초기화하고 진행 상태로 되돌려 재결재."""
+    a = db.get(Approval, aid)
+    if not a:
+        raise HTTPException(404, "문서 없음")
+    idx = next((i for i, s in enumerate(a.steps) if s.get("uid") == user.id and s.get("decision")), None)
+    if idx is None:
+        raise HTTPException(403, "취소할 본인 결재가 없습니다")
+    if any(s.get("decision") for s in a.steps[idx + 1:]):    # 다음 결재자가 이미 결재했으면 취소 불가
+        raise HTTPException(409, "다음 결재자가 이미 결재하여 승인취소할 수 없습니다")
+    new_line = [dict(s) for s in a.steps]
+    new_line[idx] = {**new_line[idx], "decision": None, "at": "", "comment": ""}    # 본인 단계만 초기화
+    a.steps = new_line
+    a.status = "진행"
+    record(db, user, "결재 승인취소", a.doc_no, a.title)
+    db.commit(); db.refresh(a)
+    return a
+
+
 @router.post("/approvals/{aid}/recall", response_model=schemas.ApprovalOut)
 def recall_approval(aid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     """기안자가 상신을 회수 — 아직 아무도 결재하지 않은 경우만."""

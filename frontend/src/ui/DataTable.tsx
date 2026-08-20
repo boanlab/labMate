@@ -1,4 +1,5 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useMemo, useRef, useState } from "react";
+import { useAutoPageSize } from "./pageTable";
 
 export interface Col<T> {
   key: string;
@@ -7,6 +8,7 @@ export interface Col<T> {
   value?: (row: T) => string | number;   // 정렬·검색용
   sortable?: boolean;
   nowrap?: boolean;
+  width?: number | string;   // fit 모드에서 컬럼 폭(px 고정 또는 '30%' 비율). 미지정 시 남는 폭 균등 배분+말줄임.
 }
 
 interface Props<T> {
@@ -16,6 +18,7 @@ interface Props<T> {
   searchPlaceholder?: string;
   searchKeys?: (row: T) => string;
   pageSize?: number;
+  fit?: boolean;          // 컬럼을 폭 비율대로 배분하고 넘치는 내용은 말줄임(브라우저 폭 반응)
   autoHeight?: boolean;   // 브라우저 높이에 맞춰 페이지 크기를 자동 계산(페이지 수 최소화)
   defaultSort?: string;
   defaultDir?: 1 | -1;
@@ -23,14 +26,13 @@ interface Props<T> {
   empty?: string;
 }
 
-export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색…", searchKeys, pageSize = 10, autoHeight = false, defaultSort, defaultDir = 1, chips, empty = "데이터 없음" }: Props<T>) {
+export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색…", searchKeys, pageSize = 10, fit = false, autoHeight = false, defaultSort, defaultDir = 1, chips, empty = "데이터 없음" }: Props<T>) {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<string | null>(defaultSort ?? null);
   const [dir, setDir] = useState<1 | -1>(defaultDir);
   const [page, setPage] = useState(0);
   const [chip, setChip] = useState<string>("전체");
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [autoSize, setAutoSize] = useState(pageSize);
 
   const filtered = useMemo(() => {
     let r = rows;
@@ -53,29 +55,8 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
     return r;
   }, [rows, q, sort, dir, chip, cols, chips, searchKeys]);
 
-  // 뷰포트 높이에 맞춰 한 페이지 행 수 계산 (기준은 window.innerHeight 고정 — 컨테이너 높이 기준 시 피드백 루프)
-  useEffect(() => {
-    if (!autoHeight) return;
-    const calc = () => {
-      const el = wrapRef.current;
-      if (!el) return;
-      const top = el.getBoundingClientRect().top;                     // 테이블 래퍼(검색바 아래) 상단
-      const rowEl = el.querySelector("tbody tr") as HTMLElement | null;
-      const headEl = el.querySelector("thead") as HTMLElement | null;
-      const rowH = Math.max(24, rowEl ? rowEl.getBoundingClientRect().height : 42);  // 실제 행 높이
-      const headH = headEl ? headEl.getBoundingClientRect().height : 40;
-      const RESERVE = 60;                                              // 페이저 + 하단 여백
-      const avail = window.innerHeight - top - headH - RESERVE;
-      const n = Math.max(6, Math.floor(avail / rowH));
-      setAutoSize((prev) => (prev === n ? prev : n));
-    };
-    const raf = requestAnimationFrame(calc);       // 최초 레이아웃 확정 후 측정
-    window.addEventListener("resize", calc);
-    const ro = new ResizeObserver(calc);           // 폼 열림/닫힘 등 상단 변화 감지(기준이 고정이라 루프 없음)
-    ro.observe(document.body);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", calc); ro.disconnect(); };
-  }, [autoHeight, filtered.length]);
-
+  // 뷰포트 높이에 맞춰 한 페이지 행 수 계산 — 목록 페이징(useAutoPageSize)과 동일 로직으로 통일.
+  const autoSize = useAutoPageSize(wrapRef, filtered.length, autoHeight);
   const effPageSize = autoHeight ? autoSize : pageSize;
   const pages = Math.max(1, Math.ceil(filtered.length / effPageSize));
   const cur = Math.min(page, pages - 1);
@@ -105,7 +86,8 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
         <span className="muted small" style={{ marginLeft: "auto" }}>{filtered.length}건</span>
       </div>
       <div className="card scroll" style={{ margin: 0 }} ref={wrapRef}>
-        <table className="tbl">
+        <table className={"tbl" + (fit ? " fit" : "")}>
+          {fit && <colgroup>{cols.map((c) => <col key={c.key} style={c.width != null ? { width: c.width } : undefined} />)}</colgroup>}
           <thead>
             <tr>
               {cols.map((c) => (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Pager } from "../ui/pageTable";
 import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
@@ -52,6 +53,8 @@ export default function Approvals() {
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState<null | { id?: string; resubmit?: boolean; status?: string }>(null);
   const [viewing, setViewing] = useState<Appr | null>(null);
+  const [inPage, setInPage] = useState(0);
+  const [minePage, setMinePage] = useState(0);
   const [reject, setReject] = useState<null | Appr>(null);
   const [rejectMsg, setRejectMsg] = useState("");
   const [addApprover, setAddApprover] = useState("");
@@ -131,6 +134,17 @@ export default function Approvals() {
           try { await api.post(`/funds/expenses/${upd.source_ref.slice(8)}/decide?decision=${encodeURIComponent(upd.status)}`); } catch { /* 무시 */ }
         }
       }
+      setViewing((v) => (v && v.id === a.id ? upd : v));
+      load();
+    } catch (e) { setErr(apiError(e)); }
+  }
+  async function undo(a: Appr) {
+    try {
+      const upd = (await api.post<Appr>(`/boards/approvals/${a.id}/undo`, {})).data;
+      if (upd.source_ref?.startsWith("leave:")) {   // 연결 휴가를 대기로 되돌림(캘린더에서 제거)
+        try { await api.post(`/attendance/leaves/${upd.source_ref.slice(6)}/reopen`); } catch { /* 무시 */ }
+      }
+      setViewing((v) => (v && v.id === a.id ? upd : v));   // 팝업 갱신 → 진행 상태로 재결재
       load();
     } catch (e) { setErr(apiError(e)); }
   }
@@ -235,6 +249,16 @@ export default function Approvals() {
     );
   }
 
+  // 상세 팝업 결재 상태 — 내 차례(재결재 가능) / 내가 결재했고 다음 결재자가 아직 미결재(승인취소 가능)
+  const vIdx = viewing ? currentIdx(viewing.steps) : -1;
+  const vMyTurn = !!viewing && viewing.status === "진행" && vIdx >= 0 && viewing.steps[vIdx]?.uid === me?.id;
+  const vUndoIdx = viewing ? viewing.steps.findIndex((s) => s.uid === me?.id && !!s.decision) : -1;
+  const vCanUndo = !!viewing && vUndoIdx >= 0 && !viewing.steps.slice(vUndoIdx + 1).some((s) => !!s.decision);
+  const inPages = Math.max(1, Math.ceil(inbox.length / 10)), inCur = Math.min(inPage, inPages - 1);
+  const inView = inbox.slice(inCur * 10, inCur * 10 + 10);
+  const minePages = Math.max(1, Math.ceil(mine.length / 10)), mineCur = Math.min(minePage, minePages - 1);
+  const mineView = mine.slice(mineCur * 10, mineCur * 10 + 10);
+
   // ── 목록(수신함·상신함) ──
   return (
     <div data-testid="page-approvals">
@@ -247,20 +271,20 @@ export default function Approvals() {
       {isApprover && (
         <div className="card">
           <div className="card-h"><b>결재 수신함</b></div>
-          <table className="tbl" data-testid="appr-inbox">
-            <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>기안자</th><th>상신일</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
+          <table className="tbl fit" data-testid="appr-inbox">
+            <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 90 }}>기안자</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 96 }}>처리</th></tr></thead>
             <tbody>
-              {inbox.map((a) => {
+              {inView.map((a) => {
                 const idx = currentIdx(a.steps);
                 const myTurn = idx >= 0 && a.steps[idx]?.uid === me?.id;
                 const iAmPending = a.steps.some((s) => s.uid === me?.id && !s.decision);
                 return (
                   <tr key={a.id}>
-                    <td>{a.doc_no}</td><td style={{ maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis" }} title={a.type}>{a.type}</td>
-                    <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={a.title}><a className="lnk" onClick={() => setViewing(a)}>{a.title}</a></td>
-                    <td>{uname(a.by_id)}</td>
-                    <td className="muted small">{dateKST(a.created_at) || "—"}</td>
-                    <td className="muted small" style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={lineSummary(a)}>{lineSummary(a)}</td>
+                    <td className="hide-sm">{a.doc_no}</td><td title={a.type}>{a.type}</td>
+                    <td title={a.title}><a className="lnk" onClick={() => setViewing(a)}>{a.title}</a></td>
+                    <td className="hide-sm">{uname(a.by_id)}</td>
+                    <td className="muted small hide-sm">{dateKST(a.created_at) || "—"}</td>
+                    <td className="muted small hide-sm" title={lineSummary(a)}>{lineSummary(a)}</td>
                     <td><span className={"badge " + (SBADGE[a.status] || "s-mute")}>{a.status}</span></td>
                     <td>{a.status === "진행" && iAmPending ? (myTurn ? (<>
                       <button className="btn ghost sm" data-testid={`a-approve-${a.id}`} onClick={() => decide(a, "승인")}>승인</button>{" "}
@@ -272,21 +296,22 @@ export default function Approvals() {
               {!inbox.length && <tr><td colSpan={8} className="muted">수신 결재 없음</td></tr>}
             </tbody>
           </table>
+          <Pager page={inCur} pages={inPages} set={setInPage} />
         </div>
       )}
 
       <div className="card">
         <div className="card-h"><b>내 상신함</b></div>
-        <table className="tbl" data-testid="appr-mine">
-          <thead><tr><th>문서번호</th><th>유형</th><th>제목</th><th>상신일</th><th>결재선</th><th>상태</th><th>처리</th></tr></thead>
+        <table className="tbl fit" data-testid="appr-mine">
+          <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 96 }}>처리</th></tr></thead>
           <tbody>
-            {mine.map((a) => {
+            {mineView.map((a) => {
               const started = a.steps.some((s) => s.decision);
               return (
                 <tr key={a.id}>
-                  <td>{a.doc_no}</td><td style={{ maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis" }} title={a.type}>{a.type}</td><td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={a.title}>{a.title}</td>
-                  <td className="muted small">{dateKST(a.created_at) || "—"}</td>
-                  <td className="muted small" style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={lineSummary(a)}>{lineSummary(a)}</td>
+                  <td className="hide-sm">{a.doc_no}</td><td title={a.type}>{a.type}</td><td title={a.title}>{a.title}</td>
+                  <td className="muted small hide-sm">{dateKST(a.created_at) || "—"}</td>
+                  <td className="muted small hide-sm" title={lineSummary(a)}>{lineSummary(a)}</td>
                   <td><span className={"badge " + (SBADGE[a.status] || "s-mute")}>{a.status}</span></td>
                   <td>
                     <button className="btn ghost sm" data-testid={`a-view-${a.id}`} onClick={() => setViewing(a)}>문서</button>{" "}
@@ -301,6 +326,7 @@ export default function Approvals() {
             {!mine.length && <tr><td colSpan={7} className="muted">상신 문서 없음</td></tr>}
           </tbody>
         </table>
+        <Pager page={mineCur} pages={minePages} set={setMinePage} />
       </div>
 
       {reject && (
@@ -351,6 +377,17 @@ export default function Approvals() {
               </div>
               <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: richHtml(viewing.content) || "<span class='muted'>본문 없음</span>" }} />
             </div>
+            {(vMyTurn || vCanUndo) && (
+              <div className="modal-f" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ display: "flex", gap: 6 }}>
+                  {vMyTurn && <>
+                    <button className="btn ghost sm" data-testid="v-approve" onClick={() => decide(viewing, "승인")}>승인</button>
+                    <button className="btn ghost sm" style={{ color: "var(--bad)" }} onClick={() => { setReject(viewing); setRejectMsg(""); }}>반려</button>
+                  </>}
+                </span>
+                {vCanUndo && <a className="lnk small" data-testid="v-undo" style={{ cursor: "pointer", color: "var(--sub)" }} onClick={() => undo(viewing)}>승인취소</a>}
+              </div>
+            )}
           </div>
         </div>
       )}

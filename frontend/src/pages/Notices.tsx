@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { richHtml } from "../ui/richHtml";
+import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST, dateKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
-import { PageHeader, Card, AuthorMeta } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
 
 interface TFile { name: string; url: string; }
 interface Notice { id: string; title: string; body: string; by_id: string; required: boolean; due: string | null; acked_user_ids: string[]; link?: string; files?: TFile[]; target_user_ids?: string[]; updated_by?: string; created_at?: string; updated_at?: string; }
@@ -54,6 +55,8 @@ export default function Notices() {
   }
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
+    if (!form.title.trim()) return setErr("제목을 입력하세요");
+    if (!body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return setErr("내용을 입력하세요");
     const payload = {
       title: form.title, body, required: form.required, due: form.due || null,
       link: form.link, files: form.files, target_user_ids: form.targetMode === "select" ? form.target_user_ids : [],
@@ -76,6 +79,13 @@ export default function Notices() {
   const audience = (n: Notice) => (n.target_user_ids && n.target_user_ids.length) ? n.target_user_ids : members.map((u) => u.id);
   const ackInfo = (n: Notice) => { const aud = audience(n); return { acked: aud.filter((id) => n.acked_user_ids.includes(id)).length, total: aud.length }; };
   const shown = items.filter((n) => !q.trim() || `${n.title} ${stripHtml(n.body || "")}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const listRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [q]);
+  const pageSize = useAutoPageSize(listRef, shown.length);
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const cur = Math.min(page, pages - 1);
+  const view = shown.slice(cur * pageSize, cur * pageSize + pageSize);
   const canEdit = (n: Notice) => isMgr || n.by_id === me?.id;
   const mustAck = (n: Notice) => !!me && audience(n).includes(me.id);
 
@@ -149,7 +159,7 @@ export default function Notices() {
             {editId && <div className="io" style={{ marginBottom: 10 }}>수정 중</div>}
             <div className="muted small" style={{ marginBottom: 8 }}>작성자 · <b>{uname(form.by_id)}</b></div>
             <div className="grid3">
-              <div style={{ gridColumn: "span 2" }}><label>제목</label><input data-testid="n-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+              <div style={{ gridColumn: "span 2" }}><label>제목<Req/></label><input data-testid="n-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
               <div><label>확인 마감일(선택)</label><input data-testid="n-due" type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} /></div>
             </div>
             <div className="grid3" style={{ marginTop: 4 }}>
@@ -170,7 +180,7 @@ export default function Notices() {
                 {members.map((u) => <button type="button" key={u.id} className={"chip" + (form.target_user_ids.includes(u.id) ? " on" : "")} onClick={() => toggleTarget(u.id)}>{u.name}</button>)}
               </div>
             )}
-            <label>내용</label><HtmlEditor value={body} onChange={setBody} testid="n-body" minHeight={200} />
+            <label>내용<Req/></label><HtmlEditor value={body} onChange={setBody} testid="n-body" minHeight={200} />
             <label>링크(선택)</label>
             <input data-testid="n-link" type="url" placeholder="https://…" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
             <label>첨부파일(선택)</label>
@@ -192,23 +202,23 @@ export default function Notices() {
         </form>
       )}
       <div className="tbar"><input className="tsearch" data-testid="notice-search" placeholder="제목·내용 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
-      <div className="card">
-        <table className="tbl" data-testid="notice-table">
-          <thead><tr><th>공지</th><th>작성자</th><th>작성일</th><th>대상</th><th>마감</th><th>내 확인</th>{isMgr && <th>현황</th>}</tr></thead>
+      <div className="card" ref={listRef}>
+        <table className="tbl fit" data-testid="notice-table">
+          <thead><tr><th>공지</th><th className="hide-sm" style={{ width: 90 }}>작성자</th><th className="hide-sm" style={{ width: 96 }}>작성일</th><th className="hide-sm" style={{ width: 90 }}>대상</th><th style={{ width: 96 }}>마감</th><th style={{ width: 92 }}>내 확인</th>{isMgr && <th className="hide-sm" style={{ width: 84 }}>현황</th>}</tr></thead>
           <tbody>
-            {shown.map((n) => {
+            {view.map((n) => {
               const acked = me ? n.acked_user_ids.includes(me.id) : false;
               const overdue = n.due && n.due < today;
               const info = ackInfo(n);
               return (
                 <tr key={n.id}>
                   <td>{n.required && <span className="badge s-bad" style={{ marginRight: 6 }}>필독</span>}<a className="lnk" style={{ fontWeight: 600 }} data-testid={`notice-open-${n.id}`} onClick={() => setOpen(n)}>{n.title}</a><div className="muted small">{stripHtml(n.body)}{(n.files && n.files.length) ? ` 📎${n.files.length}` : ""}{n.link ? " 🔗" : ""}</div></td>
-                  <td>{uname(n.by_id)}</td>
-                  <td className="small muted">{dateKST(n.created_at) || "—"}</td>
-                  <td className="small muted">{(n.target_user_ids && n.target_user_ids.length) ? `선택 ${n.target_user_ids.length}명` : "전체"}</td>
+                  <td className="small muted hide-sm">{uname(n.by_id)}</td>
+                  <td className="small muted hide-sm">{dateKST(n.created_at) || "—"}</td>
+                  <td className="small muted hide-sm">{(n.target_user_ids && n.target_user_ids.length) ? `선택 ${n.target_user_ids.length}명` : "전체"}</td>
                   <td>{n.due ? <span className={overdue ? "badge s-bad" : "muted small"}>{n.due}{overdue ? " 초과" : ""}</span> : <span className="muted small">—</span>}</td>
                   <td>{mustAck(n) ? (acked ? <span className="badge s-ok">✓ 확인</span> : <span className="badge s-wait">미확인</span>) : <span className="muted small">대상 아님</span>}</td>
-                  {isMgr && <td><span className={info.acked >= info.total ? "badge s-ok" : "badge s-wait"}>{info.acked}/{info.total}</span></td>}
+                  {isMgr && <td className="hide-sm"><span className={info.acked >= info.total ? "badge s-ok" : "badge s-wait"}>{info.acked}/{info.total}</span></td>}
                 </tr>
               );
             })}
@@ -216,6 +226,7 @@ export default function Notices() {
           </tbody>
         </table>
       </div>
+      <Pager page={cur} pages={pages} set={setPage} />
 
     </div>
   );

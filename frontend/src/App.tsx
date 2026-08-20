@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import MyPage from "./pages/MyPage";
 import Projects from "./pages/Projects";
+import MyTasks from "./pages/MyTasks";
 import Publications from "./pages/Publications";
 import Expenses from "./pages/Expenses";
 import Payroll from "./pages/Payroll";
@@ -32,7 +33,7 @@ import { ReactNode } from "react";
 
 // 연구원 전체(학사 포함) 접근 가능 라우트. 연구비집행·예산은 교수·행정만(별도 지정).
 const STUDENT5 = ["prof", "phd", "master", "under", "staff"];
-// 행정(staff) 차단 모듈 — 프로젝트·전자결재·자원예약·게시판·회의록·자료실. 위임 학생은 본인 역할로 접근.
+// 행정(staff) 차단 모듈 — 프로젝트·전자결재·자원예약·게시판·회의록·아카이브. 위임 학생은 본인 역할로 접근.
 const NO_STAFF = ["prof", "phd", "master", "under"];
 function Protected({ children, roles }: { children: ReactNode; roles?: string[] }) {
   const { me, loading } = useAuth();
@@ -60,6 +61,7 @@ function App() {
           <Route path="/" element={<Protected><Dashboard /></Protected>} />
           <Route path="/grants" element={<Protected roles={STUDENT5}><Projects key="grant" kind="grant" /></Protected>} />
           <Route path="/projects" element={<Protected roles={NO_STAFF}><Projects key="activity" kind="activity" /></Protected>} />
+          <Route path="/tasks" element={<Protected roles={STUDENT5}><MyTasks /></Protected>} />
           <Route path="/notes" element={<Protected roles={NO_STAFF}><Notes /></Protected>} />
           <Route path="/publications" element={<Protected roles={STUDENT5}><Publications /></Protected>} />
           <Route path="/expenses" element={<Protected roles={["prof", "staff"]}><Expenses /></Protected>} />

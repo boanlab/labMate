@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, Chips, won, statusClass } from "../ui/kit";
+import { PageHeader, Card, Chips, won, statusClass, Req } from "../ui/kit";
 import { useConfig, names } from "../api/config";
 
 
@@ -90,16 +90,16 @@ export default function BudgetPage() {
           onChange={(t) => { setFilter(t); setEditing(false); const vis = projects.filter((p) => t === "전체" || stat(p) === t); if (!vis.some((p) => p.id === sel)) setSel(vis[0]?.id || ""); }}
           items={FILTERS.map((t) => ({ key: t, count: t === "전체" ? projects.length : projects.filter((p) => stat(p) === t).length }))} />
       } testid="budget-summary">
-        <table className="tbl">
-          <thead><tr><th style={{ width: 130 }}>관리코드</th><th>과제명</th><th>상태</th><th>총 편성</th><th>총 집행</th><th>잔액</th><th>집행률</th></tr></thead>
+        <table className="tbl fit">
+          <thead><tr><th className="hide-sm" style={{ width: 116 }}>관리코드</th><th>과제명</th><th style={{ width: 78 }}>상태</th><th className="hide-sm" style={{ width: 100 }}>총 편성</th><th className="hide-sm" style={{ width: 100 }}>총 집행</th><th style={{ width: 100 }}>잔액</th><th className="hide-sm" style={{ width: 72 }}>집행률</th></tr></thead>
           <tbody>
             {visProjects.map((p) => { const t = totOf(p.id); const r = pctOf(t.allocated, t.spent); const st = stat(p); return (
               <tr key={p.id} data-testid={`bg-row-${p.code}`} onClick={() => { setSel(p.id); setEditing(false); }} style={{ cursor: "pointer", background: sel === p.id ? "var(--bsoft)" : undefined }}>
-                <td><b>{p.code}</b></td><td className="muted" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }} title={p.name}>{p.name}</td>
+                <td className="hide-sm"><b>{p.code}</b></td><td className="muted" title={p.name}>{p.name}</td>
                 <td><span className={statusClass(st)}>{st}</span></td>
-                <td>{won(t.allocated)}</td><td>{won(t.spent)}</td>
+                <td className="hide-sm">{won(t.allocated)}</td><td className="hide-sm">{won(t.spent)}</td>
                 <td style={{ color: t.allocated - t.spent < 0 ? "var(--bad)" : "inherit" }}>{won(t.allocated - t.spent)}</td>
-                <td>{r}%</td>
+                <td className="hide-sm">{r}%</td>
               </tr>
             ); })}
             {!visProjects.length && <tr><td colSpan={7} className="muted">{filter} 과제 없음</td></tr>}
@@ -139,7 +139,7 @@ export default function BudgetPage() {
           </table>
           {editing && (
             <div className="bd" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <label style={{ margin: 0 }}>변경 사유</label>
+              <label style={{ margin: 0 }}>변경 사유<Req/></label>
               <input data-testid="bg-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="예: 1차년도 예산 편성" style={{ margin: 0, flex: 1 }} />
             </div>
           )}
