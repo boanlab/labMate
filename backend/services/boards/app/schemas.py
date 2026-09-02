@@ -14,9 +14,11 @@ class NoticeIn(BaseModel):
     files: list[dict] = Field(default_factory=list)
     target_user_ids: list[str] = Field(default_factory=list)   # 확인 대상 (비면 전체)
     notify_uids: list[str] = Field(default_factory=list)       # 알림 발송 대상(전체 공지 시 프론트가 전 구성원 id 전달; 저장 안 함)
+    base_updated_at: datetime | None = None                    # 낙관적 잠금 — 클라이언트가 불러온 시점(저장 안 함)
 
 
 class NoticeOut(NoticeIn):
+    base_updated_at: datetime | None = Field(default=None, exclude=True)   # 요청 전용 — 응답에는 싣지 않는다
     id: str
     by_id: str
     updated_by: str = ""
@@ -34,9 +36,11 @@ class PostIn(BaseModel):
     link: str = ""
     files: list[dict] = Field(default_factory=list)
     min_role: str = ""   # 공개 범위(최소 직급): ''=전체 / under·master·phd·prof 이상만 열람
+    base_updated_at: datetime | None = None                    # 낙관적 잠금 — 클라이언트가 불러온 시점(저장 안 함)
 
 
 class PostOut(PostIn):
+    base_updated_at: datetime | None = Field(default=None, exclude=True)   # 요청 전용 — 응답에는 싣지 않는다
     id: str
     by_id: str
     updated_by: str = ""
@@ -60,9 +64,11 @@ class MeetingIn(BaseModel):
     attendees: list[str] = Field(default_factory=list)
     decisions: str = ""
     actions: list[dict] = Field(default_factory=list)
+    base_updated_at: datetime | None = None                    # 낙관적 잠금 — 클라이언트가 불러온 시점(저장 안 함)
 
 
 class MeetingOut(MeetingIn):
+    base_updated_at: datetime | None = Field(default=None, exclude=True)   # 요청 전용 — 응답에는 싣지 않는다
     id: str
     by_id: str
     updated_by: str = ""
