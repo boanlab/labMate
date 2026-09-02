@@ -38,6 +38,8 @@ export default function Expenses() {
   const [items, setItems] = useState<Exp[]>([]);
   const [projects, setProjects] = useState<Proj[]>([]);
   const [budgets, setBudgets] = useState<{ project_id: string; category: string; allocated: number; spent: number }[]>([]);
+  // 집행이 결재를 거치는지(환경설정 › 마스터데이터). 끄면 예전처럼 등록 즉시 확정된다.
+  const approvalOn = useConfig<boolean>("expense_approval", true);
   const [users, setUsers] = useState<any[]>([]);
   const [err, setErr] = useState("");
   const [adding, setAdding] = useState(false);
@@ -66,6 +68,28 @@ export default function Expenses() {
   const afterRemain = remain === null ? null : remain - (form.amount || 0);
 
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
+  // 상신: 집행 건을 '상신'으로 올리고, 같은 내용으로 결재 문서를 만든다.
+  // 결재가 승인되면 Approvals 화면이 source_ref 를 보고 이 건을 승인 처리한다.
+  async function submitExpense(x: Exp) {
+    if (!x.files?.length && x.amount > 0) { setErr("증빙 파일을 첨부해야 상신할 수 있습니다 — [수정]에서 첨부하세요"); return; }
+    const approver = users.find((u) => u.role === "prof" && u.id !== me?.id)
+      || users.find((u) => ["staff", "admin"].includes(u.role) && u.id !== me?.id);
+    if (!approver) { setErr("결재할 사람을 찾지 못했습니다 — 지도교수·행정 계정이 필요합니다"); return; }
+    setErr("");
+    try {
+      await api.post(`/funds/expenses/${x.id}/submit`);
+      await api.post("/boards/approvals", {
+        type: "구매",
+        title: `연구비 집행 · ${x.title} (${x.amount.toLocaleString()}원)`,
+        content: `<p>과제 ${code(x.project_id)} · ${x.category}${x.subcategory ? " · " + x.subcategory : ""}</p><p>집행일자 ${x.claim_date || "-"}</p>`,
+        project_id: x.project_id,
+        approver_ids: [approver.id],
+        source_ref: `expense:${x.id}`,
+      });
+      load();
+    } catch (e) { setErr(apiError(e)); }
+  }
+
   async function load() {
     try {
       setItems((await api.get<Exp[]>("/funds/expenses")).data);
@@ -80,7 +104,8 @@ export default function Expenses() {
   }
   useEffect(() => { load(); }, []);
 
-  const EMPTY = { project_id: projects[0]?.id || "", category: "인건비", subcategory: "", title: "", claim_date: today, amount: 0, files: [] as TFile[] };
+  const EXP_BADGE: Record<string, string> = { "작성중": "s-mute", "상신": "s-wait", "승인": "s-ok", "지급": "s-ok", "반려": "s-bad", "집행": "s-info" };
+const EMPTY = { project_id: projects[0]?.id || "", category: "인건비", subcategory: "", title: "", claim_date: today, amount: 0, files: [] as TFile[] };
   function openForm() {
     setEditId("");
     const yr = today.slice(0, 4); setFormYear(yr);                               // 등록 시작: 현 시점 연도
@@ -245,7 +270,7 @@ export default function Expenses() {
           </span>
         </div>
         <table className="tbl fit" data-testid="exp-table">
-          <thead><tr><th style={{ width: 104 }}>집행일자</th><th className="hide-sm" style={{ width: 100 }}>과제</th><th className="hide-sm" style={{ width: 130 }}>비목/세목</th><th>집행 내용</th>{isAdmin && <th className="hide-sm" style={{ width: 90 }}>등록자</th>}<th style={{ width: 104 }}>금액</th><th className="hide-sm" style={{ width: 64 }}>증빙</th><th style={{ width: 124 }}>처리</th></tr></thead>
+          <thead><tr><th style={{ width: 104 }}>집행일자</th><th className="hide-sm" style={{ width: 100 }}>과제</th><th className="hide-sm" style={{ width: 130 }}>비목/세목</th><th>집행 내용</th>{isAdmin && <th className="hide-sm" style={{ width: 90 }}>등록자</th>}<th style={{ width: 104 }}>금액</th><th className="hide-sm" style={{ width: 64 }}>증빙</th>{approvalOn && <th style={{ width: 78 }}>상태</th>}<th style={{ width: 168 }}>처리</th></tr></thead>
           <tbody>
             {shown.map((x) => (
               <tr key={x.id}>
@@ -256,7 +281,10 @@ export default function Expenses() {
                 {isAdmin && <td className="muted hide-sm">{uname(x.by_id)}</td>}
                 <td>{x.amount.toLocaleString()}원</td>
                 <td className="small hide-sm">{x.files?.length ? x.files.map((f, i) => <a key={i} href={f.url} target="_blank" rel="noreferrer" title={f.name} style={{ marginRight: 6 }}>📎{x.files!.length > 1 ? i + 1 : ""}</a>) : <span className="muted">—</span>}</td>
-                <td>
+                {approvalOn && <td><span className={"badge " + (EXP_BADGE[x.status] || "s-mute")} data-testid={`e-status-${x.id}`}>{x.status}</span></td>}
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {approvalOn && x.by_id === me?.id && ["작성중", "반려"].includes(x.status)
+                    && <><button className="btn primary sm" data-testid={`e-submit-${x.id}`} onClick={() => submitExpense(x)}>상신</button>{" "}</>}
                   {(x.by_id === me?.id || isAdmin) && <button className="btn ghost sm" data-testid={`e-edit-${x.id}`} onClick={() => editExpense(x)}>수정</button>}{" "}
                   {(x.by_id === me?.id || isAdmin) && <button className="btn ghost sm" data-testid={`e-del-${x.id}`} style={{ color: "var(--bad-text)" }} onClick={() => del(x)}>삭제</button>}
                 </td>
