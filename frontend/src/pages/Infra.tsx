@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card } from "../ui/kit";
@@ -14,6 +14,7 @@ const DCOL: Record<string, string> = { "서버": "#3f5d7d", "GPU": "#3a9b9b", "�
 const PALETTE = ["#c25b5b", "#4a7fb5", "#8a9b2e", "#b8557f", "#2f8f8f", "#d17a2e", "#6b7cc4", "#4f9d6a", "#a05fb0", "#b59a2e", "#5b8fb5", "#9b5a5a"];
 
 export default function Infra() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const TYPES = useConfig<string[]>("device_types", TYPES_FB);
   const defU = Number(useConfig<any>("rack_max_u", 42)) || 42;
@@ -105,8 +106,8 @@ export default function Infra() {
         <form className="card" onSubmit={(e) => { e.preventDefault(); saveRack(); }} data-testid="rack-form">
           <div className="card-h"><b>{rackForm.id ? "랙 수정" : "랙 추가"}</b></div>
           <div className="bd grid2">
-            <div><label>랙 이름</label><input data-testid="rk-name" value={rackForm.name} onChange={(e) => setRackForm({ ...rackForm, name: e.target.value })} placeholder="예: R5" /></div>
-            <div><label>랙 크기(U)</label><input data-testid="rk-u" type="number" min={1} value={rackForm.u_height} onChange={(e) => setRackForm({ ...rackForm, u_height: Number(e.target.value) })} /></div>
+            <div><label htmlFor={`${uid}-1`}>랙 이름</label><input id={`${uid}-1`} data-testid="rk-name" value={rackForm.name} onChange={(e) => setRackForm({ ...rackForm, name: e.target.value })} placeholder="예: R5" /></div>
+            <div><label htmlFor={`${uid}-2`}>랙 크기(U)</label><input id={`${uid}-2`} data-testid="rk-u" type="number" min={1} value={rackForm.u_height} onChange={(e) => setRackForm({ ...rackForm, u_height: Number(e.target.value) })} /></div>
           </div>
           <div className="bd" style={{ display: "flex", gap: 8 }}>
             <button className="btn primary" data-testid="rack-add-submit">{rackForm.id ? "저장" : "랙 추가"}</button>
@@ -118,18 +119,18 @@ export default function Infra() {
         <form className="card" onSubmit={saveDevice} data-testid="dev-form">
           <div className="card-h"><b>{editId ? "장비 수정" : "장비 등록"}</b></div>
           <div className="bd grid2">
-            <div><label>랙</label><select data-testid="d-rack" value={form.rack} onChange={(e) => setForm({ ...form, rack: e.target.value })}>{racks.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}</select></div>
-            <div><label>종류</label><select data-testid="d-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
-            <div><label>장비명</label><input data-testid="d-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div><label>IP주소</label><input data-testid="d-ip" value={form.ip} onChange={(e) => setForm({ ...form, ip: e.target.value })} /></div>
-            <div><label>위치(시작 U)</label><input data-testid="d-pos" type="number" value={form.pos} onChange={(e) => setForm({ ...form, pos: Number(e.target.value) })} /></div>
-            <div><label>크기(U)</label><input data-testid="d-size" type="number" value={form.size} onChange={(e) => setForm({ ...form, size: Number(e.target.value) })} /></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>비고</label><input data-testid="d-note" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="예: 보증 만료 2026-12 / 담당자 비상연락" /></div>
+            <div><label htmlFor={`${uid}-3`}>랙</label><select id={`${uid}-3`} data-testid="d-rack" value={form.rack} onChange={(e) => setForm({ ...form, rack: e.target.value })}>{racks.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}</select></div>
+            <div><label htmlFor={`${uid}-4`}>종류</label><select id={`${uid}-4`} data-testid="d-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
+            <div><label htmlFor={`${uid}-5`}>장비명</label><input id={`${uid}-5`} data-testid="d-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-6`}>IP주소</label><input id={`${uid}-6`} data-testid="d-ip" value={form.ip} onChange={(e) => setForm({ ...form, ip: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-7`}>위치(시작 U)</label><input id={`${uid}-7`} data-testid="d-pos" type="number" value={form.pos} onChange={(e) => setForm({ ...form, pos: Number(e.target.value) })} /></div>
+            <div><label htmlFor={`${uid}-8`}>크기(U)</label><input id={`${uid}-8`} data-testid="d-size" type="number" value={form.size} onChange={(e) => setForm({ ...form, size: Number(e.target.value) })} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-9`}>비고</label><input id={`${uid}-9`} data-testid="d-note" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="예: 보증 만료 2026-12 / 담당자 비상연락" /></div>
           </div>
           <div className="bd" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button className="btn primary" data-testid="dev-add-submit">{editId ? "저장" : "등록"}</button>
             <button type="button" className="btn ghost" data-testid="dev-add-cancel" onClick={closeDevice}>취소</button>
-            {editId && <button type="button" data-testid="dev-edit-del" onClick={async () => { const d = items.find((x) => x.id === editId); if (d && await delDevice(d)) closeDevice(); }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
+            {editId && <button type="button" data-testid="dev-edit-del" onClick={async () => { const d = items.find((x) => x.id === editId); if (d && await delDevice(d)) closeDevice(); }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
           </div>
         </form>
       )}
@@ -181,7 +182,7 @@ export default function Infra() {
                   <div className="rackcab-f" style={{ textAlign: "center", padding: "7px 0", fontSize: 12 }}>
                     <a className="lnk" data-testid={`rack-edit-${rk.name}`} style={{ cursor: "pointer" }} onClick={() => setRackForm({ id: rk.id, name: rk.name, u_height: rk.u_height })}>수정</a>
                     <span className="muted"> | </span>
-                    <a className="lnk" data-testid={`rack-del-${rk.name}`} style={{ cursor: "pointer", color: "var(--bad)" }} onClick={() => delRack(rk)}>삭제</a>
+                    <a className="lnk danger" data-testid={`rack-del-${rk.name}`} style={{ cursor: "pointer" }} onClick={() => delRack(rk)}>삭제</a>
                   </div>
                 )}
               </div>

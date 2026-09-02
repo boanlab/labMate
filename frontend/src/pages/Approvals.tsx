@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import { Pager } from "../ui/pageTable";
 import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
+import { confirmDiscard } from "../ui/kit";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
 import HtmlEditor from "../ui/HtmlEditorLazy";
@@ -42,6 +43,7 @@ function currentIdx(steps: Step[]): number {
 }
 
 export default function Approvals() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const isApprover = !!me && (["prof", "staff", "admin"].includes(me.role) || !!me.delegated_admin);
   const TYPES = names(useConfig<any[]>("approval_types", []));
@@ -84,7 +86,8 @@ export default function Approvals() {
   }
   useEffect(() => { load(); }, []);
 
-  function defaultLine(): string[] { const prof = users.find((u) => u.role === "prof"); return prof ? [prof.id] : []; }
+  // 기본 결재선은 지도교수 — 다만 교수 본인이 기안하면 자기 자신을 결재자로 넣지 않는다
+  function defaultLine(): string[] { const prof = users.find((u) => u.role === "prof" && u.id !== me?.id); return prof ? [prof.id] : []; }
   function openNew() {
     const t0 = TYPES[0] || "구매";
     setForm({ type: t0, title: "", project_id: "", approver_ids: defaultLine() });
@@ -96,9 +99,11 @@ export default function Approvals() {
     setEditing({ id: a.id, resubmit, status: a.status }); setAddApprover(""); setErr("");
     setBody(a.content || "");
   }
-  function addStep() {
-    if (addApprover && !form.approver_ids.includes(addApprover) && addApprover !== me?.id)
-      setForm({ ...form, approver_ids: [...form.approver_ids, addApprover] });
+  // 고르는 즉시 결재선에 넣는다(예전에는 선택 후 '추가' 버튼을 또 눌러야 해서 자주 빠뜨렸다)
+  function addStep(uid?: string) {
+    const pick = uid ?? addApprover;
+    if (pick && !form.approver_ids.includes(pick) && pick !== me?.id)
+      setForm({ ...form, approver_ids: [...form.approver_ids, pick] });
     setAddApprover("");
   }
   function removeStep(uid: string) { setForm({ ...form, approver_ids: form.approver_ids.filter((x) => x !== uid) }); }
@@ -122,6 +127,19 @@ export default function Approvals() {
       else await api.post("/boards/approvals", payload);
       setEditing(null); load();
     } catch (e) { setErr(apiError(e)); }
+  }
+  // 반려 사유를 쓰던 중 닫으면 내용이 사라지므로 확인을 받는다
+  async function closeReject() {
+    if (rejectMsg.trim() && !(await confirmDiscard(true))) return;
+    setReject(null); setRejectMsg("");
+  }
+  // 승인은 되돌리기 어려운 처리다. 반려·삭제와 마찬가지로 확인을 받는다.
+  async function approveWithConfirm(a: Appr, opened = false) {
+    const msg = opened
+      ? `"${a.title}" 문서를 승인할까요?`
+      : `"${a.title}" 문서를 내용 확인 없이 승인합니다.\n승인하면 다음 결재 단계로 넘어갑니다. 계속할까요?`;
+    if (!(await confirmDialog(msg, { title: "결재 승인" }))) return;
+    decide(a, "승인");
   }
   async function decide(a: Appr, decision: string, comment = "") {
     try {
@@ -196,19 +214,19 @@ export default function Approvals() {
         <div className="card" data-testid="appr-form">
           <div className="bd">
             <div className="grid2">
-              <div><label>문서유형</label><select data-testid="a-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
-              <div><label>관련 프로젝트</label><select data-testid="a-project" value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })}>
+              <div><label htmlFor={`${uid}-1`}>문서유형</label><select id={`${uid}-1`} data-testid="a-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
+              <div><label htmlFor={`${uid}-2`}>관련 프로젝트</label><select id={`${uid}-2`} data-testid="a-project" value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })}>
                 <option value="">(없음)</option>
                 <optgroup label="연구과제">{projects.filter((p) => p.kind === "grant" && selectableProj(p)).map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}</optgroup>
                 <optgroup label="프로젝트">{projects.filter((p) => p.kind === "activity" && selectableProj(p)).map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}</optgroup>
               </select></div>
             </div>
-            <label>제목</label><input data-testid="a-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+            <label htmlFor={`${uid}-3`}>제목</label><input id={`${uid}-3`} data-testid="a-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
 
             <label>결재선 <span className="muted small" style={{ fontWeight: 400 }}>(위에서 아래 순서로 순차 결재)</span></label>
             <div className="card" style={{ marginBottom: 12 }}>
               <div className="bd" style={{ padding: 10 }}>
-                {!form.approver_ids.length && <div className="muted small">결재자를 추가하세요</div>}
+                {!form.approver_ids.length && <div className="muted small">결재자가 없습니다 — 아래에서 고르면 위에서 아래 순서로 결재됩니다.</div>}
                 {form.approver_ids.map((uid, i) => (
                   <div key={uid} data-testid={`a-step-${i}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
                     <span className="badge s-info">{i + 1}</span>
@@ -219,11 +237,11 @@ export default function Approvals() {
                   </div>
                 ))}
                 <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                  <select data-testid="a-approver" value={addApprover} onChange={(e) => setAddApprover(e.target.value)} style={{ margin: 0, flex: 1 }}>
-                    <option value="">결재자 선택…</option>
+                  <select data-testid="a-approver" aria-label="결재자 추가" value=""
+                    onChange={(e) => { if (e.target.value) addStep(e.target.value); }} style={{ margin: 0, flex: 1 }}>
+                    <option value="">결재자 추가…</option>
                     {approverPool.filter((u) => u.id !== me?.id && !form.approver_ids.includes(u.id)).map((u) => <option key={u.id} value={u.id}>{u.name} ({urole(u.id)})</option>)}
                   </select>
-                  <button type="button" className="btn ghost" data-testid="a-step-add" onClick={addStep}>+ 단계 추가</button>
                 </div>
               </div>
             </div>
@@ -272,7 +290,7 @@ export default function Approvals() {
         <div className="card">
           <div className="card-h"><b>결재 수신함</b></div>
           <table className="tbl fit" data-testid="appr-inbox">
-            <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 90 }}>기안자</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 96 }}>처리</th></tr></thead>
+            <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 90 }}>기안자</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 124 }}>처리</th></tr></thead>
             <tbody>
               {inView.map((a) => {
                 const idx = currentIdx(a.steps);
@@ -287,7 +305,7 @@ export default function Approvals() {
                     <td className="muted small hide-sm" title={lineSummary(a)}>{lineSummary(a)}</td>
                     <td><span className={"badge " + (SBADGE[a.status] || "s-mute")}>{a.status}</span></td>
                     <td>{a.status === "진행" && iAmPending ? (myTurn ? (<>
-                      <button className="btn ghost sm" data-testid={`a-approve-${a.id}`} onClick={() => decide(a, "승인")}>승인</button>{" "}
+                      <button className="btn ghost sm" data-testid={`a-approve-${a.id}`} onClick={() => approveWithConfirm(a)}>승인</button>{" "}
                       <button className="btn ghost sm" onClick={() => { setReject(a); setRejectMsg(""); }}>반려</button>
                     </>) : <span className="muted small">이전 결재 대기</span>) : <span className="muted small">-</span>}</td>
                   </tr>
@@ -303,7 +321,7 @@ export default function Approvals() {
       <div className="card">
         <div className="card-h"><b>내 상신함</b></div>
         <table className="tbl fit" data-testid="appr-mine">
-          <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 96 }}>처리</th></tr></thead>
+          <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 224 }}>처리</th></tr></thead>
           <tbody>
             {mineView.map((a) => {
               const started = a.steps.some((s) => s.decision);
@@ -318,7 +336,7 @@ export default function Approvals() {
                     {!started && a.status !== "반려" && <button className="btn ghost sm" data-testid={`a-edit-${a.id}`} onClick={() => openEdit(a)}>수정</button>}{" "}
                     {a.status === "진행" && !started && <button className="btn ghost sm" data-testid={`a-recall-${a.id}`} onClick={() => recall(a)}>회수</button>}{" "}
                     {(a.status === "반려" || a.status === "회수") && <button className="btn ghost sm" data-testid={`a-resubmit-${a.id}`} onClick={() => openEdit(a, true)}>재상신</button>}{" "}
-                    {!started && <button className="btn ghost sm" data-testid={`a-del-${a.id}`} style={{ color: "var(--bad)" }} onClick={() => del(a)}>삭제</button>}
+                    {!started && <button className="btn ghost sm" data-testid={`a-del-${a.id}`} style={{ color: "var(--bad-text)" }} onClick={() => del(a)}>삭제</button>}
                   </td>
                 </tr>
               );
@@ -330,9 +348,9 @@ export default function Approvals() {
       </div>
 
       {reject && (
-        <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) setReject(null); }}>
+        <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) closeReject(); }}>
           <div className="modal" style={{ width: 460 }} data-testid="appr-reject">
-            <div className="modal-h"><b>반려 사유</b><button className="btn ghost sm" onClick={() => setReject(null)}>✕</button></div>
+            <div className="modal-h"><b>반려 사유</b><button className="btn ghost sm" aria-label="닫기" onClick={closeReject}>✕</button></div>
             <div className="modal-b">
               <div className="muted small" style={{ marginBottom: 6 }}>{reject.doc_no} · {reject.title}</div>
               <textarea data-testid="reject-comment" value={rejectMsg} onChange={(e) => setRejectMsg(e.target.value)} style={{ width: "100%", minHeight: 90 }} placeholder="반려 사유를 입력하세요" />
@@ -381,8 +399,8 @@ export default function Approvals() {
               <div className="modal-f" style={{ justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ display: "flex", gap: 6 }}>
                   {vMyTurn && <>
-                    <button className="btn ghost sm" data-testid="v-approve" onClick={() => decide(viewing, "승인")}>승인</button>
-                    <button className="btn ghost sm" style={{ color: "var(--bad)" }} onClick={() => { setReject(viewing); setRejectMsg(""); }}>반려</button>
+                    <button className="btn ghost sm" data-testid="v-approve" onClick={() => approveWithConfirm(viewing, true)}>승인</button>
+                    <button className="btn ghost sm" style={{ color: "var(--bad-text)" }} onClick={() => { setReject(viewing); setRejectMsg(""); }}>반려</button>
                   </>}
                 </span>
                 {vCanUndo && <a className="lnk small" data-testid="v-undo" style={{ cursor: "pointer", color: "var(--sub)" }} onClick={() => undo(viewing)}>승인취소</a>}

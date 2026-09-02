@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId, cloneElement, isValidElement, Children } from "react";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { richHtml } from "../ui/richHtml";
 import { todayKST } from "../lib/date";
@@ -6,7 +6,7 @@ import { useSearchParams } from "react-router-dom";
 import { api, apiError } from "../api/client";
 import { confirmDialog, alertDialog, promptDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, Chips, statusClass, Req } from "../ui/kit";
+import { PageHeader, Card, Chips, statusClass, Req, formSnapshot, confirmDiscard, wonKo } from "../ui/kit";
 import { Gauge, HBars } from "../ui/Charts";
 import { useConfig, names } from "../api/config";
 import { FIXED_KINDS, seriesOf } from "../lib/pubClass";
@@ -66,10 +66,25 @@ const fmtWon = (v: string) => { const n = String(v).replace(/[^0-9]/g, ""); retu
 
 
 // 모듈 레벨 정의 — 컴포넌트 내부면 매 렌더 새 타입으로 input 포커스 풀림
-const Field = ({ label, children, full, style }: any) => <div style={{ ...(full ? { gridColumn: "1 / -1" } : {}), ...style }}><label>{label}</label>{children}</div>;
+// 라벨과 입력을 실제로 연결한다 — 라벨 클릭으로 포커스가 가고, 보조기술이 필드명을 읽는다.
+// 입력 옆에 설명·환산값을 같이 두는 칸이 있어, 자식이 여럿이어도 첫 폼 컨트롤을 찾아 연결한다.
+const FORM_TAGS = ["input", "select", "textarea"];
+const Field = ({ label, children, full, style }: any) => {
+  const id = useId();
+  const kids = Children.toArray(children);
+  const idx = kids.findIndex((c) => isValidElement(c) && FORM_TAGS.includes(c.type as any) && !(c.props as any).id);
+  const linked = idx < 0 ? children : kids.map((c, i) => (i === idx ? cloneElement(c as any, { id, key: i }) : c));
+  return (
+    <div style={{ ...(full ? { gridColumn: "1 / -1" } : {}), ...style }}>
+      <label htmlFor={idx < 0 ? undefined : id}>{label}</label>
+      {linked}
+    </div>
+  );
+};
 const KV = ({ k, v }: { k: string; v: any }) => <><div className="muted small" style={{ marginTop: 8 }}>{k}</div><div>{v || "—"}</div></>;
 
 export default function Projects({ kind = "grant" }: { kind?: "grant" | "activity" }) {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const isGrant = kind === "grant";
   const LABEL = isGrant ? "연구과제" : "프로젝트";
   const { me } = useAuth();
@@ -87,6 +102,8 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const [taskOpen, setTaskOpen] = useState<Task | null>(null);
   const [err, setErr] = useState("");
   const [adding, setAdding] = useState(false);
+  const [snap, setSnap] = useState("");   // 폼 초기 상태 — 작성 중 이탈 경고 판정용
+  const [taskSnap, setTaskSnap] = useState("");   // 업무 모달 초기 상태
   const [editId, setEditId] = useState("");
   const [taskForm, setTaskForm] = useState<any | null>(null);
   const [allInfo, setAllInfo] = useState(false);
@@ -111,12 +128,13 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const profUser = users.find((u) => u.role === "prof");
   const uname = (id: string) => users.find((u) => u.id === id)?.name || (id ? id.slice(0, 6) : "미지정");
 
+  const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try {
       setItems((await api.get<Project[]>(`/projects/projects?kind=${kind}`)).data);
       setPubs((await api.get<Pub[]>("/projects/publications")).data);
       api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {});
-    } catch (e) { setErr(apiError(e)); }
+    } catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [kind]);
 
@@ -143,24 +161,32 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   }, [open, tasks]);
 
   const [sp, setSp] = useSearchParams();
+  // 상세 화면을 URL(?open=<id>)에 반영한다.
+  // 이렇게 해야 새로고침해도 보던 화면이 유지되고, 뒤로가기가 목록으로 돌아가며, 링크 공유도 된다.
   useEffect(() => {
     const oid = sp.get("open");
-    if (oid && items.length) {
+    if (oid) {
+      if (open?.id === oid || !items.length) return;
       const p = items.find((x) => x.id === oid);
-      if (p) { openDetail(p); setSp({}, { replace: true }); }
+      if (p) openDetail(p);
+    } else if (open) {
+      setOpen(null);                       // 뒤로가기 등으로 ?open= 이 사라지면 목록으로
     }
   }, [sp, items]);
 
   async function openDetail(p: Project) {
     setOpen(p); setAllInfo(false);
+    if (sp.get("open") !== p.id) setSp({ open: p.id });
     try {
       setTasks((await api.get<Task[]>(`/projects/projects/${p.id}/tasks`)).data);
     } catch (e) { setErr(apiError(e)); }
   }
+  // 목록으로 — URL 에서 ?open= 을 지우면 위 effect 가 상세를 닫는다
+  function backToList() { setSp({}); }
 
   function fillForm(p: Project) {
     const mm = p.meta || {};
-    setForm({
+    const f = {
       code: p.code, name: p.name, category: p.category, status: p.status || "진행 중", agency: p.agency || "NRF", program: p.program || "",
       start: p.start || "", end: p.end || "", pm_id: p.pm_id || "",
       year_start: mm.year_start || "", year_end: mm.year_end || "", host_org: mm.host_org || "", host_pi: mm.host_pi || "",
@@ -168,26 +194,46 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
       budget_total: fmtWon(mm.budget_total || ""), budget_year: fmtWon(mm.budget_year || ""),
       ack_ko: mm.ack_ko || "", ack_en: mm.ack_en || "", payroll_pool: mm.payroll_pool || "", link: mm.link || "", extra: mm.extra || "", desc: p.desc || "",
       goals: p.goals || {}, members: p.members || [],
-    });
+    };
+    setForm(f);
+    return f;
   }
-  function startEdit(p: Project) { fillForm(p); setEditId(p.id); setOpen(null); setAdding(true); }
-  function openNew() { setEditId(""); setForm(emptyForm); setAdding(true); }
+  function startEdit(p: Project) { const f = fillForm(p); setEditId(p.id); setSp({}); setOpen(null); setAdding(true); setSnap(formSnapshot(f)); }
+  function openNew() { setEditId(""); setForm(emptyForm); setAdding(true); setSnap(formSnapshot(emptyForm)); }
+  function closeForm() { setAdding(false); setEditId(""); setForm(emptyForm); setSnap(""); }
+  // 상단 토글 — 작성 중이면 확인 후 닫는다
+  async function toggleForm() {
+    if (!adding) return openNew();
+    if (!(await confirmDiscard(formSnapshot(form) !== snap))) return;
+    closeForm();
+  }
   function toggleMember(uid: string) { setForm((f) => ({ ...f, members: f.members.includes(uid) ? f.members.filter((x) => x !== uid) : [...f.members, uid] })); }
 
+  // 검증 실패 시 메시지만 띄우면 긴 폼에서 어느 칸인지 찾아야 한다 — 해당 입력으로 포커스를 옮긴다.
+  function fail(msg: string, testid: string) {
+    setErr(msg);
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>(`[data-testid="${testid}"]`);
+      if (!el) return;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.focus();
+    });
+  }
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
     if (isGrant) {
-      if (!form.name.trim()) return setErr("과제명을 입력하세요");
-      if (!form.agency.trim()) return setErr("전담기관을 입력하세요");
-      if (!form.program.trim()) return setErr("사업명을 입력하세요");
-      if (!form.year_start || !form.year_end) return setErr("해당 연도 기간(시작·종료)을 입력하세요");
-      if (!form.host_org.trim()) return setErr("주관기관을 입력하세요");
-      if (!form.host_pi.trim()) return setErr("주관기관 연구책임자를 입력하세요");
+      if (!form.name.trim()) return fail("과제명을 입력하세요", "p-name");
+      if (!form.agency.trim()) return fail("전담기관을 입력하세요", "p-agency");
+      if (!form.program.trim()) return fail("사업명을 입력하세요", "p-program");
+      if (!form.year_start) return fail("해당 연도 기간(시작)을 입력하세요", "p-year-start");
+      if (!form.year_end) return fail("해당 연도 기간(종료)을 입력하세요", "p-year-end");
+      if (!form.host_org.trim()) return fail("주관기관을 입력하세요", "p-host-org");
+      if (!form.host_pi.trim()) return fail("주관기관 연구책임자를 입력하세요", "p-host-pi");
     } else {
-      if (!form.name.trim()) return setErr("프로젝트명을 입력하세요");
-      if (!form.pm_id) return setErr("담당자를 선택하세요");
-      if (!form.start) return setErr("시작일을 입력하세요");
-      if (!form.end) return setErr("종료일을 입력하세요");
+      if (!form.name.trim()) return fail("프로젝트명을 입력하세요", "p-name");
+      if (!form.pm_id) return fail("담당자를 선택하세요", "p-pm");
+      if (!form.start) return fail("시작일을 입력하세요", "p-start");
+      if (!form.end) return fail("종료일을 입력하세요", "p-end");
     }
     const piId = profUser?.id || "";
     const payload = isGrant ? {
@@ -227,11 +273,22 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
     } else if (!await confirmDialog(`이 ${LABEL}을(를) 삭제할까요?`, { danger: true })) {   // 코드 없으면 일반 확인
       return;
     }
-    try { await api.delete(`/projects/projects/${open.id}`); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
+    try { await api.delete(`/projects/projects/${open.id}`); setSp({}); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
   }
   async function reloadTasks() { if (open) try { setTasks((await api.get<Task[]>(`/projects/projects/${open.id}/tasks`)).data); } catch { /* */ } }
-  function newTask() { setTaskOpen(null); setTaskForm({ title: "", assignee_id: "", status: "예정", start: "", due: "", done_date: "", link: "", files: [] }); setTaskBody(""); }
-  function editTask(t: Task) { setTaskOpen(null); setTaskForm({ id: t.id, title: t.title, assignee_id: t.assignee_id || "", status: t.status, start: t.start || "", due: t.due || "", done_date: t.done_date || "", link: t.link || "", files: t.files || [] }); setTaskBody(t.body || ""); }
+  function newTask() {
+    const f = { title: "", assignee_id: "", status: "예정", start: "", due: "", done_date: "", link: "", files: [] };
+    setTaskOpen(null); setTaskForm(f); setTaskBody(""); setTaskSnap(formSnapshot({ f, body: "" }));
+  }
+  // 모달을 닫을 때(✕ · 배경 클릭 · Esc) 작성 중인 내용이 있으면 확인을 받는다
+  async function closeTaskForm() {
+    if (!(await confirmDiscard(formSnapshot({ f: taskForm, body: taskBody }) !== taskSnap))) return;
+    setTaskForm(null); setTaskSnap("");
+  }
+  function editTask(t: Task) {
+    const f = { id: t.id, title: t.title, assignee_id: t.assignee_id || "", status: t.status, start: t.start || "", due: t.due || "", done_date: t.done_date || "", link: t.link || "", files: t.files || [] };
+    setTaskOpen(null); setTaskForm(f); setTaskBody(t.body || ""); setTaskSnap(formSnapshot({ f, body: t.body || "" }));
+  }
   async function uploadTaskFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const fl = e.target.files; if (!fl || !fl.length) return;
     const fd = new FormData(); Array.from(fl).forEach((f) => fd.append("files", f));
@@ -317,7 +374,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
         <PageHeader crumb={`업무 › ${LABEL}`} title={`${open.code} · ${open.name}`} action={
           <span style={{ display: "flex", gap: 6 }}>
             {canEdit && <button className="btn ghost" data-testid="proj-edit" onClick={() => startEdit(open)}>수정</button>}
-            <button className="btn ghost" data-testid="proj-back" onClick={() => setOpen(null)}>목록</button>
+            <button className="btn ghost" data-testid="proj-back" onClick={backToList}>목록</button>
           </span>
         } />
         {err && <div className="form-err">{err}</div>}
@@ -402,7 +459,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
         {canEdit && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
             <button data-testid="proj-detail-del" onClick={delDetail}
-              style={{ background: "none", border: "none", color: "var(--bad)", fontSize: 11.5, padding: "2px 4px", textDecoration: "underline", opacity: 0.8 }}>{LABEL} 삭제</button>
+              style={{ background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, padding: "2px 4px", textDecoration: "underline", opacity: 0.8 }}>{LABEL} 삭제</button>
           </div>
         )}
 
@@ -422,7 +479,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
               <div className="modal-b">
                 <div style={{ fontWeight: 800, fontSize: 17, lineHeight: 1.3 }}>{taskOpen.title}</div>
                 <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 9, flexWrap: "wrap" }}>
-                  <span className="badge" style={{ background: (STC[taskOpen.status] || "#5a6478") + "1f", color: STC[taskOpen.status] || "#5a6478" }}>{taskOpen.status}</span>
+                  <span className={statusClass(taskOpen.status)}>{taskOpen.status}</span>
                   <span className="small"><span className="muted">담당</span> {uname(taskOpen.assignee_id)}</span>
                   <span className="small"><span className="muted">기간</span> {taskOpen.start || "—"} ~ {taskOpen.due || "—"}</span>
                   {taskOpen.done_date && <span className="small"><span className="muted">실제 마감</span> <b style={{ color: (taskOpen.due && taskOpen.done_date > taskOpen.due) ? "var(--bad)" : "inherit" }}>{taskOpen.done_date}</b></span>}
@@ -457,26 +514,26 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
         )}
 
         {taskForm && (
-          <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) setTaskForm(null); }}>
+          <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) closeTaskForm(); }}>
             <form className="modal" data-testid="task-form" onSubmit={saveTask} style={{ width: 960, maxWidth: "90%" }}>
-              <div className="modal-h"><b>{taskForm.id ? "업무 수정" : "업무 추가"}</b><button type="button" className="btn ghost sm" onClick={() => setTaskForm(null)}>✕</button></div>
+              <div className="modal-h"><b>{taskForm.id ? "업무 수정" : "업무 추가"}</b><button type="button" className="btn ghost sm" aria-label="닫기" onClick={closeTaskForm}>✕</button></div>
               <div className="modal-b">
-                <label>제목<Req/></label>
-                <input data-testid="tf-title" value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} required />
+                <label htmlFor={`${uid}-1`}>제목<Req/></label>
+                <input id={`${uid}-1`} data-testid="tf-title" value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} required />
                 <div className="grid2">
-                  <div><label>상태</label><select value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}>{["예정", "진행 중", "완료"].map((s) => <option key={s}>{s}</option>)}</select></div>
-                  <div><label>담당자</label><select value={taskForm.assignee_id} onChange={(e) => setTaskForm({ ...taskForm, assignee_id: e.target.value })}><option value="">미지정</option>{users.filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
-                  <div><label>시작일<Req/></label><input type="date" min={open.start || undefined} max={taskForm.due || open.end || undefined} value={taskForm.start} onChange={(e) => setTaskForm({ ...taskForm, start: e.target.value })} /></div>
-                  <div><label>마감일<Req/></label><input type="date" min={taskForm.start || open.start || undefined} max={open.end || undefined} value={taskForm.due} onChange={(e) => setTaskForm({ ...taskForm, due: e.target.value })} /></div>
-                  <div><label>실제 마감일 <span className="muted small">(완료 시 자동)</span></label><input type="date" data-testid="tf-donedate" value={taskForm.done_date} onChange={(e) => setTaskForm({ ...taskForm, done_date: e.target.value })} /></div>
+                  <div><label htmlFor={`${uid}-2`}>상태</label><select id={`${uid}-2`} value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}>{["예정", "진행 중", "완료"].map((s) => <option key={s}>{s}</option>)}</select></div>
+                  <div><label htmlFor={`${uid}-3`}>담당자</label><select id={`${uid}-3`} value={taskForm.assignee_id} onChange={(e) => setTaskForm({ ...taskForm, assignee_id: e.target.value })}><option value="">미지정</option>{users.filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+                  <div><label htmlFor={`${uid}-4`}>시작일<Req/></label><input id={`${uid}-4`} type="date" min={open.start || undefined} max={taskForm.due || open.end || undefined} value={taskForm.start} onChange={(e) => setTaskForm({ ...taskForm, start: e.target.value })} /></div>
+                  <div><label htmlFor={`${uid}-5`}>마감일<Req/></label><input id={`${uid}-5`} type="date" min={taskForm.start || open.start || undefined} max={open.end || undefined} value={taskForm.due} onChange={(e) => setTaskForm({ ...taskForm, due: e.target.value })} /></div>
+                  <div><label htmlFor={`${uid}-6`}>실제 마감일 <span className="muted small">(완료 시 자동)</span></label><input id={`${uid}-6`} type="date" data-testid="tf-donedate" value={taskForm.done_date} onChange={(e) => setTaskForm({ ...taskForm, done_date: e.target.value })} /></div>
                 </div>
                 {(open.start || open.end) && <div className="muted small" style={{ marginTop: 2 }}>과제 기간: {open.start || "—"} ~ {open.end || "—"} 내로 지정</div>}
-                <label>링크 (선택)</label>
-                <input type="url" placeholder="https://…" value={taskForm.link} onChange={(e) => setTaskForm({ ...taskForm, link: e.target.value })} />
+                <label htmlFor={`${uid}-7`}>링크 (선택)</label>
+                <input id={`${uid}-7`} type="url" placeholder="https://…" value={taskForm.link} onChange={(e) => setTaskForm({ ...taskForm, link: e.target.value })} />
                 <label>내용<Req/></label>
                 <HtmlEditor value={taskBody} onChange={setTaskBody} testid="tf-body" minHeight={120} />
-                <label>첨부파일 (선택)</label>
-                <input type="file" multiple data-testid="tf-files" onChange={uploadTaskFiles} />
+                <label htmlFor={`${uid}-8`}>첨부파일 (선택)</label>
+                <input id={`${uid}-8`} type="file" multiple data-testid="tf-files" onChange={uploadTaskFiles} />
                 {!!(taskForm.files && taskForm.files.length) && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                     {taskForm.files.map((f: TFile, i: number) => (
@@ -537,7 +594,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   return (
     <div data-testid="page-projects">
       <PageHeader crumb={`업무 › ${LABEL}`} title={LABEL} action={
-        canCreate ? <button className="btn primary" data-testid="project-add-open" onClick={() => (adding ? (setAdding(false), setEditId("")) : openNew())}>+ {LABEL} 추가</button> : undefined
+        canCreate ? <button className={"btn " + (adding ? "ghost" : "primary")} data-testid="project-add-open" onClick={toggleForm}>{adding ? "닫기" : `+ ${LABEL} 추가`}</button> : undefined
       } />
       {err && <div className="form-err" data-testid="project-error">{err}</div>}
       {adding && (
@@ -548,17 +605,23 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
               <Field label="관리코드"><input data-testid="p-code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="미입력 시 자동 생성" /></Field>
               <Field label={<>과제명<Req/></>}><input data-testid="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
               <Field label={<>전담기관<Req/></>}><select data-testid="p-agency" value={form.agency} onChange={(e) => setForm({ ...form, agency: e.target.value })}>{AGENCIES.map((a) => <option key={a}>{a}</option>)}</select></Field>
-              <Field label={<>사업명<Req/></>}><input value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })} /></Field>
-              <Field label="총 과제기간 (시작)"><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></Field>
-              <Field label="총 과제기간 (종료)"><input type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></Field>
-              <Field label={<>해당 연도 기간 (시작)<Req/></>}><input type="date" value={form.year_start} onChange={(e) => setForm({ ...form, year_start: e.target.value })} /></Field>
-              <Field label={<>해당 연도 기간 (종료)<Req/></>}><input type="date" value={form.year_end} onChange={(e) => setForm({ ...form, year_end: e.target.value })} /></Field>
-              <Field label={<>주관기관<Req/></>}><input value={form.host_org} onChange={(e) => setForm({ ...form, host_org: e.target.value })} /></Field>
-              <Field label={<>주관기관 연구책임자<Req/></>}><input value={form.host_pi} onChange={(e) => setForm({ ...form, host_pi: e.target.value })} /></Field>
+              <Field label={<>사업명<Req/></>}><input data-testid="p-program" value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })} /></Field>
+              <Field label={<>총 과제기간 (시작) <span className="muted small" style={{ fontWeight: 400 }}>· 다년 과제 전체</span></>}><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></Field>
+              <Field label={<>총 과제기간 (종료) <span className="muted small" style={{ fontWeight: 400 }}>· 다년 과제 전체</span></>}><input type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></Field>
+              <Field label={<>해당 연도 기간 (시작)<Req/> <span className="muted small" style={{ fontWeight: 400 }}>· 올해 협약 구간</span></>}><input data-testid="p-year-start" type="date" value={form.year_start} onChange={(e) => setForm({ ...form, year_start: e.target.value })} /></Field>
+              <Field label={<>해당 연도 기간 (종료)<Req/> <span className="muted small" style={{ fontWeight: 400 }}>· 올해 협약 구간</span></>}><input data-testid="p-year-end" type="date" value={form.year_end} onChange={(e) => setForm({ ...form, year_end: e.target.value })} /></Field>
+              <Field label={<>주관기관<Req/></>}><input data-testid="p-host-org" value={form.host_org} onChange={(e) => setForm({ ...form, host_org: e.target.value })} /></Field>
+              <Field label={<>주관기관 연구책임자<Req/></>}><input data-testid="p-host-pi" value={form.host_pi} onChange={(e) => setForm({ ...form, host_pi: e.target.value })} /></Field>
               <Field label="참여기관 (선택)"><input value={form.partner_orgs} onChange={(e) => setForm({ ...form, partner_orgs: e.target.value })} /></Field>
               <Field label="참여기관 연구책임자 (선택)"><input value={form.partner_pis} onChange={(e) => setForm({ ...form, partner_pis: e.target.value })} /></Field>
-              <Field label="총 연구비 (원)"><input inputMode="numeric" value={form.budget_total} onChange={(e) => setForm({ ...form, budget_total: fmtWon(e.target.value) })} /></Field>
-              <Field label="해당 연도 연구비 (원)"><input inputMode="numeric" value={form.budget_year} onChange={(e) => setForm({ ...form, budget_year: fmtWon(e.target.value) })} /></Field>
+              <Field label="총 연구비 (원)">
+                <input data-testid="p-budget-total" inputMode="numeric" value={form.budget_total} onChange={(e) => setForm({ ...form, budget_total: fmtWon(e.target.value) })} />
+                <div className="muted small" data-testid="p-budget-total-ko">{wonKo(Number(String(form.budget_total).replace(/[^0-9]/g, ""))) || "\u00a0"}</div>
+              </Field>
+              <Field label="해당 연도 연구비 (원)">
+                <input data-testid="p-budget-year" inputMode="numeric" value={form.budget_year} onChange={(e) => setForm({ ...form, budget_year: fmtWon(e.target.value) })} />
+                <div className="muted small" data-testid="p-budget-year-ko">{wonKo(Number(String(form.budget_year).replace(/[^0-9]/g, ""))) || "\u00a0"}</div>
+              </Field>
               <Field label="프로젝트 책임자(PI)"><div style={{ padding: "9px 0" }}>{profUser?.name || "지도교수"} <span className="muted small">· 지도교수 자동 지정</span></div></Field>
               <Field label="실무 담당자"><select data-testid="p-pm" value={form.pm_id} onChange={(e) => setForm({ ...form, pm_id: e.target.value })}><option value="">선택</option>{pmOpts.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>
               <Field label="통합학생인건비 그룹 (선택)" full><input data-testid="p-pool" value={form.payroll_pool} onChange={(e) => setForm({ ...form, payroll_pool: e.target.value })} placeholder="예: 2025-통합A · 같은 값을 가진 과제끼리 학생인건비 예산을 합산" /></Field>
@@ -586,8 +649,8 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
               <Field label="분류"><select data-testid="p-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{ACT_CATS.filter((c) => c !== "과제").map((c) => <option key={c}>{c}</option>)}</select></Field>
               <Field label={<>프로젝트명<Req/></>}><input data-testid="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
               <Field label={<>담당자<Req/></>}><select data-testid="p-pm" value={form.pm_id} onChange={(e) => setForm({ ...form, pm_id: e.target.value })}><option value="">선택</option>{pmOpts.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>
-              <Field label={<>시작일<Req/></>}><input type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></Field>
-              <Field label={<>종료일<Req/></>}><input type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></Field>
+              <Field label={<>시작일<Req/></>}><input data-testid="p-start" type="date" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></Field>
+              <Field label={<>종료일<Req/></>}><input data-testid="p-end" type="date" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></Field>
               <Field label={`구성원 선택${form.members.length ? ` · ${form.members.length}명` : ""}`} full>
                 <div className="fchips" data-testid="p-members">
                   {memberOpts.map((u) => <button type="button" key={u.id} className={"chip" + (form.members.includes(u.id) ? " on" : "")} onClick={() => toggleMember(u.id)}>{u.name}</button>)}
@@ -598,14 +661,14 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
           )}
           <div className="bd" style={{ display: "flex", gap: 6 }}>
             <button className="btn primary" data-testid="project-add-submit">{editId ? "저장" : "추가"}</button>
-            <button type="button" className="btn ghost" onClick={() => { setAdding(false); setEditId(""); setForm(emptyForm); }}>취소</button>
+            <button type="button" className="btn ghost" onClick={toggleForm}>취소</button>
           </div>
         </form>
       )}
       <div style={{ marginBottom: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <Chips testid="proj-filter" value={filter} onChange={setFilter}
           items={["진행 중", "예정", "완료", "전체"].map((f) => ({ key: f, count: f === "전체" ? items.length : items.filter((p) => liveStatus(p) === f).length }))} />
-        <input className="tsearch" data-testid="proj-search" placeholder={`${LABEL} 검색 (코드·명칭·기관·담당자)`} value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 280 }} />
+        <input className="tsearch" data-testid="proj-search" aria-label="연구과제·프로젝트 검색" placeholder={`${LABEL} 검색 (코드·명칭·기관·담당자)`} value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 280 }} />
       </div>
       <div className="card scroll" ref={listRef}>
         <table className="tbl fit" data-testid="project-table">

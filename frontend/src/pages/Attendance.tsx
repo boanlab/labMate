@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import { Pager } from "../ui/pageTable";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
+import { formSnapshot, confirmDiscard } from "../ui/kit";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig } from "../api/config";
 
@@ -21,6 +22,8 @@ interface Req { id: string; uid: string; date: string; check_in: string; check_o
 const REQB: Record<string, string> = { "대기": "s-wait", "승인": "s-ok", "반려": "s-bad" };
 
 export default function Attendance() {
+  const [reqSnap, setReqSnap] = useState("");   // 정정요청 모달 초기 상태
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const STATES = useConfig<string[]>("attendance_states", ["업무 중", "외근", "출장", "휴가", "퇴근", "미체크"]);
   const [mine, setMine] = useState<Att[]>([]);
@@ -54,7 +57,13 @@ export default function Attendance() {
   async function checkIn() { try { await api.post("/attendance/attendance/check-in", { status: "업무 중", note: "" }); load(); } catch (e) { setErr(apiError(e)); } }
   async function checkOut() { try { await api.post("/attendance/attendance/check-out"); load(); } catch (e) { setErr(apiError(e)); } }
 
-  function openReq() { const a = mine.find((x) => x.date === today); setReqForm({ date: today, check_in: a?.check_in || "", check_out: a?.check_out || "", requested_status: a?.status || "업무 중", reason: "" }); }
+  function openReq() {
+    const a = mine.find((x) => x.date === today);
+    const f = { date: today, check_in: a?.check_in || "", check_out: a?.check_out || "", requested_status: a?.status || "업무 중", reason: "" };
+    setReqForm(f); setReqSnap(formSnapshot(f));
+  }
+  // 모달을 닫을 때 입력 중인 내용이 있으면 확인을 받는다
+  async function closeReq() { if (!(await confirmDiscard(formSnapshot(reqForm) !== reqSnap))) return; setReqForm(null); setReqSnap(""); }
   function reqSetDate(date: string) { const a = mine.find((x) => x.date === date); setReqForm((f) => f ? { ...f, date, check_in: a?.check_in || "", check_out: a?.check_out || "", requested_status: a?.status || "업무 중" } : f); }
   async function submitReq() {
     if (!reqForm) return; setErr("");
@@ -77,8 +86,9 @@ export default function Attendance() {
             상태: <b>{todayRec?.status || "미체크"}</b> · 출근 {todayRec?.check_in || "—"} / 퇴근 {todayRec?.check_out || "—"} · 근무 <b>{fmtWork(workMin(todayRec))}</b>
           </div>
           {(() => { const st = todayRec?.status || "미체크"; const inWork = st !== "미체크" && st !== "퇴근"; return <>
-            <button className="btn primary" data-testid="att-checkin" disabled={inWork} onClick={checkIn}>출근 체크</button>
-            <button className="btn ghost" data-testid="att-checkout" disabled={!inWork} onClick={checkOut}>퇴근 체크</button>
+            {/* 지금 가능한 동작을 강조한다 — 비활성 버튼이 더 진하면 어느 쪽을 눌러야 할지 반대로 읽힌다 */}
+            <button className={"btn " + (inWork ? "ghost" : "primary")} data-testid="att-checkin" disabled={inWork} onClick={checkIn}>출근 체크</button>
+            <button className={"btn " + (inWork ? "primary" : "ghost")} data-testid="att-checkout" disabled={!inWork} onClick={checkOut}>퇴근 체크</button>
           </>; })()}
         </div>
       </div>
@@ -90,9 +100,9 @@ export default function Attendance() {
             <button className="btn ghost sm" data-testid="att-req-open" onClick={openReq}>+ 출퇴근 시간 정정 요청</button>
           </span>
           <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <input type="date" data-testid="att-from" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 150, margin: 0 }} />
+            <input type="date" data-testid="att-from" aria-label="조회 시작일" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 150, margin: 0 }} />
             <span className="muted small">~</span>
-            <input type="date" data-testid="att-to" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 150, margin: 0 }} />
+            <input type="date" data-testid="att-to" aria-label="조회 종료일" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 150, margin: 0 }} />
             {(from || to) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); }}>초기화</button> : <span className="muted small">{shownMine.length}건</span>}
           </span>
         </div>
@@ -128,22 +138,22 @@ export default function Attendance() {
       </div>
 
       {reqForm && (
-        <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) setReqForm(null); }}>
+        <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) closeReq(); }}>
           <div className="modal" data-testid="att-req-form" style={{ width: 560, maxWidth: "92%" }}>
-            <div className="modal-h"><b>출퇴근 시간 정정 요청</b><button className="btn ghost sm" onClick={() => setReqForm(null)}>✕</button></div>
+            <div className="modal-h"><b>출퇴근 시간 정정 요청</b><button className="btn ghost sm" aria-label="닫기" onClick={closeReq}>✕</button></div>
             <div className="modal-b">
               <div className="grid2">
-                <div><label>일자</label><input data-testid="rq-date" type="date" value={reqForm.date} max={today} onChange={(e) => reqSetDate(e.target.value)} /></div>
-                <div><label>상태</label><select data-testid="rq-status" value={reqForm.requested_status} onChange={(e) => setReqForm({ ...reqForm, requested_status: e.target.value })}>{STATES.map((s) => <option key={s}>{s}</option>)}</select></div>
-                <div><label>출근</label><input data-testid="rq-in" type="time" value={reqForm.check_in} onChange={(e) => setReqForm({ ...reqForm, check_in: e.target.value })} /></div>
-                <div><label>퇴근</label><input data-testid="rq-out" type="time" value={reqForm.check_out} onChange={(e) => setReqForm({ ...reqForm, check_out: e.target.value })} /></div>
+                <div><label htmlFor={`${uid}-1`}>일자</label><input id={`${uid}-1`} data-testid="rq-date" type="date" value={reqForm.date} max={today} onChange={(e) => reqSetDate(e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-2`}>상태</label><select id={`${uid}-2`} data-testid="rq-status" value={reqForm.requested_status} onChange={(e) => setReqForm({ ...reqForm, requested_status: e.target.value })}>{STATES.map((s) => <option key={s}>{s}</option>)}</select></div>
+                <div><label htmlFor={`${uid}-3`}>출근</label><input id={`${uid}-3`} data-testid="rq-in" type="time" value={reqForm.check_in} onChange={(e) => setReqForm({ ...reqForm, check_in: e.target.value })} /></div>
+                <div><label htmlFor={`${uid}-4`}>퇴근</label><input id={`${uid}-4`} data-testid="rq-out" type="time" value={reqForm.check_out} onChange={(e) => setReqForm({ ...reqForm, check_out: e.target.value })} /></div>
               </div>
-              <label>정정 사유 *</label>
-              <input data-testid="rq-reason" value={reqForm.reason} onChange={(e) => setReqForm({ ...reqForm, reason: e.target.value })} placeholder="예: 출근 체크 누락" />
+              <label htmlFor={`${uid}-5`}>정정 사유 *</label>
+              <input id={`${uid}-5`} data-testid="rq-reason" value={reqForm.reason} onChange={(e) => setReqForm({ ...reqForm, reason: e.target.value })} placeholder="예: 출근 체크 누락" />
               <div className="muted small" style={{ marginTop: 8 }}>교수 승인 시 내 출퇴근 기록에 반영됩니다.</div>
             </div>
             <div className="modal-f">
-              <button className="btn ghost" onClick={() => setReqForm(null)}>취소</button>
+              <button className="btn ghost" onClick={closeReq}>취소</button>
               <button className="btn primary" data-testid="att-req-submit" onClick={submitReq}>정정 요청</button>
             </div>
           </div>

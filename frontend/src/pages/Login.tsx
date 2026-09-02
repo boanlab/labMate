@@ -37,12 +37,26 @@ export default function Login() {
         <div className="muted" style={{ marginTop: 2, marginBottom: 20 }}>
           {brand.login_subtitle || "연구실 그룹웨어"}
         </div>
-        <label>이메일</label>
-        <input data-testid="login-email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
-        <label>비밀번호</label>
+        <label htmlFor="login-email">이메일</label>
         <input
+          id="login-email"
+          data-testid="login-email"
+          type="email"
+          inputMode="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="username"
+        />
+        <label htmlFor="login-password">비밀번호</label>
+        <input
+          id="login-password"
           data-testid="login-password"
           type="password"
+          required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"

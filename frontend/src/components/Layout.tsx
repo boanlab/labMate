@@ -6,6 +6,7 @@ import { Icon } from "../ui/icons";
 import { useConfig, fileUrl } from "../api/config";
 import { NotificationBell } from "./NotificationBell";
 import { InstallButton } from "./InstallButton";
+import { TopProgress } from "./TopProgress";
 
 const ROLE_LABEL: Record<string, string> = {
   prof: "지도교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리자",
@@ -80,10 +81,35 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   // 라우트 이동 시 모바일 드로어 닫기
   useEffect(() => { setDrawer(false); setMenu(false); }, [loc.pathname]);
+  // 표 셀이 좁아 말줄임(…)될 때 원문을 볼 수 없는 문제 — 마우스를 올린 순간 title 을 채운다.
+  // 화면마다 손으로 title 을 다는 대신 위임 처리해 모든 표에 동일하게 적용된다.
+  useEffect(() => {
+    function onOver(e: MouseEvent) {
+      const t = e.target as HTMLElement | null;
+      const cell = t && t.closest ? (t.closest("td, th") as HTMLElement | null) : null;
+      if (!cell || cell.hasAttribute("title")) return;
+      if (cell.querySelector("[title]")) return;                 // 안쪽에 이미 툴팁이 있으면 둔다
+      if (cell.scrollWidth <= cell.clientWidth + 1) return;       // 잘리지 않았으면 불필요
+      const txt = (cell.textContent || "").trim();
+      if (txt) cell.setAttribute("title", txt);
+    }
+    document.addEventListener("mouseover", onOver, true);
+    return () => document.removeEventListener("mouseover", onOver, true);
+  }, []);
   // 외부 클릭·Esc 로 계정 메뉴 닫기
   useEffect(() => {
     function onDoc(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false); }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setMenu(false); }
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setMenu(false);
+      // 열린 모달이 있으면 배경 클릭과 동일하게 닫는다.
+      // 각 화면의 오버레이(.modal-ovl)가 target===currentTarget 일 때만 닫도록 되어 있어,
+      // 오버레이 자신에게 click 을 보내면 화면별 닫기 로직을 그대로 재사용할 수 있다.
+      // position:fixed 요소는 offsetParent 가 null 이므로 getClientRects 로 표시 여부를 본다
+      const ovls = Array.from(document.querySelectorAll<HTMLElement>(".modal-ovl")).filter((el) => el.getClientRects().length > 0);
+      const top = ovls[ovls.length - 1];
+      if (top) { e.preventDefault(); top.click(); }
+    }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
@@ -99,6 +125,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className={"appshell" + (drawer ? " drawer-open" : "") + (collapsed ? " sidebar-collapsed" : "")}>
+      {/* 키보드 사용자가 사이드바 메뉴 전체를 건너뛰고 본문으로 바로 가도록(WCAG 2.4.1 Bypass Blocks) */}
+      <a className="skip-link" href="#main" data-testid="skip-link">본문으로 건너뛰기</a>
+      <TopProgress />
       <header className="appbar">
         <div className="appbar-l">
           <button className="hamburger" data-testid="hamburger" aria-label="메뉴 접기/펼치기" title="메뉴 접기/펼치기" onClick={toggleSidebar}>☰</button>
@@ -154,7 +183,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
         <div className="side-foot muted small">LabMate · {labName || "연구실 그룹웨어"}</div>
       </aside>
-      <main className="content" data-testid="content">
+      <main className="content" id="main" tabIndex={-1} data-testid="content">
         {children}
       </main>
       </div>
