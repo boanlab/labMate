@@ -4,8 +4,9 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from labmate_common.configstore import get_setting
 from labmate_common.db import get_db
@@ -59,6 +60,35 @@ def _today() -> str:
 
 
 # ── 공개 브랜딩 (로그인 화면용 — 인증 불필요) ──
+def _josa(word: str, with_batchim: str, without: str) -> str:
+    """받침 유무에 맞는 조사를 고른다 — '공지을(를)' 같은 어색한 문구를 피한다."""
+    if not word:
+        return without
+    code = ord(word[-1])
+    if 0xAC00 <= code <= 0xD7A3:
+        return with_batchim if (code - 0xAC00) % 28 else without
+    return without
+
+
+def _check_stale(row, base_updated_at, what: str) -> None:
+    """다른 사람이 먼저 저장했는지 확인한다.
+
+    같은 문서를 둘이 동시에 열어 고치면, 나중에 저장한 쪽이 앞선 수정을 아무 말 없이 덮어쓴다.
+    클라이언트가 불러온 시점(base_updated_at)과 현재 저장본의 시각이 다르면 충돌로 보고 막는다.
+    (직렬화 과정의 미세한 오차를 감안해 1초 여유를 둔다)
+    """
+    if not base_updated_at or not row.updated_at:
+        return
+    cur = row.updated_at
+    if cur.tzinfo is None:
+        cur = cur.replace(tzinfo=timezone.utc)
+    base = base_updated_at
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=timezone.utc)
+    if abs((cur - base).total_seconds()) > 1:
+        raise HTTPException(409, f"다른 사용자가 이 {what}{_josa(what, '을', '를')} 먼저 수정했습니다. 새로고침 후 다시 시도하세요")
+
+
 @router.get("/branding")
 def public_branding(db: Session = Depends(get_db)):
     return {
@@ -83,12 +113,12 @@ def list_notices(user: CurrentUser = Depends(get_current_user), db: Session = De
 def create_notice(body: schemas.NoticeIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     if not _is_manager(user):
         raise HTTPException(403, "공지 작성 권한이 없습니다")
-    n = Notice(by_id=user.id, acked_user_ids=[user.id], **body.model_dump(exclude={"notify_uids"}))
+    n = Notice(by_id=user.id, acked_user_ids=[user.id], **body.model_dump(exclude={"notify_uids", "base_updated_at"}))
     db.add(n); db.flush()
     # 대상 지정 공지는 대상자에게, 전체 공지는 프론트가 넘긴 전 구성원(notify_uids)에게 발송
     recipients = n.target_user_ids or body.notify_uids
     notify(db, recipients=recipients, kind="notice", title="새 공지",
-           body=f"{user.name}님이 공지 '{n.title}'을(를) 등록했습니다", link="/notices",
+           body=f"{user.name}님이 공지 '{n.title}'을(를) 등록했습니다", link=f"/notices?open={n.id}",
            actor=user, ref_id=n.id)
     db.commit(); db.refresh(n)
     return n
@@ -101,13 +131,14 @@ def update_notice(nid: str, body: schemas.NoticeIn, user: CurrentUser = Depends(
         raise HTTPException(404, "공지 없음")
     if not (_is_manager(user) or n.by_id == user.id):
         raise HTTPException(403, "수정 권한이 없습니다")
+    _check_stale(n, body.base_updated_at, "공지")
     before = set(n.target_user_ids or [])
-    for k, v in body.model_dump(exclude={"notify_uids"}).items():
+    for k, v in body.model_dump(exclude={"notify_uids", "base_updated_at"}).items():
         setattr(n, k, v)
     n.updated_by = user.id
     after = set(n.target_user_ids or [])
     notify(db, recipients=[u for u in after if u not in before], kind="notice", title="새 공지",
-           body=f"{user.name}님이 공지 '{n.title}'의 확인 대상으로 회원님을 지정했습니다", link="/notices",
+           body=f"{user.name}님이 공지 '{n.title}'의 확인 대상으로 회원님을 지정했습니다", link=f"/notices?open={n.id}",
            actor=user, ref_id=n.id)
     notify(db, recipients=[u for u in before if u not in after], kind="notice", title="공지 대상 제외",
            body=f"{user.name}님이 공지 '{n.title}' 확인 대상에서 회원님을 제외했습니다", link="/notices",
@@ -152,7 +183,7 @@ def list_posts(cat: str | None = None, user: CurrentUser = Depends(get_current_u
 def create_post(body: schemas.PostIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     if body.min_role not in VALID_MIN_ROLE:
         raise HTTPException(400, "유효하지 않은 공개 범위")
-    p = Post(by_id=user.id, **body.model_dump())   # 누구나 작성
+    p = Post(by_id=user.id, **body.model_dump(exclude={"base_updated_at"}))   # 누구나 작성
     db.add(p); db.commit(); db.refresh(p)
     return p
 
@@ -166,7 +197,8 @@ def update_post(pid: str, body: schemas.PostIn, user: CurrentUser = Depends(get_
         raise HTTPException(403, "수정 권한이 없습니다")
     if body.min_role not in VALID_MIN_ROLE:
         raise HTTPException(400, "유효하지 않은 공개 범위")
-    for k, v in body.model_dump().items():
+    _check_stale(p, body.base_updated_at, "게시글")
+    for k, v in body.model_dump(exclude={"base_updated_at"}).items():
         setattr(p, k, v)
     p.updated_by = user.id
     db.commit(); db.refresh(p)
@@ -180,7 +212,10 @@ def get_post(pid: str, user: CurrentUser = Depends(get_current_user), db: Sessio
         raise HTTPException(404, "글 없음")
     if not _can_see_post(user, p):
         raise HTTPException(403, "이 글을 볼 권한이 없습니다")
-    p.views += 1
+    # 조회수는 '내용 수정'이 아니다. p.views += 1 로 두면 onupdate 가 updated_at 까지 갱신해,
+    # 누군가 글을 열어보기만 해도 다른 사람이 편집 중이던 내용이 충돌로 막힌다.
+    # updated_at 을 명시적으로 현재값 그대로 넣어 onupdate 를 건너뛴다.
+    db.execute(update(Post).where(Post.id == pid).values(views=Post.views + 1, updated_at=Post.updated_at))
     db.commit(); db.refresh(p)
     return p
 
@@ -191,13 +226,16 @@ def add_comment(pid: str, body: schemas.CommentIn, user: CurrentUser = Depends(g
     if not p:
         raise HTTPException(404, "글 없음")
     import uuid
+    # 댓글은 본문 편집이 아니다 — 누가 댓글을 달았다고 다른 사람의 본문 수정이 막히면 안 된다.
+    keep = p.updated_at
     p.comments = p.comments + [{"id": uuid.uuid4().hex[:8], "by": user.id, "name": user.name, "at": _today(), "text": body.text, "parent": body.parent or ""}]
     targets = [p.by_id]                                            # 글 작성자
     if body.parent:                                                # 답글이면 부모 댓글 작성자도
         targets += [c.get("by") for c in p.comments if c.get("id") == body.parent]
     notify(db, recipients=targets, kind="comment", title="새 댓글",
-           body=f"{user.name}님이 '{p.title}' 글에 댓글을 남겼습니다", link="/board",
+           body=f"{user.name}님이 '{p.title}' 글에 댓글을 남겼습니다", link=f"/board?open={p.id}",
            actor=user, ref_id=p.id)
+    p.updated_at = keep; flag_modified(p, "updated_at")            # 같은 값 대입은 무시되므로 강제로 dirty 처리
     db.commit(); db.refresh(p)
     return p
 
@@ -217,7 +255,9 @@ def edit_comment(pid: str, cid: str, body: schemas.CommentIn, user: CurrentUser 
         new.append(c)
     if not found:
         raise HTTPException(404, "댓글 없음")
+    keep = p.updated_at                                            # 댓글 수정도 본문 편집이 아니다
     p.comments = new
+    p.updated_at = keep; flag_modified(p, "updated_at")
     db.commit(); db.refresh(p)
     return p
 
@@ -233,7 +273,9 @@ def delete_comment(pid: str, cid: str, user: CurrentUser = Depends(get_current_u
     if target.get("by") != user.id and user.role not in ("prof", "admin"):
         raise HTTPException(403, "삭제 권한이 없습니다")
     # 댓글과 그 대댓글까지 함께 삭제
+    keep = p.updated_at                                            # 댓글 삭제도 본문 편집이 아니다
     p.comments = [c for c in p.comments if c.get("id") != cid and c.get("parent") != cid]
+    p.updated_at = keep; flag_modified(p, "updated_at")
     db.commit(); db.refresh(p)
     return p
 
@@ -279,12 +321,12 @@ def list_meetings(user: CurrentUser = Depends(get_current_user), db: Session = D
 @router.post("/meetings", response_model=schemas.MeetingOut, status_code=201)
 def create_meeting(body: schemas.MeetingIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     # 누구나 작성, 수정·삭제는 작성자·관리자
-    data = body.model_dump()
+    data = body.model_dump(exclude={"base_updated_at"})
     data["actions"] = _normalize_actions(data.get("actions", []))
     m = Meeting(by_id=user.id, **data)
     db.add(m); db.flush()
     notify(db, recipients=m.attendees or [], kind="meeting", title="회의록 참석자 지정",
-           body=f"{user.name}님이 회의록 '{m.title}'에 회원님을 참석자로 지정했습니다", link="/meetings",
+           body=f"{user.name}님이 회의록 '{m.title}'에 회원님을 참석자로 지정했습니다", link=f"/meetings?open={m.id}",
            actor=user, ref_id=m.id)
     db.commit(); db.refresh(m)
     return m
@@ -297,7 +339,8 @@ def update_meeting(mid: str, body: schemas.MeetingIn, user: CurrentUser = Depend
         raise HTTPException(404, "회의록 없음")
     if m.by_id != user.id and user.role not in ("prof", "admin"):
         raise HTTPException(403, "수정 권한이 없습니다")
-    data = body.model_dump()
+    _check_stale(m, body.base_updated_at, "회의록")
+    data = body.model_dump(exclude={"base_updated_at"})
     before = set(m.attendees or [])
     m.date = data["date"]; m.title = data["title"]; m.attendees = data["attendees"]
     m.project_id = data["project_id"]
@@ -305,7 +348,7 @@ def update_meeting(mid: str, body: schemas.MeetingIn, user: CurrentUser = Depend
     m.updated_by = user.id
     after = set(m.attendees or [])
     notify(db, recipients=[u for u in after if u not in before], kind="meeting", title="회의록 참석자 지정",
-           body=f"{user.name}님이 회의록 '{m.title}'에 회원님을 참석자로 지정했습니다", link="/meetings",
+           body=f"{user.name}님이 회의록 '{m.title}'에 회원님을 참석자로 지정했습니다", link=f"/meetings?open={m.id}",
            actor=user, ref_id=m.id)
     notify(db, recipients=[u for u in before if u not in after], kind="meeting", title="회의록 참석 제외",
            body=f"{user.name}님이 회의록 '{m.title}' 참석자에서 회원님을 제외했습니다", link="/meetings",
