@@ -117,12 +117,23 @@ def list_expenses(user: CurrentUser = Depends(get_current_user), db: Session = D
     return rows
 
 
+def _approval_on(db: Session) -> bool:
+    """집행이 결재를 거치는지(마스터데이터 expense_approval)."""
+    return bool(get_setting(db, "expense_approval", DEFAULTS["expense_approval"]))
+
+
 @router.post("/expenses", response_model=schemas.ExpenseOut, status_code=201)
 def create_expense(body: schemas.ExpenseIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """집행 내역 등록 — 예산 집행액 즉시 반영."""
-    e = Expense(by_id=user.id, status="집행", **body.model_dump())
+    """집행 내역 등록.
+
+    결재를 쓰면 '작성중'으로만 남기고 예산은 건드리지 않는다(승인 시점에 차감).
+    결재를 끄면 예전처럼 등록 즉시 집행으로 확정한다.
+    """
+    approval = _approval_on(db)
+    e = Expense(by_id=user.id, status="작성중" if approval else "집행", **body.model_dump())
     db.add(e); db.flush()
-    _apply_budget_spend(db, e.project_id, e.category, e.amount)
+    if not approval:
+        _apply_budget_spend(db, e.project_id, e.category, e.amount)
     db.commit(); db.refresh(e)
     return e
 
@@ -134,11 +145,16 @@ def update_expense(eid: str, body: schemas.ExpenseIn, user: CurrentUser = Depend
         raise HTTPException(404, "집행 내역 없음")
     if e.by_id != user.id and not _fin_admin(user):
         raise HTTPException(403, "수정 권한이 없습니다")
-    _apply_budget_spend(db, e.project_id, e.category, -e.amount)        # 기존 집행액 차감
+    counted = e.status in ("집행", "승인", "지급")                       # 예산에 이미 반영된 상태인가
+    if counted:
+        _apply_budget_spend(db, e.project_id, e.category, -e.amount)    # 기존 집행액 되돌림
     for k, v in body.model_dump(exclude_unset=True).items():       # 보낸 필드만 갱신
         setattr(e, k, v)
-    e.status = "집행"
-    _apply_budget_spend(db, e.project_id, e.category, e.amount)         # 변경분 반영
+    if _approval_on(db):
+        e.status = "작성중"                                             # 고치면 다시 상신해야 한다
+    else:
+        e.status = "집행"
+        _apply_budget_spend(db, e.project_id, e.category, e.amount)     # 변경분 반영
     db.commit(); db.refresh(e)
     return e
 
@@ -150,7 +166,8 @@ def delete_expense(eid: str, user: CurrentUser = Depends(get_current_user), db: 
         raise HTTPException(404, "집행 내역 없음")
     if e.by_id != user.id and not _fin_admin(user):
         raise HTTPException(403, "삭제 권한이 없습니다")
-    _apply_budget_spend(db, e.project_id, e.category, -e.amount)        # 예산 집행액 차감
+    if e.status in ("집행", "승인", "지급"):                             # 예산에 반영된 건만 되돌린다
+        _apply_budget_spend(db, e.project_id, e.category, -e.amount)
     e.deleted_at = datetime.now(timezone.utc)
     db.commit()
 
@@ -160,6 +177,8 @@ def submit_expense(eid: str, user: CurrentUser = Depends(get_current_user), db: 
     e = db.get(Expense, eid)
     if not e or e.by_id != user.id:
         raise HTTPException(404, "청구 없음")
+    if e.status not in ("작성중", "반려"):
+        raise HTTPException(409, "작성중이거나 반려된 건만 상신할 수 있습니다")
     # 증빙 미첨부 시 상신 차단
     if e.amount > 0 and not e.files:
         raise HTTPException(400, "증빙 파일을 첨부해야 상신할 수 있습니다")
