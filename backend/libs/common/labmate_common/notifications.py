@@ -4,12 +4,17 @@
 각 서비스는 자기 도메인 이벤트(참여자 지정·결재 요청·결과 등)를 자기 DB에 기록하고,
 동일한 `make_notifications_router()`로 `/notifications` 조회·읽음 API를 노출한다.
 프론트 종은 각 서비스의 `/notifications`를 폴링해 하나의 목록으로 합친다.
-역할 기반(관리자 전체) 알림은 명부를 모르므로 여기서 다루지 않고, 종의 파생 폴링이 담당한다.
+역할 기반(관리자 전체) 알림처럼 저장해 두기 어려운 항목은 각 서비스가 `derive` 훅으로
+조회 시점에 계산해 함께 돌려준다. 예전에는 이걸 프론트 종이 서비스별 목록 API 를 따로
+불러와 조립했는데(폴링 1회에 요청 9건), 데이터가 있는 쪽에서 만드는 편이 요청 수도 적고
+판정 로직도 한곳에 모인다.
 """
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta, timezone
+
+from collections.abc import Callable
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -91,6 +96,7 @@ def _prune_stale(db: Session, user_id: str, now: datetime) -> None:
 
 class NotificationOut(BaseModel):
     id: str
+    derived: bool = False        # 조회 시점 계산 항목(저장 알림과 읽음 처리 방식이 다르다)
     kind: str
     title: str
     body: str
@@ -105,12 +111,29 @@ class NotificationOut(BaseModel):
         from_attributes = True
 
 
+class Derived(BaseModel):
+    """조회 시점에 계산해 끼워 넣는 알림. 저장 알림과 같은 모양이라 프론트는 구분할 필요가 없다."""
+    id: str                       # 안정적인 키(같은 항목은 같은 id 여야 읽음 처리가 유지된다)
+    kind: str = ""
+    title: str = ""
+    body: str = ""
+    link: str = ""
+    ref_id: str = ""
+
+
 class ReadIn(BaseModel):
     ids: list[str] | None = None
 
 
-def make_notifications_router() -> APIRouter:
-    """각 서비스가 mount 하는 알림 조회·읽음 라우터(prefix 없음 → /notifications)."""
+DeriveFn = Callable[[CurrentUser, Session], list[Derived]]
+
+
+def make_notifications_router(derive: DeriveFn | None = None) -> APIRouter:
+    """각 서비스가 mount 하는 알림 조회·읽음 라우터(prefix 없음 → /notifications).
+
+    derive: 저장 알림 외에 조회 시점에 계산해 덧붙일 항목(휴가 승인 대기 등).
+            실패해도 저장 알림 조회는 그대로 나가야 하므로 예외는 삼킨다.
+    """
     router = APIRouter()
 
     @router.get("/notifications", response_model=list[NotificationOut])
@@ -127,7 +150,17 @@ def make_notifications_router() -> APIRouter:
             .order_by(Notification.created_at.desc())
             .limit(100)
         )
-        return list(rows)
+        out = [NotificationOut.model_validate(r) for r in rows]
+        if derive:
+            try:
+                for d in derive(user, db):
+                    out.append(NotificationOut(
+                        id=d.id, derived=True, kind=d.kind, title=d.title, body=d.body, link=d.link,
+                        ref_id=d.ref_id, actor_id="", actor_name="", read_at=None, created_at=now,
+                    ))
+            except Exception:  # noqa: BLE001 — 파생 실패가 알림 전체를 막지 않도록
+                pass
+        return out
 
     @router.post("/notifications/read", status_code=204)
     def mark_read(body: ReadIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):

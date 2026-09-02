@@ -1,13 +1,12 @@
 // 인앱 알림 센터 — 처리 대기 항목을 주기적으로 종(bell)에 표시, 새 항목은 브라우저 데스크톱 알림
 import { useEffect, useRef, useState } from "react";
-import { todayKST } from "../lib/date";
 import { useNavigate } from "react-router-dom";
 import { api, silent } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Icon } from "../ui/icons";
 import { registerPush, pushActive } from "../lib/push";
 
-interface Noti { id: string; title: string; sub: string; link: string; icon: string; svc?: string; read?: boolean; }
+interface Noti { id: string; title: string; sub: string; link: string; icon: string; svc?: string; read?: boolean; derived?: boolean; }
 const SEEN_KEY = "labmate.notif.seen";
 // 영구 알림을 조회할 서비스와 kind→아이콘 매핑
 const NOTIF_SVCS = ["projects", "boards", "attendance"];
@@ -22,14 +21,14 @@ export function NotificationBell() {
   const [items, setItems] = useState<Noti[]>([]);
   const [open, setOpen] = useState(false);
   const [read, setRead] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("labmate.notif.read") || "[]"); } catch { return []; } });
-  // 영구 알림은 서버 read_at, 파생 리마인더는 localStorage 로 읽음 판정
-  const isRead = (i: Noti) => (i.svc ? !!i.read : read.includes(i.id));
+  // 저장 알림은 서버 read_at, 파생 리마인더(미확인 공지·승인 대기 등)는 localStorage 로 판정.
+  // 파생 항목은 실제로 처리해야 사라지지만, 오래 남는 리마인더는 종에서 임시로 닫을 수 있어야 한다.
+  const isRead = (i: Noti) => (i.derived ? read.includes(i.id) : !!i.read);
   const unread = items.filter((i) => !isRead(i));
   const ref = useRef<HTMLDivElement>(null);
-  const isMgr = !!me && (["prof", "staff", "admin"].includes(me.role) || !!me.delegated_admin);
   function markAllRead() {
     const ids = items.map((i) => i.id); setRead(ids); localStorage.setItem("labmate.notif.read", JSON.stringify(ids));
-    setItems((list) => list.map((i) => (i.svc ? { ...i, read: true } : i)));   // 영구 알림 낙관적 읽음
+    setItems((list) => list.map((i) => (i.derived ? i : { ...i, read: true })));   // 저장 알림 낙관적 읽음
     NOTIF_SVCS.forEach((s) => { api.post(`/${s}/notifications/read`, {}).catch(() => { /* */ }); });
   }
 
@@ -49,58 +48,20 @@ export function NotificationBell() {
 
   async function poll() {
     if (!me) return;
+    // 예전에는 종이 목록 API(공지·회의록·과제·예산·휴가·근태정정)를 따로 받아 직접 걸렀다.
+    // 폴링 1회에 요청 9건이 순차로 나갔고, 목록 전체를 받아 대부분 버리는 낭비도 있었다.
+    // 지금은 각 서비스가 자기 도메인의 파생 항목까지 /notifications 로 함께 내려준다.
+    const results = await Promise.all(NOTIF_SVCS.map((s) =>
+      api.get<any[]>(`/${s}/notifications`, silent).then((r) => ({ s, rows: r.data || [] })).catch(() => ({ s, rows: [] as any[] }))));
     const out: Noti[] = [];
-    const today = todayKST();
-    // 영구 알림(서버 저장) — 참여자/담당자 지정·결재 요청/결과·댓글 등
-    for (const s of NOTIF_SVCS) {
-      try {
-        const rows = (await api.get<any[]>(`/${s}/notifications`)).data || [];
-        rows.forEach((n) => out.push({ id: "n-" + n.id, title: n.title, sub: n.body, link: n.link, icon: KIND_ICON[n.kind] || "bell", svc: s, read: !!n.read_at }));
-      } catch { /* */ }
-    }
-    // 관리자: 승인 대기 요청(역할 기반 → 파생 유지)
-    if (isMgr) {
-      try {
-        const lv = (await api.get<any[]>("/attendance/leaves/inbox", silent)).data || [];
-        lv.forEach((l) => out.push({ id: "lv-" + l.id, title: "휴가 승인 요청", sub: `${l.type} ${l.start_date}~${l.end_date}`, link: "/leave", icon: "sun" }));
-      } catch { /* */ }
-      try {
-        const cr = (await api.get<any[]>("/attendance/attendance/correct-requests", silent)).data || [];
-        cr.forEach((r) => { if (r.status === "대기") out.push({ id: "cr-" + r.id, title: "근태 정정 요청", sub: `${r.date} · ${r.reason || ""}`, link: "/att-admin", icon: "clock" }); });
-      } catch { /* */ }
-    }
-    try {
-      const mts = (await api.get<any[]>("/boards/meetings", silent)).data || [];
-      mts.forEach((m) => (m.actions || []).forEach((a: any) => {
-        if (a.assignee_id === me.id && !a.done) out.push({ id: "act-" + a.id, title: "내 할 일" + (a.due && a.due <= today ? " (마감 도래)" : ""), sub: a.title, link: "/meetings", icon: "clipboard" });
+    for (const { s, rows } of results) {
+      rows.forEach((n) => out.push({
+        id: n.derived ? n.id : "n-" + n.id,
+        title: n.title, sub: n.body, link: n.link,
+        icon: KIND_ICON[n.kind] || "bell", svc: s,
+        read: !!n.read_at, derived: !!n.derived,
       }));
-    } catch { /* */ }
-    try {
-      const nt = (await api.get<any[]>("/boards/notices", silent)).data || [];
-      nt.forEach((n) => { if (n.required && !(n.acked_user_ids || []).includes(me.id)) out.push({ id: "nt-" + n.id, title: "필독 공지 미확인", sub: n.title, link: `/notices?open=${n.id}`, icon: "bell" }); });
-    } catch { /* */ }
-    // 과제 종료가 다가오면 정산·실적 정리를 시작해야 한다. 지나고 나서 알면 늦다.
-    if (isMgr) {
-      try {
-        const gs = (await api.get<any[]>("/projects/projects?kind=grant", silent)).data || [];
-        const budgets = (await api.get<any[]>("/funds/budgets", silent)).data || [];
-        for (const g of gs) {
-          const end = g.meta?.year_end || g.end;
-          if (!end) continue;
-          const d = Math.ceil((+new Date(end) - +new Date(today)) / 86400000);
-          if (d < 0 || d > 60) continue;                     // 60일 이내로 다가온 과제만
-          const bs = budgets.filter((b) => b.project_id === g.id);
-          const left = bs.reduce((a, b) => a + (b.allocated - b.spent), 0);
-          out.push({
-            id: "gd-" + g.id,
-            title: `연구과제 종료 D-${d}`,
-            sub: `${g.code} · ${g.name}${left > 0 ? ` · 미집행 ${left.toLocaleString()}원` : ""}`,
-            link: `/grants?open=${g.id}`, icon: "award",
-          });
-        }
-      } catch { /* */ }
     }
-
     setItems(out);
     setRead((r) => r.filter((id) => out.some((o) => o.id === id)));   // 처리된 항목은 read 목록에서도 제거
     // 새 항목 → 데스크톱 알림
