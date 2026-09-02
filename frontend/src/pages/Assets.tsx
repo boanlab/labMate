@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig } from "../api/config";
 import { DataTable, type Col } from "../ui/DataTable";
 
 import { confirmDialog } from "../ui/dialog";
+import { formSnapshot, confirmDiscard } from "../ui/kit";
 
 interface Asset {
   id: string; asset_class: string; asset_no: string; name: string; spec: string; model: string;
@@ -15,6 +16,7 @@ const CLS_FB = ["연구실", "단국대", "산학협력단", "공통"];
 const EMPTY = { asset_class: "연구실", asset_no: "", name: "", spec: "", model: "", owner_id: "", project_id: "", building: "", floor: "", room: "", location: "", buy_date: "", note: "" };
 
 export default function Assets() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const CLS = useConfig<string[]>("asset_types", CLS_FB);
   const canManage = !!me && (["prof", "staff", "admin"].includes(me.role) || !!me.delegated_admin || !!me.infra_manager);
@@ -25,24 +27,33 @@ export default function Assets() {
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState("");
   const [form, setForm] = useState({ ...EMPTY });
+  const [snap, setSnap] = useState("");   // 폼 초기 상태 — 작성 중 이탈 경고 판정용
   const up = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
   const pcode = (id: string) => grants.find((p) => p.id === id)?.code || "";
 
+  const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try {
       setItems((await api.get<Asset[]>("/resource/assets")).data);
       setUsers((await api.get<any[]>("/members/users")).data);
       setGrants((await api.get<any[]>("/projects/projects?kind=grant")).data);
-    } catch (e) { setErr(apiError(e)); }
+    } catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }
   }
   useEffect(() => { load(); }, []);
 
-  function openNew() { setEditId(""); setForm({ ...EMPTY }); setAdding(true); }
+  function openNew() { setEditId(""); setForm({ ...EMPTY }); setAdding(true); setSnap(formSnapshot({ ...EMPTY })); }
+  // 상단 토글 — 작성 중이면 확인 후 닫는다
+  async function toggleForm() {
+    if (!adding) return openNew();
+    if (!(await confirmDiscard(formSnapshot(form) !== snap))) return;
+    closeForm();
+  }
   function editAsset(a: Asset) {
     setForm({ asset_class: a.asset_class, asset_no: a.asset_no, name: a.name, spec: a.spec, model: a.model, owner_id: a.owner_id || "", project_id: a.project_id || "", building: a.building || "", floor: a.floor || "", room: a.room || "", location: a.location || "", buy_date: a.buy_date || "", note: a.note || "" });
     setEditId(a.id); setAdding(true); window.scrollTo({ top: 0, behavior: "smooth" });
+    setSnap(formSnapshot({ asset_class: a.asset_class, asset_no: a.asset_no, name: a.name, spec: a.spec, model: a.model, owner_id: a.owner_id || "", project_id: a.project_id || "", building: a.building || "", floor: a.floor || "", room: a.room || "", location: a.location || "", buy_date: a.buy_date || "", note: a.note || "" }));
   }
-  function closeForm() { setAdding(false); setEditId(""); setForm({ ...EMPTY }); }
+  function closeForm() { setAdding(false); setEditId(""); setForm({ ...EMPTY }); setSnap(""); }
   async function save(e: React.FormEvent) {
     e.preventDefault(); setErr("");
     if (!form.name.trim()) { setErr("자산명을 입력하세요"); return; }
@@ -85,7 +96,7 @@ export default function Assets() {
     <div data-testid="page-assets">
       <div className="page-head">
         <div><div className="crumb">연구실 › 자산</div><h1>연구실 자산</h1></div>
-        {canManage && <button className="btn primary" data-testid="asset-add-open" onClick={() => (adding ? closeForm() : openNew())}>+ 자산 등록</button>}
+        {canManage && <button className={"btn " + (adding ? "ghost" : "primary")} data-testid="asset-add-open" onClick={toggleForm}>{adding ? "닫기" : "+ 자산 등록"}</button>}
       </div>
       {err && <div className="form-err" data-testid="asset-error">{err}</div>}
 
@@ -93,24 +104,24 @@ export default function Assets() {
         <form className="card" onSubmit={save} data-testid="asset-form" style={{ marginBottom: 12 }}>
           <div className="card-h"><b>{editId ? "자산 수정" : "자산 등록"}</b></div>
           <div className="bd grid2">
-            <div><label>자산분류</label><select data-testid="as-asset_class" value={form.asset_class} onChange={(e) => up("asset_class", e.target.value)}>{CLS.map((c) => <option key={c}>{c}</option>)}</select></div>
-            <div><label>자산번호</label><input data-testid="as-asset_no" value={form.asset_no} onChange={(e) => up("asset_no", e.target.value)} placeholder="예: 2023-0002" /></div>
-            <div><label>자산명 *</label><input data-testid="as-name" value={form.name} onChange={(e) => up("name", e.target.value)} /></div>
-            <div><label>구매일자</label><input data-testid="as-buy" type="date" value={form.buy_date} onChange={(e) => up("buy_date", e.target.value)} /></div>
-            <div><label>규격</label><input data-testid="as-spec" value={form.spec} onChange={(e) => up("spec", e.target.value)} placeholder="예: 1400*700*700" /></div>
-            <div><label>모델</label><input data-testid="as-model" value={form.model} onChange={(e) => up("model", e.target.value)} /></div>
-            <div><label>건물</label><input data-testid="as-building" value={form.building} onChange={(e) => up("building", e.target.value)} placeholder="예: 소프트웨어 ICT관" /></div>
-            <div><label>층</label><input data-testid="as-floor" value={form.floor} onChange={(e) => up("floor", e.target.value)} placeholder="예: B1" /></div>
-            <div><label>호실</label><input data-testid="as-room" value={form.room} onChange={(e) => up("room", e.target.value)} placeholder="예: B104" /></div>
-            <div><label>위치</label><input data-testid="as-loc" value={form.location} onChange={(e) => up("location", e.target.value)} placeholder="예: 학생연구실 / R2-VPN" /></div>
-            <div><label>책임자</label><input data-testid="as-owner" value={form.owner_id} onChange={(e) => up("owner_id", e.target.value)} placeholder="책임자 이름" /></div>
-            <div><label>과제</label><select data-testid="as-proj" value={form.project_id} onChange={(e) => up("project_id", e.target.value)}><option value="">(없음)</option>{grants.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}</select></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>비고</label><input data-testid="as-note" value={form.note} onChange={(e) => up("note", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-1`}>자산분류</label><select id={`${uid}-1`} data-testid="as-asset_class" value={form.asset_class} onChange={(e) => up("asset_class", e.target.value)}>{CLS.map((c) => <option key={c}>{c}</option>)}</select></div>
+            <div><label htmlFor={`${uid}-2`}>자산번호</label><input id={`${uid}-2`} data-testid="as-asset_no" value={form.asset_no} onChange={(e) => up("asset_no", e.target.value)} placeholder="예: 2023-0002" /></div>
+            <div><label htmlFor={`${uid}-3`}>자산명 *</label><input id={`${uid}-3`} data-testid="as-name" value={form.name} onChange={(e) => up("name", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-4`}>구매일자</label><input id={`${uid}-4`} data-testid="as-buy" type="date" value={form.buy_date} onChange={(e) => up("buy_date", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-5`}>규격</label><input id={`${uid}-5`} data-testid="as-spec" value={form.spec} onChange={(e) => up("spec", e.target.value)} placeholder="예: 1400*700*700" /></div>
+            <div><label htmlFor={`${uid}-6`}>모델</label><input id={`${uid}-6`} data-testid="as-model" value={form.model} onChange={(e) => up("model", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-7`}>건물</label><input id={`${uid}-7`} data-testid="as-building" value={form.building} onChange={(e) => up("building", e.target.value)} placeholder="예: 소프트웨어 ICT관" /></div>
+            <div><label htmlFor={`${uid}-8`}>층</label><input id={`${uid}-8`} data-testid="as-floor" value={form.floor} onChange={(e) => up("floor", e.target.value)} placeholder="예: B1" /></div>
+            <div><label htmlFor={`${uid}-9`}>호실</label><input id={`${uid}-9`} data-testid="as-room" value={form.room} onChange={(e) => up("room", e.target.value)} placeholder="예: B104" /></div>
+            <div><label htmlFor={`${uid}-10`}>위치</label><input id={`${uid}-10`} data-testid="as-loc" value={form.location} onChange={(e) => up("location", e.target.value)} placeholder="예: 학생연구실 / R2-VPN" /></div>
+            <div><label htmlFor={`${uid}-11`}>책임자</label><input id={`${uid}-11`} data-testid="as-owner" value={form.owner_id} onChange={(e) => up("owner_id", e.target.value)} placeholder="책임자 이름" /></div>
+            <div><label htmlFor={`${uid}-12`}>과제</label><select id={`${uid}-12`} data-testid="as-proj" value={form.project_id} onChange={(e) => up("project_id", e.target.value)}><option value="">(없음)</option>{grants.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}</select></div>
+            <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-13`}>비고</label><input id={`${uid}-13`} data-testid="as-note" value={form.note} onChange={(e) => up("note", e.target.value)} /></div>
           </div>
           <div className="bd" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button className="btn primary" data-testid="asset-add-submit">{editId ? "저장" : "등록"}</button>
-            <button type="button" className="btn ghost" onClick={closeForm}>취소</button>
-            {editId && <button type="button" data-testid="asset-del" onClick={async () => { const a = items.find((x) => x.id === editId); if (a && await del(a)) closeForm(); }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
+            <button type="button" className="btn ghost" onClick={toggleForm}>취소</button>
+            {editId && <button type="button" data-testid="asset-del" onClick={async () => { const a = items.find((x) => x.id === editId); if (a && await del(a)) closeForm(); }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
           </div>
         </form>
       )}
@@ -119,7 +130,7 @@ export default function Assets() {
         searchPlaceholder="자산명·번호·규격·모델·위치·책임자 검색…"
         searchKeys={(a) => [a.name, a.asset_no, a.spec, a.model, a.building, a.floor, a.room, a.location, a.note, ownerName(a), projCode(a)].join(" ")}
         chips={{ get: (a) => a.asset_class, values: CLS }}
-        empty="자산 없음" />
+        empty={loaded ? "자산 없음" : "불러오는 중…"} />
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, Chips, won, statusClass, Req } from "../ui/kit";
+import { PageHeader, Card, Chips, won, statusClass, Req, wonKo } from "../ui/kit";
 import { useConfig, names } from "../api/config";
 
 
@@ -24,6 +25,7 @@ function grantAutoStatus(p: Project): string {
 }
 
 export default function BudgetPage() {
+  const nav = useNavigate();
   const { me } = useAuth();
   const isAdmin = !!me && (["prof", "staff"].includes(me.role) || !!me.delegated_admin);
   const STD = names(useConfig<any[]>("budget_types", STD_FB.map((n) => ({ name: n, subs: [] }))));
@@ -82,7 +84,7 @@ export default function BudgetPage() {
 
   return (
     <div data-testid="page-budget">
-      <PageHeader crumb="연구비 › 예산" title="예산" action={!isAdmin ? <span className="muted small">조회 전용</span> : undefined} />
+      <PageHeader crumb="연구비 › 예산" title="예산" action={!isAdmin ? <span className="muted small" title="예산 편성·수정은 지도교수와 행정 담당이 맡습니다">조회 전용 <span className="badge s-info" style={{ marginLeft: 4 }}>편성은 지도교수·행정</span></span> : undefined} />
       {err && <div className="form-err" data-testid="budget-error">{err}</div>}
 
       <Card title="과제 예산 현황" extra={
@@ -102,7 +104,13 @@ export default function BudgetPage() {
                 <td className="hide-sm">{r}%</td>
               </tr>
             ); })}
-            {!visProjects.length && <tr><td colSpan={7} className="muted">{filter} 과제 없음</td></tr>}
+            {!visProjects.length && (
+              <tr><td colSpan={7} className="muted" style={{ textAlign: "center", padding: 20 }}>
+                {projects.length === 0
+                  ? <>예산은 연구과제에 딸린 정보입니다. <a className="lnk" style={{ cursor: "pointer" }} data-testid="budget-goto-grants" onClick={() => nav("/grants")}>연구과제</a>를 먼저 등록하면 비목별로 편성할 수 있습니다.</>
+                  : <>{filter} 상태인 과제가 없습니다 — 위 필터를 <b>전체</b>로 바꿔보세요.</>}
+              </td></tr>
+            )}
           </tbody>
         </table>
       </Card>
@@ -122,7 +130,8 @@ export default function BudgetPage() {
                   <tr key={c}>
                     <td><b>{c}</b>{c === "간접비" && <span className="muted small"> (집행 간주)</span>}</td>
                     <td>{editing
-                      ? <input data-testid={`bg-allocated-${c}`} inputMode="numeric" value={allocated[c] ? allocated[c].toLocaleString() : ""} onChange={(e) => setAlloc({ ...allocated, [c]: Number(e.target.value.replace(/[^0-9]/g, "")) })} placeholder="0" style={{ margin: 0, width: 150 }} />
+                      ? <><input data-testid={`bg-allocated-${c}`} inputMode="numeric" value={allocated[c] ? allocated[c].toLocaleString() : ""} onChange={(e) => setAlloc({ ...allocated, [c]: Number(e.target.value.replace(/[^0-9]/g, "")) })} placeholder="0" style={{ margin: 0, width: 150 }} />
+                          {!!allocated[c] && <div className="muted small" data-testid={`bg-ko-${c}`}>{wonKo(allocated[c])}</div>}</>
                       : won(a)}</td>
                     <td>{won(sp)}</td>
                     <td style={{ color: a - sp < 0 ? "var(--bad)" : "inherit" }}>{won(a - sp)}</td>
@@ -133,7 +142,26 @@ export default function BudgetPage() {
               {(() => {
                 const ta = STD.reduce((a, c) => a + (editing ? (allocated[c] || 0) : allocOf(sel, c).allocated), 0);
                 const ts = STD.reduce((a, c) => a + (c === "간접비" ? (editing ? (allocated[c] || 0) : allocOf(sel, c).allocated) : allocOf(sel, c).spent), 0);
-                return <tr style={{ fontWeight: 700, background: "var(--soft)" }}><td>합계</td><td>{won(ta)}</td><td>{won(ts)}</td><td>{won(ta - ts)}</td><td>{pctOf(ta, ts)}%</td></tr>;
+                // 비목 편성 합계는 과제의 '해당 연도 연구비'와 같아야 한다.
+                // 어긋난 채로 넘어가면 정산 단계에서야 발견되므로, 편성하는 자리에서 바로 대조해 준다.
+                const yearBudget = Number(String(proj?.meta?.budget_year ?? "").replace(/[^0-9]/g, "")) || 0;
+                const gap = yearBudget ? ta - yearBudget : 0;
+                return (<>
+                  <tr style={{ fontWeight: 700, background: "var(--soft)" }}><td>합계</td><td>{won(ta)}{!!ta && <div className="muted small" style={{ fontWeight: 400 }}>{wonKo(ta)}</div>}</td><td>{won(ts)}</td><td>{won(ta - ts)}</td><td>{pctOf(ta, ts)}%</td></tr>
+                  {!!yearBudget && (
+                    <tr data-testid="bg-year-check">
+                      <td className="muted small">해당 연도 연구비</td>
+                      <td className="muted small">{won(yearBudget)}</td>
+                      <td colSpan={3} className="small">
+                        {gap === 0
+                          ? <span className="badge s-ok">편성 합계와 일치</span>
+                          : <span className={"badge " + (gap > 0 ? "s-bad" : "s-wait")}>
+                              {gap > 0 ? `연구비보다 ${won(gap)} 초과 편성` : `${won(-gap)} 남음 — 아직 편성되지 않았습니다`}
+                            </span>}
+                      </td>
+                    </tr>
+                  )}
+                </>);
               })()}
             </tbody>
           </table>

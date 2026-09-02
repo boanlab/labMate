@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
@@ -11,9 +11,11 @@ interface Item { id: string; title: string; date: string; time?: string; type: s
 const SCOPES = ["개인", "전체 구성원", "구성원 선택"];
 const REPEATS = ["없음", "매주", "격주", "매월"];
 const LAYERS = ["업무", "회의", "마감", "예약", "출장", "휴가", "개인", "기타"];
+// 일정 칩은 이 색을 배경에 깔고 흰 글자를 얹는다 — 색상은 유지하되 흰 글자 대비 4.5:1 이상이 되도록 맞춘 값.
+// (기존 값 기준: 마감 3.87 · 출장 3.31 · 휴가 2.34 · 예약 3.38 로 AA 미달이었다)
 const TCOL: Record<string, string> = {
-  "업무": "#3f5d7d", "회의": "#284072", "마감": "#d8584f", "출장": "#3a9b9b", "개인": "#7b66c4", "기타": "#5a6478",
-  "휴가": "#caa53d", "예약": "#2e9e6b",
+  "업무": "#3f5d7d", "회의": "#284072", "마감": "#c4382f", "출장": "#2a7676", "개인": "#7b66c4", "기타": "#5a6478",
+  "휴가": "#9c6d13", "예약": "#22855a",
 };
 
 const leaveLayer = (t: string) => (LAYERS.includes(t) ? t : "휴가");
@@ -34,6 +36,7 @@ function monthDays(year: number, month: number) {
 }
 
 export default function Calendar() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const today = new Date();
   const EVTYPES = names(useConfig<any[]>("event_types", ["업무", "회의", "마감", "출장", "개인", "기타"]));
@@ -143,18 +146,18 @@ export default function Calendar() {
       {adding && (
         <form className="card" onSubmit={save} data-testid="event-form">
           <div className="bd grid3">
-            <div><label>구분</label><select data-testid="ev-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{EVTYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
-            <div style={{ gridColumn: "span 2" }}><label>제목<Req/></label><input data-testid="ev-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div><label>시작일<Req/></label><input data-testid="ev-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-            <div><label>종료일(선택)</label><input data-testid="ev-end" type="date" min={form.date} value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></div>
-            <div><label>시간(선택)</label><input data-testid="ev-time" type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-1`}>구분</label><select id={`${uid}-1`} data-testid="ev-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>{EVTYPES.map((t) => <option key={t}>{t}</option>)}</select></div>
+            <div style={{ gridColumn: "span 2" }}><label htmlFor={`${uid}-2`}>제목<Req/></label><input id={`${uid}-2`} data-testid="ev-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-3`}>시작일<Req/></label><input id={`${uid}-3`} data-testid="ev-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-4`}>종료일(선택)</label><input id={`${uid}-4`} data-testid="ev-end" type="date" min={form.date} value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-5`}>시간(선택)</label><input id={`${uid}-5`} data-testid="ev-time" type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-              <div><label>반복</label><select data-testid="ev-repeat" value={form.repeat} onChange={(e) => setForm({ ...form, repeat: e.target.value })}>{REPEATS.map((r) => <option key={r}>{r}</option>)}</select></div>
-              <div><label>참석·공유</label><select data-testid="ev-scope" value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}>{SCOPES.map((s) => <option key={s}>{s}</option>)}</select></div>
+              <div><label htmlFor={`${uid}-6`}>반복</label><select id={`${uid}-6`} data-testid="ev-repeat" value={form.repeat} onChange={(e) => setForm({ ...form, repeat: e.target.value })}>{REPEATS.map((r) => <option key={r}>{r}</option>)}</select></div>
+              <div><label htmlFor={`${uid}-7`}>참석·공유</label><select id={`${uid}-7`} data-testid="ev-scope" value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}>{SCOPES.map((s) => <option key={s}>{s}</option>)}</select></div>
             </div>
             {form.repeat !== "없음" && (
               <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-                <div><label>반복 종료일</label><input data-testid="ev-until" type="date" value={form.until} onChange={(e) => setForm({ ...form, until: e.target.value })} /></div>
+                <div><label htmlFor={`${uid}-8`}>반복 종료일</label><input id={`${uid}-8`} data-testid="ev-until" type="date" value={form.until} onChange={(e) => setForm({ ...form, until: e.target.value })} /></div>
               </div>
             )}
             {form.scope === "구성원 선택" && (
@@ -166,7 +169,7 @@ export default function Calendar() {
                 </div>
               </div>
             )}
-            <div style={{ gridColumn: "1 / -1" }}><label>링크(선택)</label><input data-testid="ev-link" type="url" placeholder="https://… 관련 자료·회의 링크" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-9`}>링크(선택)</label><input id={`${uid}-9`} data-testid="ev-link" type="url" placeholder="https://… 관련 자료·회의 링크" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1" }}><label>상세(선택)</label><HtmlEditor value={detail} onChange={setDetail} testid="ev-detail" minHeight={120} /></div>
           </div>
           <div className="bd" style={{ display: "flex", gap: 6 }}>

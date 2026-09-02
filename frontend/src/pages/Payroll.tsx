@@ -214,7 +214,7 @@ export default function Payroll() {
           </span>
           <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
             <label style={{ margin: 0 }}>연도</label>
-            <select value={year} data-testid="pay-year" onChange={(e) => setYear(e.target.value)} style={{ width: "auto", fontWeight: 700 }}>{years.map((y) => <option key={y}>{y}</option>)}</select>
+            <select value={year} data-testid="pay-year" aria-label="조회 연도" onChange={(e) => setYear(e.target.value)} style={{ width: "auto", fontWeight: 700 }}>{years.map((y) => <option key={y}>{y}</option>)}</select>
             {tab === "plan" && <><label style={{ margin: 0, marginLeft: 6 }}>과제</label>
               <select value={pid} data-testid="pay-project" onChange={(e) => setPid(e.target.value)} style={{ width: "auto", fontWeight: 700 }}>{yearProjects.map((p) => { const pool = String(p.meta?.payroll_pool || "").trim(); return <option key={p.id} value={p.id}>{p.code}{pool ? ` · ${pool}` : ""}</option>; })}{!yearProjects.length && <option value="">{year}년 과제 없음</option>}</select></>}
           </span>
@@ -234,11 +234,11 @@ export default function Payroll() {
           </div>
           <div className="card scroll" style={{ margin: 0, border: "none" }}>
             <table className="tbl" data-testid="pay-matrix">
-              <thead><tr><th>구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th>연 인건비</th></tr></thead>
+              <thead><tr><th className="col-stick-l">구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th className="col-stick-r">연 인건비</th></tr></thead>
               <tbody>
                 {students.map((u) => (
                   <tr key={u.id}>
-                    <td style={{ whiteSpace: "nowrap" }}>{u.name} <span className="pill">{grade(u)}</span></td>
+                    <td className="col-stick-l" style={{ whiteSpace: "nowrap" }}>{u.name} <span className="pill">{grade(u)}</span></td>
                     {MONTHS.map((mm) => {
                       const outProj = !monthInProj(curProj, mm);
                       const lock = !active(u, mm) || outProj;
@@ -264,7 +264,7 @@ export default function Payroll() {
                         </td>
                       );
                     })}
-                    <td style={{ whiteSpace: "nowrap" }}><b style={{ color: "var(--brand)" }}>{won(MONTHS.reduce((s, mm) => s + planAmt(u, mm), 0))}</b></td>
+                    <td className="col-stick-r" style={{ whiteSpace: "nowrap" }}><b style={{ color: "var(--brand)" }}>{won(MONTHS.reduce((s, mm) => s + planAmt(u, mm), 0))}</b></td>
                   </tr>
                 ))}
               </tbody>
@@ -285,17 +285,17 @@ export default function Payroll() {
           <div className="card scroll" style={{ margin: 0, border: "none" }}>
             <table className="tbl" data-testid="pay-table">
               <thead>
-                <tr><th>구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th>연 합계</th></tr>
+                <tr><th className="col-stick-l">구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th className="col-stick-r">연 합계</th></tr>
                 <tr style={{ background: "var(--soft)" }}><th className="muted small">지급확정</th>{MONTHS.map((mm) => <th key={mm} style={{ textAlign: "center" }} className="muted small">{monthPend(mm) > 0 ? `미확정 ${monthPend(mm)}` : (payMonthTotal(mm) ? "완료" : "—")}</th>)}<th></th></tr>
               </thead>
               <tbody>
                 {payStudents.map((u) => (
                   <tr key={u.id}>
-                    <td style={{ whiteSpace: "nowrap" }}><a className="lnk" style={{ fontWeight: 700, cursor: "pointer" }} data-testid={`pay-open-${u.id}`} onClick={() => { setDetailYear(year); setDetail(u.id); }}>{u.name}</a> <span className="pill">{grade(u)}</span></td>
+                    <td className="col-stick-l" style={{ whiteSpace: "nowrap" }}><a className="lnk" style={{ fontWeight: 700, cursor: "pointer" }} data-testid={`pay-open-${u.id}`} onClick={() => { setDetailYear(year); setDetail(u.id); }}>{u.name}</a> <span className="pill">{grade(u)}</span></td>
                     {MONTHS.map((mm) => { const amt = payAmt(u.id, mm); return (
                       <td key={mm} style={{ textAlign: "center" }} data-testid={`pay-${u.id}-${mm}`} className={amt ? "" : "muted"}>{amt ? won(amt) : "–"}</td>
                     ); })}
-                    <td style={{ whiteSpace: "nowrap" }}><b style={{ color: "var(--brand)" }}>{won(payAnnual(u.id))}</b></td>
+                    <td className="col-stick-r" style={{ whiteSpace: "nowrap" }}><b style={{ color: "var(--brand)" }}>{won(payAnnual(u.id))}</b></td>
                   </tr>
                 ))}
                 {!payStudents.length && <tr><td colSpan={14} className="muted">지급 내역 없음 — [참여율 편성]에서 먼저 입력하세요</td></tr>}

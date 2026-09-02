@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, AuthorMeta } from "../ui/kit";
@@ -50,6 +50,7 @@ function SharePicker({ value, all, excludeIds, disabled, onChange }: { value: st
 }
 
 export default function Notes() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const [pages, setPages] = useState<Note[]>([]);
   const [sel, setSel] = useState("");
@@ -59,6 +60,8 @@ export default function Notes() {
   const [err, setErr] = useState("");
   const [saved, setSaved] = useState("");
   const [tagInput, setTagInput] = useState("");
+  const [q, setQ] = useState("");                 // 제목·태그 검색
+  const [tagFilter, setTagFilter] = useState("");  // 태그 하나로 좁히기
   const [showTree, setShowTree] = useState(true);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ id: string; pos: string } | null>(null);
@@ -121,6 +124,16 @@ export default function Notes() {
   }
 
   const childrenOf = (pid: string) => pages.filter((p) => p.parent_id === pid).sort((a, b) => a.sort - b.sort);
+  // 연구노트는 쌓일수록 트리를 훑기 어렵다. 검색·태그로 좁힐 때는 계층 대신 평면 목록으로 보여준다.
+  const allTags = [...new Set(pages.flatMap((p) => p.tags || []))].sort();
+  const filtering = !!q.trim() || !!tagFilter;
+  const matches = (p: Note) => {
+    if (tagFilter && !(p.tags || []).includes(tagFilter)) return false;
+    const s = q.trim().toLowerCase();
+    if (!s) return true;
+    return (p.title || "").toLowerCase().includes(s) || (p.tags || []).some((t) => t.toLowerCase().includes(s));
+  };
+  const found = pages.filter(matches).sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
   // 내/공유 구분: 백엔드는 내 노트 + 나에게 공유된 노트만 반환
   const mine = pages.filter((p) => me && p.owner_id === me.id);
   const shared = pages.filter((p) => me && p.owner_id !== me.id);
@@ -196,13 +209,31 @@ export default function Notes() {
       <div className="notes-layout" style={{ gridTemplateColumns: showTree ? "260px 1fr" : "1fr" }}>
         {showTree && (
           <div className="notes-tree card" onDragOver={(e) => e.preventDefault()} onDrop={dropRoot}>
-            <div className="note-sec">내 연구노트</div>
-            {rootsIn(mine).map((p) => <Node key={p.id} p={p} depth={0} set={mine} dnd />)}
-            {!mine.length && <div className="muted small" style={{ padding: "4px 12px 8px" }}>내 노트가 없습니다 — "+ 새 페이지"로 시작하세요.</div>}
-            {shared.length > 0 && <>
-              <div className="note-sec">공유 연구노트</div>
-              {rootsIn(shared).map((p) => <Node key={p.id} p={p} depth={0} set={shared} dnd={false} />)}
-            </>}
+            <div style={{ padding: "8px 10px 4px" }}>
+              <input className="tsearch" data-testid="note-search" aria-label="노트 제목·태그 검색" placeholder="제목·태그 검색…"
+                value={q} onChange={(e) => setQ(e.target.value)} style={{ margin: 0, width: "100%" }} />
+              {allTags.length > 0 && (
+                <div className="note-tagbar" data-testid="note-tagbar">
+                  {allTags.slice(0, 12).map((t) => (
+                    <button key={t} type="button" className={"chip" + (tagFilter === t ? " on" : "")} data-testid={`note-tag-${t}`}
+                      onClick={() => setTagFilter(tagFilter === t ? "" : t)}>#{t}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {filtering ? (<>
+              <div className="note-sec">검색 결과 {found.length}건{tagFilter ? ` · #${tagFilter}` : ""}</div>
+              {found.map((p) => <Node key={p.id} p={p} depth={0} set={found} dnd={false} />)}
+              {!found.length && <div className="muted small" style={{ padding: "4px 12px 8px" }}>조건에 맞는 노트가 없습니다.</div>}
+            </>) : (<>
+              <div className="note-sec">내 연구노트</div>
+              {rootsIn(mine).map((p) => <Node key={p.id} p={p} depth={0} set={mine} dnd />)}
+              {!mine.length && <div className="muted small" style={{ padding: "4px 12px 8px" }}>내 노트가 없습니다 — "+ 새 페이지"로 시작하세요.</div>}
+              {shared.length > 0 && <>
+                <div className="note-sec">공유 연구노트</div>
+                {rootsIn(shared).map((p) => <Node key={p.id} p={p} depth={0} set={shared} dnd={false} />)}
+              </>}
+            </>)}
           </div>
         )}
         <div className="notes-editor card">
@@ -218,8 +249,8 @@ export default function Notes() {
                       onChange={(e) => upLocal(cur.id, { title: e.target.value })} onBlur={() => editable && patch(cur.id, { title: cur.title || "제목 없음" })} />
                   </div>
                   <div className="note-meta">
-                    <label>과제·프로젝트</label>
-                    <select value={cur.project_id} disabled={!editable} data-testid="note-project" onChange={(e) => patch(cur.id, { project_id: e.target.value })}>
+                    <label htmlFor={`${uid}-1`}>과제·프로젝트</label>
+                    <select id={`${uid}-1`} value={cur.project_id} disabled={!editable} data-testid="note-project" onChange={(e) => patch(cur.id, { project_id: e.target.value })}>
                       <option value="">(연결 없음)</option>
                       {(() => {
                         const o = projOpts(cur.project_id); const label = (p: any) => [p.code, p.name].filter(Boolean).join(" · ");

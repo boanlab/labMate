@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { todayKST } from "../lib/date";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api/client";
+import { api, silent } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Icon } from "../ui/icons";
 import { registerPush, pushActive } from "../lib/push";
@@ -61,24 +61,45 @@ export function NotificationBell() {
     // 관리자: 승인 대기 요청(역할 기반 → 파생 유지)
     if (isMgr) {
       try {
-        const lv = (await api.get<any[]>("/attendance/leaves/inbox")).data || [];
+        const lv = (await api.get<any[]>("/attendance/leaves/inbox", silent)).data || [];
         lv.forEach((l) => out.push({ id: "lv-" + l.id, title: "휴가 승인 요청", sub: `${l.type} ${l.start_date}~${l.end_date}`, link: "/leave", icon: "sun" }));
       } catch { /* */ }
       try {
-        const cr = (await api.get<any[]>("/attendance/attendance/correct-requests")).data || [];
+        const cr = (await api.get<any[]>("/attendance/attendance/correct-requests", silent)).data || [];
         cr.forEach((r) => { if (r.status === "대기") out.push({ id: "cr-" + r.id, title: "근태 정정 요청", sub: `${r.date} · ${r.reason || ""}`, link: "/att-admin", icon: "clock" }); });
       } catch { /* */ }
     }
     try {
-      const mts = (await api.get<any[]>("/boards/meetings")).data || [];
+      const mts = (await api.get<any[]>("/boards/meetings", silent)).data || [];
       mts.forEach((m) => (m.actions || []).forEach((a: any) => {
         if (a.assignee_id === me.id && !a.done) out.push({ id: "act-" + a.id, title: "내 할 일" + (a.due && a.due <= today ? " (마감 도래)" : ""), sub: a.title, link: "/meetings", icon: "clipboard" });
       }));
     } catch { /* */ }
     try {
-      const nt = (await api.get<any[]>("/boards/notices")).data || [];
-      nt.forEach((n) => { if (n.required && !(n.acked_user_ids || []).includes(me.id)) out.push({ id: "nt-" + n.id, title: "필독 공지 미확인", sub: n.title, link: "/notices", icon: "bell" }); });
+      const nt = (await api.get<any[]>("/boards/notices", silent)).data || [];
+      nt.forEach((n) => { if (n.required && !(n.acked_user_ids || []).includes(me.id)) out.push({ id: "nt-" + n.id, title: "필독 공지 미확인", sub: n.title, link: `/notices?open=${n.id}`, icon: "bell" }); });
     } catch { /* */ }
+    // 과제 종료가 다가오면 정산·실적 정리를 시작해야 한다. 지나고 나서 알면 늦다.
+    if (isMgr) {
+      try {
+        const gs = (await api.get<any[]>("/projects/projects?kind=grant", silent)).data || [];
+        const budgets = (await api.get<any[]>("/funds/budgets", silent)).data || [];
+        for (const g of gs) {
+          const end = g.meta?.year_end || g.end;
+          if (!end) continue;
+          const d = Math.ceil((+new Date(end) - +new Date(today)) / 86400000);
+          if (d < 0 || d > 60) continue;                     // 60일 이내로 다가온 과제만
+          const bs = budgets.filter((b) => b.project_id === g.id);
+          const left = bs.reduce((a, b) => a + (b.allocated - b.spent), 0);
+          out.push({
+            id: "gd-" + g.id,
+            title: `연구과제 종료 D-${d}`,
+            sub: `${g.code} · ${g.name}${left > 0 ? ` · 미집행 ${left.toLocaleString()}원` : ""}`,
+            link: `/grants?open=${g.id}`, icon: "award",
+          });
+        }
+      } catch { /* */ }
+    }
 
     setItems(out);
     setRead((r) => r.filter((id) => out.some((o) => o.id === id)));   // 처리된 항목은 read 목록에서도 제거
@@ -96,10 +117,15 @@ export function NotificationBell() {
 
   useEffect(() => {
     poll();
-    const t = setInterval(poll, 45000);
+    // 알림 1회 갱신에 여러 서비스를 훑기 때문에, 보고 있지도 않은 탭에서 45초마다 도는 것은 낭비다.
+    // 화면이 보일 때만 돌리고, 다시 보이는 순간 한 번 갱신한다.
+    const tick = () => { if (!document.hidden) poll(); };
+    const t = setInterval(tick, 45000);
     const onFocus = () => poll();                 // 탭 복귀/처리 후 즉시 갱신
+    const onVis = () => { if (!document.hidden) poll(); };
     window.addEventListener("focus", onFocus);
-    return () => { clearInterval(t); window.removeEventListener("focus", onFocus); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(t); window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVis); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id]);
 

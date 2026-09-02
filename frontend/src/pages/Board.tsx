@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
+import { useDetailParam } from "../lib/useDetailParam";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard } from "../ui/kit";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { richHtml } from "../ui/richHtml";
@@ -19,6 +20,7 @@ const CATS_FB = ["정보공유", "논문리뷰", "자유게시판"];
 const CBADGE: Record<string, string> = { "정보공유": "s-info", "논문리뷰": "s-pur", "자유게시판": "s-mute" };
 
 export default function Board() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const CATS = useConfig<string[]>("post_types", CATS_FB);
   const [items, setItems] = useState<Post[]>([]);
@@ -27,6 +29,7 @@ export default function Board() {
   const [tab, setTab] = useState("전체");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Post | null>(null);
+  const detail = useDetailParam(items, open, (p) => openPost(p), () => setOpen(null));   // 상세를 URL(?open=)에 반영
   const [comment, setComment] = useState("");
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -37,19 +40,31 @@ export default function Board() {
   const [editId, setEditId] = useState("");
   const [form, setForm] = useState({ cat: "정보공유", title: "", link: "", min_role: "", files: [] as TFile[] });
   const [body, setBody] = useState("");
+  const [snap, setSnap] = useState("");   // 폼 초기 상태 — 작성 중 이탈 경고 판정용
+  const [baseAt, setBaseAt] = useState<string | null>(null);   // 편집 시작 시점(낙관적 잠금)
 
+  const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
-    try { setItems((await api.get<Post[]>("/boards/posts")).data); api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {}); } catch (e) { setErr(apiError(e)); }
+    try { setItems((await api.get<Post[]>("/boards/posts")).data); api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {}); } catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }
   }
   useEffect(() => { load(); }, []);
 
-  function openForm() { setEditId(""); setAdding((v) => !v); setForm({ cat: "정보공유", title: "", link: "", min_role: "", files: [] }); setBody(""); }
+  function openForm() {
+    const f = { cat: "정보공유", title: "", link: "", min_role: "", files: [] as TFile[] };
+    setBaseAt(null); setEditId(""); setAdding(true); setForm(f); setBody(""); setSnap(formSnapshot({ form: f, body: "" }));
+  }
+  // 상단 토글 — 작성 중이면 확인 후 닫는다
+  async function toggleForm() {
+    if (!adding) return openForm();
+    if (!(await confirmDiscard(formSnapshot({ form, body }) !== snap))) return;
+    closeForm();
+  }
   function editPost(p: Post) {
     setForm({ cat: p.cat, title: p.title, link: p.link || "", min_role: p.min_role || "", files: p.files || [] });
     setEditId(p.id); setAdding(true); setOpen(null);
-    setBody(p.body || "");
+    setBody(p.body || ""); setBaseAt(p.updated_at || null);
   }
-  function closeForm() { setAdding(false); setEditId(""); setForm({ cat: "정보공유", title: "", link: "", min_role: "", files: [] }); }
+  function closeForm() { setAdding(false); setEditId(""); setForm({ cat: "정보공유", title: "", link: "", min_role: "", files: [] }); setBody(""); setSnap(""); }
   async function uploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const fl = e.target.files; if (!fl || !fl.length) return;
     const fd = new FormData(); Array.from(fl).forEach((f) => fd.append("files", f));
@@ -63,7 +78,7 @@ export default function Board() {
     e.preventDefault(); setErr("");
     if (!form.title.trim()) return setErr("제목을 입력하세요");
     try {
-      if (editId) await api.put(`/boards/posts/${editId}`, { ...form, body });
+      if (editId) await api.put(`/boards/posts/${editId}`, { ...form, body, base_updated_at: baseAt });
       else await api.post("/boards/posts", { ...form, body });
       closeForm(); load();
     } catch (e) { setErr(apiError(e)); }
@@ -74,7 +89,7 @@ export default function Board() {
   const canDel = (p: Post) => !!me && (p.by_id === me.id || me.role === "prof" || me.role === "admin");
   async function delPost(p: Post) {
     if (!await confirmDialog("게시물을 삭제할까요?")) return;
-    try { await api.delete(`/boards/posts/${p.id}`); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
+    try { await api.delete(`/boards/posts/${p.id}`); detail.hide(); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
   }
   async function addComment(parent = "") {
     const text = parent ? replyText : comment;
@@ -96,7 +111,7 @@ export default function Board() {
   function cmtActions(c: any) {
     return <>
       {c.by === me?.id && <button style={{ ...linkBtn, color: "var(--sub)" }} onClick={() => setEditC({ id: c.id, text: c.text })}>수정</button>}
-      {(c.by === me?.id || canModerate) && <button style={{ ...linkBtn, color: "var(--bad)" }} onClick={() => delComment(c.id)}>삭제</button>}
+      {(c.by === me?.id || canModerate) && <button style={{ ...linkBtn, color: "var(--bad-text)" }} onClick={() => delComment(c.id)}>삭제</button>}
     </>;
   }
   function cmtBody(c: any) {
@@ -126,7 +141,7 @@ export default function Board() {
   if (open) {
     return (
       <div data-testid="page-board-view">
-        <PageHeader crumb="소통 › 게시판" title={open.title} action={<span style={{ display: "flex", gap: 6 }}>{canDel(open) && <button className="btn ghost" data-testid="post-edit" onClick={() => editPost(open)}>수정</button>}<button className="btn ghost" onClick={() => setOpen(null)}>목록</button></span>} />
+        <PageHeader crumb="소통 › 게시판" title={open.title} action={<span style={{ display: "flex", gap: 6 }}>{canDel(open) && <button className="btn ghost" data-testid="post-edit" onClick={() => editPost(open)}>수정</button>}<button className="btn ghost" data-testid="post-back" onClick={detail.hide}>목록</button></span>} />
         {err && <div className="form-err" data-testid="board-error">{err}</div>}
         <Card>
           <table className="metatbl"><tbody>
@@ -185,7 +200,7 @@ export default function Board() {
         </Card>
         {canDel(open) && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-            <button data-testid="post-del" onClick={() => delPost(open)} style={{ background: "none", border: "none", color: "var(--bad)", fontSize: 11.5, padding: "2px 4px", textDecoration: "underline", opacity: 0.8 }}>게시물 삭제</button>
+            <button data-testid="post-del" onClick={() => delPost(open)} style={{ background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, padding: "2px 4px", textDecoration: "underline", opacity: 0.8 }}>게시물 삭제</button>
           </div>
         )}
       </div>
@@ -195,21 +210,21 @@ export default function Board() {
   return (
     <div data-testid="page-board">
       <PageHeader crumb="소통 › 게시판" title="게시판" action={
-        <button className="btn primary" data-testid="board-add-open" onClick={openForm}>+ 글쓰기</button>
+        <button className={"btn " + (adding ? "ghost" : "primary")} data-testid="board-add-open" onClick={toggleForm}>{adding ? "닫기" : "+ 글쓰기"}</button>
       } />
       {err && <div className="form-err" data-testid="board-error">{err}</div>}
       {adding && (
         <form className="card" onSubmit={add} data-testid="board-form">
           <div className="card-h"><b>{editId ? "게시물 수정" : "글쓰기"}</b></div>
           <div className="bd grid2">
-            <div style={{ gridColumn: "1 / -1" }}><label>제목<Req/></label><input data-testid="b-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div><label>분류</label><select data-testid="b-cat" value={form.cat} onChange={(e) => setForm({ ...form, cat: e.target.value })}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
-            <div><label>공개 범위</label><select data-testid="b-minrole" value={form.min_role} onChange={(e) => setForm({ ...form, min_role: e.target.value })}>{MIN_ROLE_OPTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+            <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-1`}>제목<Req/></label><input id={`${uid}-1`} data-testid="b-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-2`}>분류</label><select id={`${uid}-2`} data-testid="b-cat" value={form.cat} onChange={(e) => setForm({ ...form, cat: e.target.value })}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
+            <div><label htmlFor={`${uid}-3`}>공개 범위</label><select id={`${uid}-3`} data-testid="b-minrole" value={form.min_role} onChange={(e) => setForm({ ...form, min_role: e.target.value })}>{MIN_ROLE_OPTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
             <div style={{ gridColumn: "1 / -1" }}><label>본문</label><HtmlEditor value={body} onChange={setBody} testid="b-body" minHeight={200} /></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>링크(선택)</label><input data-testid="b-link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-4`}>링크(선택)</label><input id={`${uid}-4`} data-testid="b-link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1" }}>
-              <label>첨부파일(선택)</label>
-              <input type="file" multiple data-testid="b-files" onChange={uploadFiles} />
+              <label htmlFor={`${uid}-5`}>첨부파일(선택)</label>
+              <input id={`${uid}-5`} type="file" multiple data-testid="b-files" onChange={uploadFiles} />
               {!!form.files.length && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                   {form.files.map((f, i) => (
@@ -223,7 +238,7 @@ export default function Board() {
           </div>
           <div className="bd" style={{ display: "flex", gap: 6 }}>
             <button className="btn primary" data-testid="board-add-submit">{editId ? "저장" : "등록"}</button>
-            <button type="button" className="btn ghost" onClick={closeForm}>취소</button>
+            <button type="button" className="btn ghost" onClick={toggleForm}>취소</button>
           </div>
         </form>
       )}
@@ -234,7 +249,7 @@ export default function Board() {
         ))}
       </div>
 
-      <div className="tbar" style={{ marginBottom: 8 }}><input className="tsearch" data-testid="board-search" placeholder="제목·내용·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{filtered.length}건</span></div>
+      <div className="tbar" style={{ marginBottom: 8 }}><input className="tsearch" data-testid="board-search" aria-label="게시글 검색" placeholder="제목·내용·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{filtered.length}건</span></div>
       <Card pad={false}>
         <div ref={listRef}>
         <table className="tbl fit" data-testid="board-table">
@@ -243,13 +258,13 @@ export default function Board() {
             {view.map((p) => (
               <tr key={p.id}>
                 <td><span className={"badge " + (CBADGE[p.cat] || "s-mute")}>{p.cat}</span></td>
-                <td><a style={{ cursor: "pointer", fontWeight: 600 }} data-testid={`post-open-${p.id}`} onClick={() => openPost(p)}>{p.title}</a>{p.min_role ? <span className="badge s-wait" style={{ marginLeft: 6 }} title={minRoleLabel(p.min_role)}>🔒 {minRoleLabel(p.min_role)}</span> : null}<div className="muted small">{stripHtml(p.body)}</div></td>
+                <td><a style={{ cursor: "pointer", fontWeight: 600 }} title={p.title} data-testid={`post-open-${p.id}`} onClick={() => detail.show(p)}>{p.title}</a>{p.min_role ? <span className="badge s-wait" style={{ marginLeft: 6 }} title={minRoleLabel(p.min_role)}>🔒 {minRoleLabel(p.min_role)}</span> : null}<div className="muted small" title={stripHtml(p.body)}>{stripHtml(p.body)}</div></td>
                 <td className="small muted hide-sm">{uname(p.by_id)}</td>
                 <td className="small muted">{p.created_at ? dateKST(p.created_at) : "—"}</td>
                 <td className="hide-sm">{p.comments?.length || 0}</td><td className="hide-sm">{p.views}</td>
               </tr>
             ))}
-            {!filtered.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 18 }}>게시글 없음</td></tr>}
+            {!filtered.length && <tr><td colSpan={6} className="muted" style={{ textAlign: "center", padding: 18 }}>{!loaded ? "불러오는 중…" : items.length ? "검색 결과 없음" : "아직 등록된 글이 없습니다 — 위 + 글쓰기로 시작해 보세요"}</td></tr>}
           </tbody>
         </table>
         </div>

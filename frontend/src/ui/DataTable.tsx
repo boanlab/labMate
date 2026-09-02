@@ -72,7 +72,7 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
     <div data-testid={testid}>
       <div className="tbar">
         {searchKeys && (
-          <input className="tsearch" placeholder={searchPlaceholder} value={q}
+          <input className="tsearch" placeholder={searchPlaceholder} aria-label={searchPlaceholder} value={q}
             data-testid={testid ? `${testid}-search` : undefined}
             onChange={(e) => { setQ(e.target.value); setPage(0); }} />
         )}
@@ -100,11 +100,16 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
           <tbody>
             {view.map((row, i) => (
               <tr key={i}>
-                {cols.map((c) => (
-                  <td key={c.key} style={c.nowrap ? { whiteSpace: "nowrap" } : undefined}>
-                    {c.render ? c.render(row) : c.value ? c.value(row) : ""}
-                  </td>
-                ))}
+                {cols.map((c) => {
+                  // 셀이 좁아 말줄임될 때 원문을 못 보는 일이 없도록, 문자열 값이면 title 로 붙인다.
+                  const v = c.value ? c.value(row) : "";
+                  const tip = typeof v === "string" || typeof v === "number" ? String(v) : undefined;
+                  return (
+                    <td key={c.key} title={tip || undefined} style={c.nowrap ? { whiteSpace: "nowrap" } : undefined}>
+                      {c.render ? c.render(row) : v}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
             {!view.length && <tr><td colSpan={cols.length} className="muted" style={{ textAlign: "center", padding: 22 }}>{empty}</td></tr>}

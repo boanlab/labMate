@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useId } from "react";
 import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
@@ -11,6 +11,7 @@ interface Lesson { title: string; type: string; dur?: string; ref: string; body?
 interface Course { id: string; cat: string; title: string; desc: string; lessons: any[]; required?: boolean; due?: string | null; owner_id?: string; }
 
 export default function Library() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const canManage = !!me && ["prof", "phd", "staff", "admin"].includes(me.role);   // 강좌 개설
   const canEditCourse = (c: Course) => !!me && (c.owner_id === me.id || me.role === "prof");   // 수정·삭제: 소유자 또는 교수
@@ -111,9 +112,9 @@ export default function Library() {
         {err && <div className="form-err" data-testid="lib-error">{err}</div>}
         <form className="card" onSubmit={addCourse} data-testid="course-form">
           <div className="bd grid3">
-            <div><label>분류</label><select data-testid="c-cat" value={cf.cat} onChange={(e) => setCf({ ...cf, cat: e.target.value })}>{COURSE_CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
-            <div style={{ gridColumn: "span 2" }}><label>강좌명</label><input data-testid="c-title" value={cf.title} onChange={(e) => setCf({ ...cf, title: e.target.value })} /></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>설명</label><input data-testid="c-desc" value={cf.desc} onChange={(e) => setCf({ ...cf, desc: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-1`}>분류</label><select id={`${uid}-1`} data-testid="c-cat" value={cf.cat} onChange={(e) => setCf({ ...cf, cat: e.target.value })}>{COURSE_CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
+            <div style={{ gridColumn: "span 2" }}><label htmlFor={`${uid}-2`}>강좌명</label><input id={`${uid}-2`} data-testid="c-title" value={cf.title} onChange={(e) => setCf({ ...cf, title: e.target.value })} /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-3`}>설명</label><input id={`${uid}-3`} data-testid="c-desc" value={cf.desc} onChange={(e) => setCf({ ...cf, desc: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1" }}><label style={{ display: "flex", alignItems: "center", gap: 6, width: "fit-content", cursor: "pointer" }}><input type="checkbox" data-testid="c-required" checked={cf.required} onChange={(e) => setCf({ ...cf, required: e.target.checked })} style={{ width: "auto", margin: 0, flexShrink: 0 }} /> 필수 이수 강좌</label></div>
           </div>
           <div className="bd">
@@ -124,11 +125,11 @@ export default function Library() {
               <div key={l._k} data-testid={`c-lesson-${i}`} style={{ border: "1px solid var(--line2)", borderRadius: 8, padding: 8, marginBottom: 8 }}>
                 <div style={{ display: "flex", gap: 6 }}>
                   <span className="badge s-info" style={{ alignSelf: "center" }}>{i + 1}</span>
-                  <input placeholder="강의명" value={l.title} onChange={(e) => setLesson(i, { title: e.target.value })} style={{ flex: 1, margin: 0 }} />
-                  <select value={l.type} onChange={(e) => setLesson(i, { type: e.target.value })} style={{ margin: 0, width: 96, flexShrink: 0 }}>{LESSON_TYPES.map((t) => <option key={t}>{t}</option>)}</select>
+                  <input placeholder="강의명" aria-label={`${i + 1}강 강의명`} value={l.title} onChange={(e) => setLesson(i, { title: e.target.value })} style={{ flex: 1, margin: 0 }} />
+                  <select value={l.type} aria-label={`${i + 1}강 유형`} onChange={(e) => setLesson(i, { type: e.target.value })} style={{ margin: 0, width: 96, flexShrink: 0 }}>{LESSON_TYPES.map((t) => <option key={t}>{t}</option>)}</select>
                   <button type="button" className="btn ghost sm" onClick={() => delLesson(i)} disabled={cf.lessons.length === 1}>✕</button>
                 </div>
-                <input placeholder="영상 링크 (YouTube 주소 등)" value={l.ref} onChange={(e) => setLesson(i, { ref: e.target.value })} style={{ margin: "6px 0 0", display: l.type === "영상" ? "block" : "none" }} />
+                <input placeholder="영상 링크 (YouTube 주소 등)" aria-label={`${i + 1}강 영상 링크`} value={l.ref} onChange={(e) => setLesson(i, { ref: e.target.value })} style={{ margin: "6px 0 0", display: l.type === "영상" ? "block" : "none" }} />
                 <div style={{ marginTop: 6, display: l.type === "영상" ? "none" : "block" }}>
                   {activeLesson === i
                     ? <HtmlEditor value={l.body || ""} onChange={(html) => setLesson(i, { body: html })} testid={`c-body-${i}`} minHeight={90} />

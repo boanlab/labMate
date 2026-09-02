@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card } from "../ui/kit";
@@ -6,6 +6,7 @@ import { PageHeader, Card } from "../ui/kit";
 const ROLE_KO: Record<string, string> = { prof: "지도교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리자" };
 
 export default function MyPage() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { refreshMe } = useAuth();
   const [p, setP] = useState<any>(null);
   const [edit, setEdit] = useState(false);
@@ -64,19 +65,19 @@ export default function MyPage() {
           <>
             <div className="bd grid2" style={{ padding: 0 }}>
               <div className="fsec first">신원</div>
-              <div><label>이름</label><input data-testid="mp-name" value={form.name} onChange={(e) => up("name", e.target.value)} /></div>
-              <div><label>영문이름</label><input value={form.name_en} onChange={(e) => up("name_en", e.target.value)} /></div>
-              <div><label>성별</label><select value={form.gender} onChange={(e) => up("gender", e.target.value)}><option value="">(선택)</option><option>남</option><option>여</option></select></div>
-              <div><label>생년월일</label><input type="date" value={form.birth} onChange={(e) => up("birth", e.target.value)} /></div>
-              <div><label>휴대폰</label><input data-testid="mp-phone" value={form.phone} onChange={(e) => up("phone", e.target.value)} /></div>
+              <div><label htmlFor={`${uid}-1`}>이름</label><input id={`${uid}-1`} data-testid="mp-name" value={form.name} onChange={(e) => up("name", e.target.value)} /></div>
+              <div><label htmlFor={`${uid}-2`}>영문이름</label><input id={`${uid}-2`} value={form.name_en} onChange={(e) => up("name_en", e.target.value)} /></div>
+              <div><label htmlFor={`${uid}-3`}>성별</label><select id={`${uid}-3`} value={form.gender} onChange={(e) => up("gender", e.target.value)}><option value="">(선택)</option><option>남</option><option>여</option></select></div>
+              <div><label htmlFor={`${uid}-4`}>생년월일</label><input id={`${uid}-4`} type="date" value={form.birth} onChange={(e) => up("birth", e.target.value)} /></div>
+              <div><label htmlFor={`${uid}-5`}>휴대폰</label><input id={`${uid}-5`} data-testid="mp-phone" value={form.phone} onChange={(e) => up("phone", e.target.value)} /></div>
               <div className="fsec">소속</div>
-              <div><label>학과</label><input value={form.dept} onChange={(e) => up("dept", e.target.value)} /></div>
-              <div><label>학번</label><input value={form.student_id} onChange={(e) => up("student_id", e.target.value)} /></div>
+              <div><label htmlFor={`${uid}-6`}>학과</label><input id={`${uid}-6`} value={form.dept} onChange={(e) => up("dept", e.target.value)} /></div>
+              <div><label htmlFor={`${uid}-7`}>학번</label><input id={`${uid}-7`} value={form.student_id} onChange={(e) => up("student_id", e.target.value)} /></div>
               <div className="fsec">과제 정보</div>
-              <div><label>과학기술인번호</label><input value={form.researcher_no} onChange={(e) => up("researcher_no", e.target.value)} /></div>
-              <div><label>최종학위</label><input value={form.degree} onChange={(e) => up("degree", e.target.value)} placeholder="예: 석사" /></div>
-              <div><label>전공</label><input value={form.major} onChange={(e) => up("major", e.target.value)} /></div>
-              <div><label>학위취득년도</label><input value={form.grad_year} onChange={(e) => up("grad_year", e.target.value)} placeholder="예: 2024" /></div>
+              <div><label htmlFor={`${uid}-8`}>과학기술인번호</label><input id={`${uid}-8`} value={form.researcher_no} onChange={(e) => up("researcher_no", e.target.value)} /></div>
+              <div><label htmlFor={`${uid}-9`}>최종학위</label><input id={`${uid}-9`} value={form.degree} onChange={(e) => up("degree", e.target.value)} placeholder="예: 석사" /></div>
+              <div><label htmlFor={`${uid}-10`}>전공</label><input id={`${uid}-10`} value={form.major} onChange={(e) => up("major", e.target.value)} /></div>
+              <div><label htmlFor={`${uid}-11`}>학위취득년도</label><input id={`${uid}-11`} value={form.grad_year} onChange={(e) => up("grad_year", e.target.value)} placeholder="예: 2024" /></div>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <button className="btn primary" data-testid="mp-save" onClick={saveProfile}>저장</button>
@@ -89,10 +90,10 @@ export default function MyPage() {
       <Card title="비밀번호 변경" testid="mp-pw">
         <form onSubmit={changePw}>
           <div className="bd grid2" style={{ padding: 0 }}>
-            <div><label>현재 비밀번호</label><input type="password" data-testid="mp-pw-cur" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-12`}>현재 비밀번호</label><input id={`${uid}-12`} type="password" data-testid="mp-pw-cur" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} /></div>
             <div />
-            <div><label>새 비밀번호</label><input type="password" data-testid="mp-pw-new" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} /></div>
-            <div><label>새 비밀번호 확인</label><input type="password" data-testid="mp-pw-confirm" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-13`}>새 비밀번호</label><input id={`${uid}-13`} type="password" data-testid="mp-pw-new" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-14`}>새 비밀번호 확인</label><input id={`${uid}-14`} type="password" data-testid="mp-pw-confirm" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /></div>
           </div>
           {pwMsg && <div className={pwMsg.includes("✓") ? "io" : "form-err"} style={{ marginTop: 8 }}>{pwMsg}</div>}
           <div style={{ marginTop: 12 }}><button className="btn primary" data-testid="mp-pw-submit">비밀번호 변경</button></div>

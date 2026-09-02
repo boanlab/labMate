@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useId } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 
 export default function ChangePassword() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me, refreshMe } = useAuth();
   const nav = useNavigate();
   const [cur, setCur] = useState("");
@@ -37,12 +38,12 @@ export default function ChangePassword() {
         <div className="muted" style={{ marginBottom: 16 }}>
           {forced ? "첫 로그인입니다. 보안을 위해 비밀번호를 변경하세요." : "비밀번호를 변경합니다."}
         </div>
-        <label>현재 비밀번호</label>
-        <input data-testid="cp-current" type="password" value={cur} onChange={(e) => setCur(e.target.value)} />
-        <label>새 비밀번호 (8자 이상)</label>
-        <input data-testid="cp-new" type="password" value={pw} onChange={(e) => setPw(e.target.value)} />
-        <label>새 비밀번호 확인</label>
-        <input data-testid="cp-new2" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+        <label htmlFor={`${uid}-1`}>현재 비밀번호</label>
+        <input id={`${uid}-1`} data-testid="cp-current" type="password" value={cur} onChange={(e) => setCur(e.target.value)} />
+        <label htmlFor={`${uid}-2`}>새 비밀번호 (8자 이상)</label>
+        <input id={`${uid}-2`} data-testid="cp-new" type="password" value={pw} onChange={(e) => setPw(e.target.value)} />
+        <label htmlFor={`${uid}-3`}>새 비밀번호 확인</label>
+        <input id={`${uid}-3`} data-testid="cp-new2" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
         {err && <div className="form-err" data-testid="cp-error">{err}</div>}
         <button className="btn primary" data-testid="cp-submit" disabled={busy} style={{ marginTop: 12, width: "100%" }}>
           {busy ? "변경 중…" : "비밀번호 변경"}
