@@ -10,10 +10,10 @@ import { formSnapshot, confirmDiscard } from "../ui/kit";
 interface Asset {
   id: string; asset_class: string; asset_no: string; name: string; spec: string; model: string;
   owner_id: string; project_id: string; building: string; floor: string; room: string;
-  location: string; buy_date: string | null; note: string;
+  location: string; buy_date: string | null; note: string; bookable?: boolean;
 }
 const CLS_FB = ["연구실", "단국대", "산학협력단", "공통"];
-const EMPTY = { asset_class: "연구실", asset_no: "", name: "", spec: "", model: "", owner_id: "", project_id: "", building: "", floor: "", room: "", location: "", buy_date: "", note: "" };
+const EMPTY = { asset_class: "연구실", asset_no: "", name: "", spec: "", model: "", owner_id: "", project_id: "", building: "", floor: "", room: "", location: "", buy_date: "", note: "", bookable: false };
 
 export default function Assets() {
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
@@ -49,7 +49,7 @@ export default function Assets() {
     closeForm();
   }
   function editAsset(a: Asset) {
-    setForm({ asset_class: a.asset_class, asset_no: a.asset_no, name: a.name, spec: a.spec, model: a.model, owner_id: a.owner_id || "", project_id: a.project_id || "", building: a.building || "", floor: a.floor || "", room: a.room || "", location: a.location || "", buy_date: a.buy_date || "", note: a.note || "" });
+    setForm({ asset_class: a.asset_class, asset_no: a.asset_no, name: a.name, spec: a.spec, model: a.model, owner_id: a.owner_id || "", project_id: a.project_id || "", building: a.building || "", floor: a.floor || "", room: a.room || "", location: a.location || "", buy_date: a.buy_date || "", note: a.note || "", bookable: !!a.bookable });
     setEditId(a.id); setAdding(true); window.scrollTo({ top: 0, behavior: "smooth" });
     setSnap(formSnapshot({ asset_class: a.asset_class, asset_no: a.asset_no, name: a.name, spec: a.spec, model: a.model, owner_id: a.owner_id || "", project_id: a.project_id || "", building: a.building || "", floor: a.floor || "", room: a.room || "", location: a.location || "", buy_date: a.buy_date || "", note: a.note || "" }));
   }
@@ -74,7 +74,7 @@ export default function Assets() {
   const cols: Col<Asset>[] = [
     { key: "asset_class", label: "분류", value: (a) => a.asset_class, render: (a) => <span className="badge s-info">{a.asset_class}</span> },
     { key: "asset_no", label: "자산번호", value: (a) => a.asset_no, render: (a) => <span className="small">{a.asset_no || "—"}</span> },
-    { key: "name", label: "자산명", value: (a) => a.name, render: (a) => <b>{a.name}</b> },
+    { key: "name", label: "자산명", value: (a) => a.name, render: (a) => <><b>{a.name}</b>{a.bookable && <span className="badge s-info" style={{ marginLeft: 6 }} title="자원예약에서 선택할 수 있습니다">예약</span>}</> },
     { key: "spec", label: "규격", render: (a) => <span className="small muted">{a.spec || "—"}</span> },
     { key: "model", label: "모델", render: (a) => <span className="small muted">{a.model || "—"}</span> },
     { key: "building", label: "건물", render: (a) => <span className="small">{a.building || "—"}</span> },
@@ -117,6 +117,13 @@ export default function Assets() {
             <div><label htmlFor={`${uid}-11`}>책임자</label><input id={`${uid}-11`} data-testid="as-owner" value={form.owner_id} onChange={(e) => up("owner_id", e.target.value)} placeholder="책임자 이름" /></div>
             <div><label htmlFor={`${uid}-12`}>과제</label><select id={`${uid}-12`} data-testid="as-proj" value={form.project_id} onChange={(e) => up("project_id", e.target.value)}><option value="">(없음)</option>{grants.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}</select></div>
             <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-13`}>비고</label><input id={`${uid}-13`} data-testid="as-note" value={form.note} onChange={(e) => up("note", e.target.value)} /></div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, width: "fit-content", cursor: "pointer" }}>
+                <input type="checkbox" data-testid="as-bookable" checked={!!form.bookable} onChange={(e) => up("bookable", e.target.checked)} style={{ width: "auto", margin: 0, flexShrink: 0 }} />
+                자원예약 대상
+              </label>
+              <div className="muted small">체크하면 [자원예약]의 자원 목록에 이 자산이 나타납니다 — 따로 등록할 필요가 없습니다.</div>
+            </div>
           </div>
           <div className="bd" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button className="btn primary" data-testid="asset-add-submit">{editId ? "저장" : "등록"}</button>

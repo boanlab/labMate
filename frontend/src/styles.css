@@ -380,6 +380,14 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 /* 항목이 많아지면(알림 수십 건) 패널이 화면 아래로 넘어가 손이 닿지 않는다 — 높이를 묶고 안에서 스크롤시킨다. */
 .menu-pop { position: absolute; right: 0; top: calc(100% + 6px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,.18); min-width: 184px; padding: 6px; z-index: 60; max-height: min(72vh, 560px); overflow-y: auto; overscroll-behavior: contain; }
 .menu-pop .menu-head { position: sticky; top: -6px; background: var(--panel); z-index: 1; }
+
+/* 전역 검색 — 이름만 알면 어느 메뉴인지 몰라도 찾아갈 수 있게 */
+.modal.gsearch { align-self: flex-start; margin-top: 8vh; }
+.gsearch-list { max-height: 56vh; overflow-y: auto; border-top: 1px solid var(--line2); }
+.gsearch-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: none; padding: 9px 12px; color: var(--ink); font-size: 13.5px; }
+.gsearch-item.on, .gsearch-item:hover { background: var(--bsoft); }
+.gsearch-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gsearch-s { flex-shrink: 0; max-width: 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-pop button { display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--ink); padding: 8px 10px; border-radius: 7px; font-size: 13.5px; }
 .menu-pop button:hover { background: var(--soft); }
 .menu-head { padding: 7px 10px 8px; border-bottom: 1px solid var(--line2); margin-bottom: 4px; }

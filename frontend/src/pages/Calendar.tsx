@@ -93,6 +93,30 @@ export default function Calendar() {
           time: b.end ? `${b.start}~${b.end}` : b.start, by_id: b.by_id, detail: b.purpose,
         }));
       } catch { /* optional */ }
+      // 마감이 있는 일은 캘린더에 보여야 한다. 예전에는 일정·휴가·예약만 올려서,
+      // 정작 이번 주에 뭐가 마감인지는 캘린더만 봐서는 알 수 없었다.
+      try {
+        const ts = (await api.get<any[]>("/projects/tasks")).data || [];
+        ts.forEach((t) => {
+          if (!t.due || t.status === "완료") return;
+          if (!isMgr && t.assignee_id !== me?.id) return;         // 학생은 본인 업무만
+          out.push({
+            id: `td-${t.id}`, title: t.title, date: t.due, type: "마감", src: "task",
+            by_id: t.assignee_id, detail: "세부업무 마감",
+          });
+        });
+      } catch { /* optional */ }
+      try {
+        const mts = (await api.get<any[]>("/boards/meetings")).data || [];
+        mts.forEach((m) => (m.actions || []).forEach((a: any) => {
+          if (!a.due || a.done) return;
+          if (!isMgr && a.assignee_id !== me?.id) return;
+          out.push({
+            id: `ac-${m.id}-${a.id || a.title}`, title: a.title, date: a.due, type: "마감", src: "action",
+            by_id: a.assignee_id, detail: `회의록 액션 · ${m.title}`, link: `/meetings?open=${m.id}`,
+          });
+        }));
+      } catch { /* optional */ }
       setItems(out);
     } catch (e) { setErr(apiError(e)); }
   }

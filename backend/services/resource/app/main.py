@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from labmate_common.db import Base, engine
-from labmate_common.migrate import rename_columns
+from labmate_common.migrate import add_columns, rename_columns
 
 from . import models  # noqa: F401
 from labmate_common.configstore import make_config_router
@@ -25,6 +25,9 @@ async def lifespan(app: FastAPI):
         ("devices", "ip1", "ip"),
         ("assets", "cls", "asset_class"),
         ("assets", "no", "asset_no"),
+    ])
+    add_columns(engine, [
+        ("assets", "bookable", "BOOLEAN DEFAULT FALSE NOT NULL"),
     ])
     yield
 

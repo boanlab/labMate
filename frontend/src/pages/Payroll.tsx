@@ -229,8 +229,8 @@ export default function Payroll() {
             <span>{curPool ? "통합 학생인건비 예산" : "학생인건비 예산"} <b>{won(sb.allocated)}</b></span>
             {curPool && equalSpent > 0 && <span className="muted" title="균등(YYYY)은 통합 재원으로 운영 → 확정 집행으로 처리">균등 확정집행 <b>{won(equalSpent)}</b></span>}
             {curPool && <span className="muted">타 과제 사용(확정+예정) <b>{won(otherUsed)}</b></span>}
-            <span style={{ marginLeft: "auto" }}>이 과제 {year}년 편성(예정) <b style={{ color: remainForThis < 0 ? "var(--bad)" : "var(--brand)" }}>{won(planAnnual)}</b></span>
-            <span>잔여 <b style={{ color: remainForThis < 0 ? "var(--bad)" : "var(--ok)" }}>{won(remainForThis)}</b>{remainForThis < 0 && <span className="badge s-bad" style={{ marginLeft: 6 }}>{curPool ? "통합 잔여 초과" : "잔여 예산 초과"}</span>}</span>
+            <span style={{ marginLeft: "auto" }}>이 과제 {year}년 편성(예정) <b style={{ color: remainForThis < 0 ? "var(--bad-text)" : "var(--brand)" }}>{won(planAnnual)}</b></span>
+            <span>잔여 <b style={{ color: remainForThis < 0 ? "var(--bad-text)" : "var(--ok-text)" }}>{won(remainForThis)}</b>{remainForThis < 0 && <span className="badge s-bad" style={{ marginLeft: 6 }}>{curPool ? "통합 잔여 초과" : "잔여 예산 초과"}</span>}</span>
           </div>
           <div className="card scroll" style={{ margin: 0, border: "none" }}>
             <table className="tbl" data-testid="pay-matrix">
@@ -337,7 +337,7 @@ export default function Payroll() {
                           <td><span className="badge s-pur">{k}</span></td>
                           <td className="small muted" title={codes} style={{ maxWidth: "min(460px, 30vw)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{codes}</td>
                           <td>{won(alloc)}</td><td title={equalSpentAll ? `과제 확정 집행 + 균등 ${won(equalSpentAll)}` : undefined}>{won(spent)}</td><td className="muted">{pend ? won(pend) : "—"}</td>
-                          <td style={{ color: alloc - spent - pend < 0 ? "var(--bad)" : "inherit" }}><b>{won(alloc - spent - pend)}</b></td>
+                          <td style={{ color: alloc - spent - pend < 0 ? "var(--bad-text)" : "inherit" }}><b>{won(alloc - spent - pend)}</b></td>
                         </tr>
                       );
                     })}
@@ -363,7 +363,7 @@ export default function Payroll() {
                   <td>{won(b.allocated)}</td>
                   <td>{won(b.spent)}</td>
                   <td className="muted">{pend ? won(pend) : "—"}</td>
-                  <td style={{ color: rem < 0 ? "var(--bad)" : "inherit" }}>{won(rem)}</td>
+                  <td style={{ color: rem < 0 ? "var(--bad-text)" : "inherit" }}>{won(rem)}</td>
                   <td><div className="bar" style={{ width: 80, display: "inline-block", verticalAlign: "middle" }}><i style={{ width: `${Math.min(rate, 100)}%`, background: rate > 90 ? "var(--bad)" : "var(--brand)" }} /></div> {rate}%</td>
                 </tr>
               ); })}
