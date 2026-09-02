@@ -47,7 +47,8 @@ def health():
 
 
 app.include_router(router)
-app.include_router(make_notifications_router())
+from .derived import derive as _derive   # noqa: E402
+app.include_router(make_notifications_router(_derive))
 app.include_router(make_push_router())
 app.include_router(make_data_admin_router("attendance"))
 app.include_router(make_audit_router("attendance"))
