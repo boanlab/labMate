@@ -12,9 +12,10 @@ const RESOURCES_FB = ["세미나실", "회의실", "GPU 서버", "공용 워크�
 export default function Booking() {
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
-  const RESOURCES = useConfig<string[]>("booking_resources", RESOURCES_FB);
+  const RESOURCE_MASTERS = useConfig<string[]>("booking_resources", RESOURCES_FB);
   const [items, setItems] = useState<Bk[]>([]);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+  const [bookableAssets, setBookableAssets] = useState<string[]>([]);   // 자산에서 '예약 대상'으로 표시한 장비
   const [err, setErr] = useState("");
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState("");
@@ -24,6 +25,7 @@ export default function Booking() {
   const [snap, setSnap] = useState("");   // 폼 초기 상태 — 작성 중 이탈 경고 판정용
   const [view, setView] = useState<"예정" | "지난" | "전체">("예정");   // 예약 화면의 관심사는 '앞으로'다
   const [resFilter, setResFilter] = useState("전체");
+  const RESOURCES = [...new Set([...RESOURCE_MASTERS, ...bookableAssets])];
   const canEdit = (b: Bk) => !!me && (b.by_id === me.id || me.role === "prof");   // 본인 예약 또는 교수만
   const uname = (id: string) => users.find((u) => u.id === id)?.name || "—";
 
@@ -41,6 +43,10 @@ export default function Booking() {
     try {
       setItems((await api.get<Bk[]>("/resource/bookings")).data);
       api.get<{ id: string; name: string }[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {});
+      // 예약 대상 = 마스터데이터 목록 + 자산에서 예약 가능으로 표시한 장비
+      api.get<any[]>("/resource/assets")
+        .then((r) => setBookableAssets((r.data || []).filter((a) => a.bookable).map((a) => a.name)))
+        .catch(() => {});
     } catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }
   }
   useEffect(() => { load(); }, []);

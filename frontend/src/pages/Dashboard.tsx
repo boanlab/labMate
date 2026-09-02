@@ -147,7 +147,11 @@ export default function Dashboard() {
   const myInWork = !!myToday?.status && myToday.status !== "미체크" && myToday.status !== "퇴근";
   const myActions = myMeetings.flatMap((m: any) => (m.actions || []).filter((a: any) => a.assignee_id === me?.id && !a.done).map((a: any) => ({ ...a, mt: m.title })));
   const myPendingAppr = myAppr.filter((a: any) => a.status === "진행");
-  const todoCount = myActions.length + myPendingAppr.length;
+  // '내 할 일'은 흩어진 것을 모으는 자리다. 회의록 액션·결재만 담으면 정작 본업(세부업무)과
+  // 필독 공지가 빠져, 결국 여러 화면을 돌아야 한다.
+  const myOpenTasks = allTasks.filter((t) => t.assignee_id === me?.id && t.status !== "완료");
+  const myUnackNotices = notices.filter((n: any) => n.required && !(n.acked_user_ids || []).includes(me?.id || ""));
+  const todoCount = myActions.length + myPendingAppr.length + myOpenTasks.length + myUnackNotices.length;
   const today0 = todayKST();
   const todayEvents = events.filter((e: any) => e.date === today0).sort((a: any, b: any) => (a.time || "").localeCompare(b.time || ""));
   const futureEvents = events.filter((e: any) => e.date > today0).sort((a: any, b: any) => a.date.localeCompare(b.date)).slice(0, 4);
@@ -336,6 +340,22 @@ export default function Dashboard() {
                 <div key={"act" + i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--line2)" }}>
                   <span><span className="badge s-pur" style={{ marginRight: 6 }}>액션</span>{a.title}<div className="muted small">{a.mt}</div></span>
                   <span className="muted small">{a.due ? `~${a.due}` : ""}</span>
+                </div>
+              ))}
+              {[...myOpenTasks].sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999")).map((t: any) => {
+                const over = t.due && t.due < today0;
+                return (
+                  <div key={"tk" + t.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--line2)" }}>
+                    <span><span className="badge s-info" style={{ marginRight: 6 }}>업무</span>{t.title}<div className="muted small">{projCode(t.project_id)} · {t.status}</div></span>
+                    <a className="lnk small" style={{ cursor: "pointer", whiteSpace: "nowrap", color: over ? "var(--bad-text)" : undefined }}
+                       onClick={() => nav(`/projects?open=${t.project_id}`)}>{t.due ? (over ? `${t.due} 지남` : `~${t.due}`) : "보기"}</a>
+                  </div>
+                );
+              })}
+              {myUnackNotices.map((n: any) => (
+                <div key={"nt" + n.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--line2)" }}>
+                  <span><span className="badge s-bad" style={{ marginRight: 6 }}>필독</span>{n.title}<div className="muted small">아직 확인하지 않았습니다</div></span>
+                  <a className="lnk small" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => nav(`/notices?open=${n.id}`)}>확인</a>
                 </div>
               ))}
               {myPendingAppr.map((a: any) => (

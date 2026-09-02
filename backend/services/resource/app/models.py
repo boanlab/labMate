@@ -5,7 +5,7 @@ import uuid
 from datetime import date as date_t
 from datetime import datetime
 
-from sqlalchemy import JSON, Date, DateTime, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from labmate_common.db import Base
@@ -32,6 +32,9 @@ class Asset(OrgScoped, SoftDelete, Base):
     location: Mapped[str] = mapped_column(String(200), default="")
     buy_date: Mapped[date_t | None] = mapped_column(Date, nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")
+    # 공용 장비(세미나실 장비·GPU 서버 등)는 예약 대상이 된다.
+    # 예전에는 예약 목록을 마스터데이터에 따로 적어야 해서 같은 장비를 두 곳에 등록했다.
+    bookable: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Device(OrgScoped, SoftDelete, Base):

@@ -482,7 +482,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
                   <span className={statusClass(taskOpen.status)}>{taskOpen.status}</span>
                   <span className="small"><span className="muted">담당</span> {uname(taskOpen.assignee_id)}</span>
                   <span className="small"><span className="muted">기간</span> {taskOpen.start || "—"} ~ {taskOpen.due || "—"}</span>
-                  {taskOpen.done_date && <span className="small"><span className="muted">실제 마감</span> <b style={{ color: (taskOpen.due && taskOpen.done_date > taskOpen.due) ? "var(--bad)" : "inherit" }}>{taskOpen.done_date}</b></span>}
+                  {taskOpen.done_date && <span className="small"><span className="muted">실제 마감</span> <b style={{ color: (taskOpen.due && taskOpen.done_date > taskOpen.due) ? "var(--bad-text)" : "inherit" }}>{taskOpen.done_date}</b></span>}
                   {taskOpen.status !== "완료" && taskOpen.due && taskOpen.due < todayKST() && <span className="badge s-bad">마감 초과</span>}
                 </div>
 

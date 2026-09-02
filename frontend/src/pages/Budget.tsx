@@ -100,7 +100,7 @@ export default function BudgetPage() {
                 <td className="hide-sm"><b>{p.code}</b></td><td className="muted" title={p.name}>{p.name}</td>
                 <td><span className={statusClass(st)}>{st}</span></td>
                 <td className="hide-sm">{won(t.allocated)}</td><td className="hide-sm">{won(t.spent)}</td>
-                <td style={{ color: t.allocated - t.spent < 0 ? "var(--bad)" : "inherit" }}>{won(t.allocated - t.spent)}</td>
+                <td style={{ color: t.allocated - t.spent < 0 ? "var(--bad-text)" : "inherit" }}>{won(t.allocated - t.spent)}</td>
                 <td className="hide-sm">{r}%</td>
               </tr>
             ); })}
@@ -134,7 +134,7 @@ export default function BudgetPage() {
                           {!!allocated[c] && <div className="muted small" data-testid={`bg-ko-${c}`}>{wonKo(allocated[c])}</div>}</>
                       : won(a)}</td>
                     <td>{won(sp)}</td>
-                    <td style={{ color: a - sp < 0 ? "var(--bad)" : "inherit" }}>{won(a - sp)}</td>
+                    <td style={{ color: a - sp < 0 ? "var(--bad-text)" : "inherit" }}>{won(a - sp)}</td>
                     <td><div className="bar" style={{ width: 70, display: "inline-block", verticalAlign: "middle" }}><i style={{ width: `${Math.min(r, 100)}%`, background: r > 90 ? "var(--bad)" : "var(--brand)" }} /></div> {r}%</td>
                   </tr>
                 );

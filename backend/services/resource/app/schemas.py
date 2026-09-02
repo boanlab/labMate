@@ -18,6 +18,7 @@ class AssetIn(BaseModel):
     location: str = ""
     buy_date: date | None = None
     note: str = ""
+    bookable: bool = False              # 자원예약 대상으로 노출할지
 
 
 class AssetOut(AssetIn):
