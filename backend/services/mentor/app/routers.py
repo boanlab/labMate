@@ -17,7 +17,8 @@ from .crypto import decrypt, encrypt, mask
 from .masters import DEFAULTS, FEATURES
 from .models import InterviewTurn, Principle, Secret, Usage
 from .openrouter import MentorError, chat, check_key, models
-from .prompts import CATEGORIES, SEED_QUESTION, build, extract_messages, interview_messages, nudge_messages
+from .prompts import (CATEGORIES, SEED_QUESTION, build, extract_messages, interview_messages,
+                      nudge_messages, review_messages)
 
 router = APIRouter()
 KEY_ID = "openrouter"
@@ -45,7 +46,7 @@ def _principles(db: Session) -> list[str]:
 
 
 # 기능별 출력 예산 하한. 추론형 모델은 답이 짧아도 사고에 토큰을 쓴다.
-BUDGET: dict[str, int] = {"nudge": 4000, "philosophy": 3000}
+BUDGET: dict[str, int] = {"nudge": 4000, "philosophy": 4000, "review": 6000}
 
 
 def budget(db: Session, feature: str) -> int:
@@ -438,3 +439,20 @@ async def compare(body: dict, user: CurrentUser = Depends(require_roles("admin")
 @router.get("/compare/sample")
 def compare_sample(_: CurrentUser = Depends(require_roles("admin"))):
     return {"text": SAMPLE}
+
+
+# ── 주간 회고 ──
+@router.post("/weekly-review")
+async def weekly_review(body: dict, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """이번 주 기록으로 회고 초안을 만든다. 사실은 화면이 모아 보낸다."""
+    if not (cfg(db, "ai_features") or {}).get("review"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "이 기능은 관리자가 꺼 두었습니다.")
+    if user.role not in (cfg(db, "ai_roles") or []):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "이 계정은 AI 멘토를 사용할 수 없습니다.")
+    facts = body.get("facts") or {}
+    if not any(facts.values()):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "이번 주 기록이 없어 회고를 만들 수 없습니다.")
+    week = str(body.get("week") or "")
+    text = await _ask(db, review_messages(user.name, week, facts, _principles(db)), user, "review",
+                      max_tokens=budget(db, "review"))
+    return {"text": text}

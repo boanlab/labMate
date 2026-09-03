@@ -200,3 +200,36 @@ def nudge_messages(name: str, signals: list[dict], principles: list[str] | None,
         {"role": "system", "content": system},
         {"role": "user", "content": f"학생: {name}\n\n[현재 밀려 있는 항목]\n" + ("\n".join(lines) or "(없음)")},
     ]
+
+
+# ── 주간 회고 ──
+# 연구 생산성 문헌에서 공통으로 권하는 주 30분 리뷰를 제품화한다.
+# 빈 화면을 주면 아무도 쓰지 않으므로, 이번 주 기록에서 초안을 만들어 준다.
+REVIEW_SYSTEM = (
+    "당신은 연구실 학생의 주간 회고 초안을 대신 써 주는 멘토입니다.\n"
+    "이번 주 기록(완료·진행·정체 업무, 회의 약속, 작성한 글)을 받아 회고 초안을 만듭니다.\n"
+    "형식(이 세 항목만, 각 2~4줄):\n"
+    "1) 움직인 것 — 실제로 끝났거나 진척된 것을 사실로 씁니다.\n"
+    "2) 막힌 것 — 왜 막혔는지까지 씁니다. 기록에 이유가 없으면 '이유를 적어 주세요'라고 남깁니다.\n"
+    "3) 다음 주에 할 일 3가지 — 판정 가능한 형태로. 마감이 임박한 것을 먼저 둡니다.\n"
+    "규칙:\n"
+    "- 기록에 없는 성과를 지어내지 않습니다. 비면 '기록이 없습니다'라고 씁니다.\n"
+    "- 학생이 그대로 제출하지 않고 고쳐 쓰도록, 채워야 할 곳은 ___ 로 남깁니다.\n"
+    "- 한국어 존댓말, 개조식. 전체 600자 이내.\n"
+)
+
+
+def review_messages(name: str, week: str, facts: dict, principles: list[str] | None) -> list[dict[str, str]]:
+    system = REVIEW_SYSTEM
+    if principles:
+        system += "\n[지도교수의 지침 — 회고를 볼 때의 기준]\n" + "\n".join(f"- {p}" for p in principles) + "\n"
+    lines = []
+    for k, v in facts.items():
+        if not v:
+            continue
+        body = ", ".join(str(x) for x in v) if isinstance(v, list) else str(v)
+        lines.append(f"[{k}]\n{body}")
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": f"학생: {name}\n주간: {week}\n\n" + ("\n\n".join(lines) or "(이번 주 기록 없음)")},
+    ]
