@@ -8,6 +8,7 @@ import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Kpi, Card, statusClass } from "../ui/kit";
 import { MentorNudge, collectSignals } from "../components/MentorNudge";
+import { WeeklyReview, collectWeekFacts } from "../components/WeeklyReview";
 import { sortMembers } from "./Members";
 
 
@@ -172,6 +173,7 @@ export default function Dashboard() {
     .filter((a: any) => /주간/.test(a.type || "") && a.created_at)
     .map((a: any) => String(a.created_at).slice(0, 10))
     .sort().pop() || "";
+  const weekFacts = collectWeekFacts({ tasks: myTasks, actions: myActions, meetings: myMeetings });
   const nudgeSignals = collectSignals({
     tasks: myTasks, actions: myActions, unackNotices: myUnackNotices.length,
     pendingAppr: myPendingAppr.length, lastReportAt: lastReport,
@@ -325,6 +327,10 @@ export default function Dashboard() {
         {/* 밀린 일이 있으면 맨 위에서 멘토가 먼저 짚는다(없으면 렌더되지 않는다) */}
         {!isMgr && !!nudgeSignals.length && (
           <div style={{ gridColumn: "span 6" }}><MentorNudge signals={nudgeSignals} /></div>
+        )}
+
+        {!isMgr && (
+          <div style={{ gridColumn: "span 6" }}><WeeklyReview facts={weekFacts} /></div>
         )}
 
         {isMgr ? (
