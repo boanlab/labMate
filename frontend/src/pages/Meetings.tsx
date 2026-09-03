@@ -7,6 +7,7 @@ import { useDetailParam } from "../lib/useDetailParam";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface Action { id?: string; title: string; assignee_id: string; due: string; done: boolean; task_id?: string; }
@@ -22,6 +23,8 @@ function ongoing(p: any, isGrant: boolean): boolean {
 }
 
 export default function Meetings() {
+  const tableRef = useColumnResize("meetings");   // 컬럼 폭 조절
+  const sort = useTableSort({ key: "date", dir: -1 });   // 머리글 클릭 정렬
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const isMgr = !!me && ["prof", "staff", "admin"].includes(me.role);
@@ -45,7 +48,10 @@ export default function Meetings() {
   const isDone = (a: Action) => (a.task_id ? taskById[a.task_id]?.status === "완료" : !!a.done);
   const projName = (id?: string) => { const p = [...grants, ...activities].find((x) => x.id === id); return p ? `${p.code} · ${p.name}` : ""; };
   const projCode = (id?: string) => [...grants, ...activities].find((x) => x.id === id)?.code || "";
-  const shown = items.filter((m) => !q.trim() || `${m.title} ${m.decisions || ""} ${projCode(m.project_id)} ${uname(m.by_id)}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = sort.apply(
+    items.filter((m) => !q.trim() || `${m.title} ${m.decisions || ""} ${projCode(m.project_id)} ${uname(m.by_id)}`.toLowerCase().includes(q.trim().toLowerCase())),
+    { date: (m) => m.date || "", code: (m) => projCode(m.project_id), title: (m) => m.title,
+      author: (m) => uname(m.by_id), att: (m) => (m.attendees || []).length });
   const listRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [q]);
@@ -221,8 +227,15 @@ export default function Meetings() {
 
       <div className="tbar"><input className="tsearch" data-testid="meeting-search" placeholder="제목·결정사항·프로젝트·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
       <div className="card" ref={listRef}>
-        <table className="tbl fit" data-testid="meeting-table">
-          <thead><tr><th style={{ width: 104 }}>일자</th><th className="hide-sm" style={{ width: 130 }}>관리코드</th><th>제목</th><th className="hide-sm" style={{ width: 100 }}>작성자</th><th className="hide-sm" style={{ width: 64 }}>참석</th><th style={{ width: 104 }}>액션</th></tr></thead>
+        <table ref={tableRef} className="tbl fit" data-testid="meeting-table">
+          <thead><tr>
+            <th {...sort.th("date")} style={{ width: 104 }}>일자{sort.mark("date")}</th>
+            <th {...sort.th("code", "hide-sm")} style={{ width: 130 }}>관리코드{sort.mark("code")}</th>
+            <th {...sort.th("title")}>제목{sort.mark("title")}</th>
+            <th {...sort.th("author", "hide-sm")} style={{ width: 100 }}>작성자{sort.mark("author")}</th>
+            <th {...sort.th("att", "hide-sm")} style={{ width: 64 }}>참석{sort.mark("att")}</th>
+            <th style={{ width: 104 }}>액션</th>
+          </tr></thead>
           <tbody>
             {view.map((m) => {
               const done = (m.actions || []).filter((a) => isDone(a)).length;

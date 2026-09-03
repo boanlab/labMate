@@ -6,6 +6,7 @@ import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
 import { Req } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 interface Lv { id: string; uid: string; type: string; start_date: string; end_date: string; days: number; reason: string; status: string; approver_id?: string; created_at?: string; }
 interface Bal { uid: string; granted: number; used: number; }
@@ -18,6 +19,8 @@ function calcDays(start_date: string, end_date: string, type: string): number {
 }
 
 export default function Leave() {
+  const tableRef = useColumnResize("leave");   // 컬럼 폭 조절
+  const sort = useTableSort();   // 머리글 클릭 정렬
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const [mine, setMine] = useState<Lv[]>([]);
@@ -36,7 +39,10 @@ export default function Leave() {
   const SB: Record<string, string> = { "대기": "s-wait", "승인": "s-ok", "반려": "s-bad", "취소": "s-mute" };
   const uname = (id: string) => users.find((u) => u.id === id)?.name || "—";
   const sortedMine = [...mine].sort((a, b) => b.start_date.localeCompare(a.start_date));
-  const shownMine = (from || to) ? sortedMine.filter((l) => (!from || l.end_date >= from) && (!to || l.start_date <= to)) : sortedMine;
+  const shownMine = sort.apply(
+    (from || to) ? sortedMine.filter((l) => (!from || l.end_date >= from) && (!to || l.start_date <= to)) : sortedMine,
+    { type: (l) => l.type, period: (l) => l.start_date, days: (l) => l.days, reason: (l) => l.reason,
+      created: (l) => l.created_at || "", status: (l) => l.status, approver: (l) => uname(l.approver_id || "") });
   const [minePage, setMinePage] = useState(0);
   useEffect(() => setMinePage(0), [from, to]);
   const minePages = Math.max(1, Math.ceil(shownMine.length / 10)), mineCur = Math.min(minePage, minePages - 1);
@@ -127,8 +133,16 @@ export default function Leave() {
             {(from || to) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); }}>초기화</button> : <span className="muted small">{shownMine.length}건</span>}
           </span>
         </div>
-        <table className="tbl fit" data-testid="leave-table">
-          <thead><tr><th style={{ width: 72 }}>종류</th><th>기간</th><th style={{ width: 56 }}>일수</th><th className="hide-sm">사유</th><th className="hide-sm" style={{ width: 92 }}>신청일</th><th style={{ width: 78 }}>상태</th><th className="hide-sm" style={{ width: 84 }}>승인자</th></tr></thead>
+        <table ref={tableRef} className="tbl fit" data-testid="leave-table">
+          <thead><tr>
+            <th {...sort.th("type")} style={{ width: 72 }}>종류{sort.mark("type")}</th>
+            <th {...sort.th("period")}>기간{sort.mark("period")}</th>
+            <th {...sort.th("days")} style={{ width: 56 }}>일수{sort.mark("days")}</th>
+            <th {...sort.th("reason", "hide-sm")}>사유{sort.mark("reason")}</th>
+            <th {...sort.th("created", "hide-sm")} style={{ width: 92 }}>신청일{sort.mark("created")}</th>
+            <th {...sort.th("status")} style={{ width: 78 }}>상태{sort.mark("status")}</th>
+            <th {...sort.th("approver", "hide-sm")} style={{ width: 84 }}>승인자{sort.mark("approver")}</th>
+          </tr></thead>
           <tbody>
             {mineView.map((l) => <tr key={l.id}><td>{l.type}</td><td>{l.start_date}~{l.end_date}</td><td>{l.days}일</td><td className="muted hide-sm">{l.reason}</td><td className="muted small hide-sm">{dateKST(l.created_at) || "—"}</td><td><span className={"badge " + (SB[l.status] || "s-mute")}>{l.status}</span></td><td className="muted hide-sm">{l.status === "승인" || l.status === "반려" ? uname(l.approver_id || "") : "—"}</td></tr>)}
             {!shownMine.length && <tr><td colSpan={7} className="muted">{!loaded ? "불러오는 중…" : (from || to) ? "해당 기간 신청 내역 없음" : "신청 내역이 없습니다"}</td></tr>}

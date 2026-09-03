@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthContext";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 interface TFile { name: string; url: string; }
 interface Notice { id: string; title: string; body: string; by_id: string; required: boolean; due: string | null; acked_user_ids: string[]; link?: string; files?: TFile[]; target_user_ids?: string[]; updated_by?: string; created_at?: string; updated_at?: string; }
@@ -34,6 +35,8 @@ export default function Notices() {
   const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
   const members = users.filter((u) => u.active !== false && u.role !== "admin");
 
+  const tableRef = useColumnResize("notices");
+  const sort = useTableSort({ key: "created", dir: -1 });   // 기본: 최근 등록순
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try {
@@ -99,7 +102,15 @@ export default function Notices() {
 
   const audience = (n: Notice) => (n.target_user_ids && n.target_user_ids.length) ? n.target_user_ids : members.map((u) => u.id);
   const ackInfo = (n: Notice) => { const aud = audience(n); return { acked: aud.filter((id) => n.acked_user_ids.includes(id)).length, total: aud.length }; };
-  const shown = items.filter((n) => !q.trim() || `${n.title} ${stripHtml(n.body || "")}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const filtered = items.filter((n) => !q.trim() || `${n.title} ${stripHtml(n.body || "")}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = sort.apply(filtered, {
+    title: (n) => n.title,
+    author: (n) => uname(n.by_id),
+    created: (n) => n.created_at || "",
+    target: (n) => (n.target_user_ids?.length ? `선택 ${n.target_user_ids.length}` : "전체"),
+    due: (n) => n.due || "",
+    ack: (n) => (mustAck(n) ? (n.acked_user_ids || []).includes(me?.id || "") ? 1 : 0 : 2),
+  });
   const listRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [q]);
@@ -224,8 +235,16 @@ export default function Notices() {
       )}
       <div className="tbar"><input className="tsearch" data-testid="notice-search" aria-label="공지 검색" placeholder="제목·내용 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
       <div className="card" ref={listRef}>
-        <table className="tbl fit" data-testid="notice-table">
-          <thead><tr><th>공지</th><th className="hide-sm" style={{ width: 90 }}>작성자</th><th className="hide-sm" style={{ width: 96 }}>작성일</th><th className="hide-sm" style={{ width: 90 }}>대상</th><th style={{ width: 96 }}>마감</th><th style={{ width: 92 }}>내 확인</th>{isMgr && <th className="hide-sm" style={{ width: 84 }}>현황</th>}</tr></thead>
+        <table ref={tableRef} className="tbl fit" data-testid="notice-table">
+          <thead><tr>
+            <th {...sort.th("title")}>공지{sort.mark("title")}</th>
+            <th {...sort.th("author", "hide-sm")} style={{ width: 90 }}>작성자{sort.mark("author")}</th>
+            <th {...sort.th("created", "hide-sm")} style={{ width: 96 }}>작성일{sort.mark("created")}</th>
+            <th {...sort.th("target", "hide-sm")} style={{ width: 90 }}>대상{sort.mark("target")}</th>
+            <th style={{ width: 96 }} {...sort.th("due")}>마감{sort.mark("due")}</th>
+            <th style={{ width: 92 }} {...sort.th("ack")}>내 확인{sort.mark("ack")}</th>
+            {isMgr && <th className="hide-sm" style={{ width: 84 }}>현황</th>}
+          </tr></thead>
           <tbody>
             {view.map((n) => {
               const acked = me ? n.acked_user_ids.includes(me.id) : false;
