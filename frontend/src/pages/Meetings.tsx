@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { richHtml } from "../ui/richHtml";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST } from "../lib/date";
@@ -43,7 +44,7 @@ export default function Meetings() {
   const [form, setForm] = useState({ date: today, title: "", project_id: "", decisions: "", attendees: [] as string[], actions: [] as Action[] });
   const [dec, setDec] = useState("");
 
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
+  const uname = useDirectory();
   const taskById: Record<string, any> = Object.fromEntries(tasks.map((t: any) => [t.id, t]));
   const isDone = (a: Action) => (a.task_id ? taskById[a.task_id]?.status === "완료" : !!a.done);
   const projName = (id?: string) => { const p = [...grants, ...activities].find((x) => x.id === id); return p ? `${p.code} · ${p.name}` : ""; };

@@ -293,7 +293,8 @@ function BrandingPanel() {
   useEffect(() => { load(); }, []);
   async function uploadOne(file: File): Promise<string> {
     const fd = new FormData(); fd.append("files", file);
-    const r = await api.post<{ url: string }[]>("/projects/uploads", fd, { headers: { "Content-Type": "multipart/form-data" } });
+    // 로고는 설정값(data URI)으로 보관 — 첨부는 로그인해야 열리지만 로그인 화면에도 필요하다.
+    const r = await api.post<{ url: string }[]>("/boards/branding/image", fd, { headers: { "Content-Type": "multipart/form-data" } });
     return r.data?.[0]?.url || "";
   }
   async function uploadLogo(file: File) {
@@ -321,7 +322,7 @@ function BrandingPanel() {
           </div>
           {loginLogo && <button className="btn ghost sm" data-testid="brand-login-logo-remove" onClick={removeLoginLogo}>기본 로고 사용</button>}
         </div>
-        <input type="file" accept="image/*" data-testid="brand-login-logo-upload" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLoginLogo(f); e.target.value = ""; }} />
+        <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp" data-testid="brand-login-logo-upload" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLoginLogo(f); e.target.value = ""; }} />
         <label style={{ marginTop: 12 }}>로그인 부제 <span className="muted small">(기본값: "연구실 그룹웨어")</span></label>
         <div style={{ display: "flex", gap: 6 }}>
           <input data-testid="brand-login-sub" value={loginSub} placeholder="예: 소규모 연구실 그룹웨어 · 단독 운영" onChange={(e) => setLoginSub(e.target.value)} />
@@ -336,7 +337,7 @@ function BrandingPanel() {
           </div>
           {logo && <button className="btn ghost sm" data-testid="brand-logo-remove" onClick={removeLogo}>기본 로고 사용</button>}
         </div>
-        <input type="file" accept="image/*" data-testid="brand-logo-upload" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ""; }} />
+        <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp" data-testid="brand-logo-upload" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ""; }} />
       </Card>
       <Card title="연구실 이름 · 도메인" testid="brand-meta-card">
         <label>연구실 이름 <span className="muted small">(기본값: "연구실 그룹웨어")</span></label>

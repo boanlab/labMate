@@ -1,4 +1,5 @@
 import { useEffect, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { Pager } from "../ui/pageTable";
 import { todayKST, dateKST } from "../lib/date";
 import { api, apiError } from "../api/client";
@@ -37,7 +38,7 @@ export default function Leave() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const SB: Record<string, string> = { "대기": "s-wait", "승인": "s-ok", "반려": "s-bad", "취소": "s-mute" };
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || "—";
+  const uname = useDirectory();
   const sortedMine = [...mine].sort((a, b) => b.start_date.localeCompare(a.start_date));
   const shownMine = sort.apply(
     (from || to) ? sortedMine.filter((l) => (!from || l.end_date >= from) && (!to || l.start_date <= to)) : sortedMine,
@@ -58,8 +59,7 @@ export default function Leave() {
   }
   useEffect(() => { load(); }, []);
 
-  // 신청하기 전에 "이걸 내면 며칠 남는지"를 보여준다.
-  // 서버도 초과를 막지만(409), 제출한 뒤에야 알게 되면 다시 채워 넣어야 한다.
+  // 신청 전 잔여 일수 미리보기 — 서버도 초과를 막지만(409) 제출 전에 알려 준다.
   const curRule = ruleOf(form.type);
   const deducts = curRule.deduct !== false;
   const remain = bal ? bal.granted - bal.used : null;

@@ -1,4 +1,5 @@
 import { useEffect, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { Chips, formSnapshot, confirmDiscard } from "../ui/kit";
@@ -30,10 +31,9 @@ export default function Booking() {
   const [resFilter, setResFilter] = useState("전체");
   const RESOURCES = [...new Set([...RESOURCE_MASTERS, ...bookableAssets])];
   const canEdit = (b: Bk) => !!me && (b.by_id === me.id || me.role === "prof");   // 본인 예약 또는 교수만
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || "—";
+  const uname = useDirectory();
 
-  // 예약은 "언제 비어 있나"를 보는 화면이다. 등록순으로 섞어 두면 지난 예약이 위에 남아 쓸모가 없다.
-  // 예정은 가까운 순, 지난 예약은 최근 순으로 정렬하고 기본은 예정만 보여준다.
+  // 정렬 — 예정은 가까운 순, 지난 예약은 최근 순. 기본 뷰는 '예정'.
   const key = (b: Bk) => `${b.date} ${b.start}`;
   const isPast = (b: Bk) => key(b) < `${today} ${new Date().toTimeString().slice(0, 5)}`;
   const upcoming = items.filter((b) => !isPast(b)).sort((a, c) => key(a).localeCompare(key(c)));

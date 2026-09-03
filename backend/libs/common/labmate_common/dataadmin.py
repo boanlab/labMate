@@ -1,7 +1,7 @@
-"""관리자 데이터 백업/복구 — 각 서비스의 DB(테이블 JSON)와 첨부파일(uploads)을 내보내고 되돌린다.
+"""데이터 백업/복구 — 서비스별 DB(테이블 JSON) + 첨부파일.
 
-프론트(관리자 화면)가 6개 서비스의 DB export(data.json)와 첨부파일을 ZIP으로 묶어 저장하고,
-복구 시 서비스별로 DB import(전체 대체) + 첨부 복구(저장명 보존)를 호출한다.
+관리자 화면이 6개 서비스의 export 를 ZIP 으로 묶고, 복구는 서비스별 import(전체 대체)
++ 첨부 복구(저장명 보존).
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from .audit import record
 from .config import settings
+from .uploads import ALLOWED_EXT
 from .db import Base, get_db
 from .deps import CurrentUser, require_roles
 
@@ -90,12 +91,19 @@ def make_data_admin_router(service_name: str) -> APIRouter:
         d = settings.upload_dir
         os.makedirs(d, exist_ok=True)
         incoming: set[str] = set()
+        skipped: list[str] = []
         for f in files:
             name = os.path.basename(f.filename or "")
             if not name:
                 continue
+            # 백업 파일이라고 무조건 받지 않는다 — 손댄 백업으로 .html/.svg 를 심으면
+            # 같은 출처에서 스크립트가 도는 첨부가 된다. 허용 형식만 복구하고 나머지는 건너뛴다.
+            if os.path.splitext(name)[1].lower() not in ALLOWED_EXT:
+                skipped.append(name)
+                continue
             with open(os.path.join(d, name), "wb") as w:
-                w.write(await f.read())
+                while chunk := await f.read(1 << 20):
+                    w.write(chunk)
             incoming.add(name)
         orphans = [f for f in os.listdir(d) if f not in incoming and os.path.isfile(os.path.join(d, f))]
         if orphans:   # 삭제 대신 _orphan-<시각>/ 로 이동
@@ -103,6 +111,6 @@ def make_data_admin_router(service_name: str) -> APIRouter:
             os.makedirs(qdir, exist_ok=True)
             for f in orphans:
                 os.replace(os.path.join(d, f), os.path.join(qdir, f))
-        return {"restored": len(incoming), "quarantined": len(orphans)}
+        return {"restored": len(incoming), "quarantined": len(orphans), "skipped": len(skipped)}
 
     return r

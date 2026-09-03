@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import jwt
 import redis
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,7 @@ from labmate_common.audit import record
 from labmate_common.deps import CurrentUser, get_current_user
 from labmate_common.security import (
     create_access_token,
+    create_download_token,
     create_refresh_token,
     decode_token,
     hash_password,
@@ -34,6 +35,86 @@ def _blacklisted(jti: str) -> bool:
         return False  # redis 장애 시 통과(가용성 우선)
 
 
+DL_COOKIE = "lm_dl"
+
+# ── 로그인 시도 제한 ──
+# 제한이 없으면 비밀번호를 무제한으로 시도할 수 있다. 계정 기준과 IP 기준을 함께 센다.
+#  · 계정 기준 — 특정 사람을 노린 대입
+#  · IP 기준  — 여러 계정을 훑는 대입
+# 성공하면 그 계정의 카운터는 지운다. 잠금은 자동으로 풀린다(관리자 개입 불필요).
+FAIL_PREFIX = "auth:fail:"
+MAX_FAILS_ACCOUNT = 5
+MAX_FAILS_IP = 20
+LOCK_SECONDS = 300
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    return (fwd.split(",")[0].strip() if fwd else "") or (request.client.host if request.client else "-")
+
+
+def _fail_keys(email: str, ip: str) -> tuple[str, str]:
+    return FAIL_PREFIX + "id:" + email.lower(), FAIL_PREFIX + "ip:" + ip
+
+
+def _login_locked(email: str, ip: str) -> int:
+    """잠겨 있으면 남은 초, 아니면 0. redis 장애 시에는 막지 않는다(로그인 자체가 불가해지므로)."""
+    try:
+        ka, ki = _fail_keys(email, ip)
+        na, ni = _redis.get(ka), _redis.get(ki)
+        if na and int(na) >= MAX_FAILS_ACCOUNT:
+            return max(1, _redis.ttl(ka))
+        if ni and int(ni) >= MAX_FAILS_IP:
+            return max(1, _redis.ttl(ki))
+    except (redis.RedisError, ValueError):
+        return 0
+    return 0
+
+
+def _note_login_fail(email: str, ip: str) -> None:
+    try:
+        for k in _fail_keys(email, ip):
+            if _redis.incr(k) == 1:
+                _redis.expire(k, LOCK_SECONDS)
+    except redis.RedisError:
+        pass
+
+
+def _clear_login_fails(email: str, ip: str) -> None:
+    try:
+        _redis.delete(*_fail_keys(email, ip))
+    except redis.RedisError:
+        pass
+
+
+def _issue_dl_cookie(response: Response, user_id: str) -> None:
+    """첨부 다운로드용 httpOnly 쿠키 발급 — 스크립트가 읽을 수 없고 API 에도 통하지 않는다."""
+    response.set_cookie(
+        DL_COOKIE,
+        create_download_token(sub=user_id),
+        max_age=settings.download_token_hours * 3600,
+        httponly=True,
+        samesite="lax",
+        secure=settings.is_prod,     # 앞단이 https 인 운영에서만 secure
+        path="/",                    # 로그아웃(/api/...)에서도 읽고 지워야 한다
+    )
+
+
+def _revoke_dl_cookie(request: Request, response: Response) -> None:
+    """쿠키를 지우고, 남아 있는 토큰도 만료까지 블랙리스트에 올린다."""
+    raw = request.cookies.get(DL_COOKIE)
+    if raw:
+        try:
+            claims = decode_token(raw)
+            jti, exp = claims.get("jti"), claims.get("exp")
+            if jti and exp:
+                import time
+                _redis.setex(BLACKLIST_PREFIX + jti, max(1, int(exp - time.time())), "1")
+        except (jwt.PyJWTError, redis.RedisError):
+            pass
+    response.delete_cookie(DL_COOKIE, path="/")
+
+
 def _can_manage_users(user: CurrentUser, db: Session) -> bool:
     if user.role in ("admin", "staff", "prof"):
         return True
@@ -49,13 +130,23 @@ def _require_manage(user: CurrentUser = Depends(get_current_user), db: Session =
 
 # ───────────────────────── 인증 ─────────────────────────
 @router.post("/login", response_model=schemas.TokenOut)
-def login(body: schemas.LoginIn, db: Session = Depends(get_db)):
+def login(body: schemas.LoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
+    ip = _client_ip(request)
+    if (wait := _login_locked(body.email, ip)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"로그인 시도가 너무 많습니다. {max(1, wait // 60)}분 뒤에 다시 시도하거나 관리자에게 비밀번호 재설정을 요청하세요.",
+            headers={"Retry-After": str(wait)},
+        )
     user = db.scalar(select(User).where(User.email == body.email))
     if not user or not user.active or not verify_password(body.password, user.password_hash):
+        _note_login_fail(body.email, ip)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다")
+    _clear_login_fails(body.email, ip)
     from datetime import datetime, timezone
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()
+    _issue_dl_cookie(response, user.id)
     return schemas.TokenOut(
         access=create_access_token(sub=user.id, role=user.role, name=user.name, delegated=user.delegated_admin, infra=user.infra_manager, org=user.org_id),
         refresh=create_refresh_token(sub=user.id),
@@ -64,7 +155,7 @@ def login(body: schemas.LoginIn, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=schemas.AccessOut)
-def refresh(body: schemas.RefreshIn, db: Session = Depends(get_db)):
+def refresh(body: schemas.RefreshIn, response: Response, db: Session = Depends(get_db)):
     try:
         claims = decode_token(body.refresh)
     except jwt.PyJWTError:
@@ -74,11 +165,12 @@ def refresh(body: schemas.RefreshIn, db: Session = Depends(get_db)):
     user = db.get(User, claims["sub"])
     if not user or not user.active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "사용자를 찾을 수 없습니다")
+    _issue_dl_cookie(response, user.id)
     return schemas.AccessOut(access=create_access_token(sub=user.id, role=user.role, name=user.name, delegated=user.delegated_admin, infra=user.infra_manager, org=user.org_id))
 
 
 @router.post("/logout", response_model=schemas.MessageOut)
-def logout(body: schemas.RefreshIn):
+def logout(body: schemas.RefreshIn, request: Request, response: Response):
     try:
         claims = decode_token(body.refresh)
         jti, exp = claims.get("jti"), claims.get("exp")
@@ -88,14 +180,31 @@ def logout(body: schemas.RefreshIn):
             _redis.setex(BLACKLIST_PREFIX + jti, ttl, "1")
     except (jwt.PyJWTError, redis.RedisError):
         pass
+    _revoke_dl_cookie(request, response)
     return schemas.MessageOut(detail="로그아웃되었습니다")
 
 
+@router.get("/uploads-auth", include_in_schema=False)
+def uploads_auth(request: Request) -> Response:
+    """gateway auth_request 전용 — 첨부 열람 가능 여부만 204/401 로 답한다."""
+    raw = request.cookies.get(DL_COOKIE)
+    if not raw:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "로그인이 필요합니다")
+    try:
+        claims = decode_token(raw)
+    except jwt.PyJWTError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "만료되었거나 올바르지 않은 인증입니다")
+    if claims.get("type") != "download" or _blacklisted(claims.get("jti", "")):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "사용할 수 없는 인증입니다")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/me", response_model=schemas.UserOut)
-def me(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+def me(response: Response, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     row = db.get(User, user.id)
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "사용자 없음")
+    _issue_dl_cookie(response, user.id)      # 화면을 새로 열 때마다 다운로드 쿠키도 되살린다
     return row
 
 
@@ -137,6 +246,15 @@ def list_users(user: CurrentUser = Depends(get_current_user), db: Session = Depe
     if user.role not in ("prof", "admin"):
         stmt = stmt.where(User.active.is_(True))
     return list(db.scalars(stmt))
+
+
+@router.get("/directory", response_model=list[schemas.DirectoryOut])
+def directory(_: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """이름 표시용 명부 — 비활성(퇴사) 구성원 포함, 연락처 제외.
+
+    구성원 목록(/users)은 학생에게 퇴사자를 감추므로 id→이름 조회는 이쪽을 쓴다.
+    """
+    return list(db.scalars(select(User).order_by(User.name)))
 
 
 @router.post("/users", response_model=schemas.UserOut, status_code=201)

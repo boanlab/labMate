@@ -1,9 +1,11 @@
 """소통 라우터 — 공지·게시판·회의록·캘린더·전자결재."""
 from __future__ import annotations
 
+import base64
+import os
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -11,12 +13,15 @@ from sqlalchemy.orm.attributes import flag_modified
 from labmate_common.configstore import get_setting
 from labmate_common.db import get_db
 from labmate_common.audit import record
-from labmate_common.deps import CurrentUser, get_current_user
+from labmate_common.deps import CurrentUser, get_current_user, require_roles
+from labmate_common.uploads import IMAGE_EXT
 from labmate_common.notifications import notify
 
 from . import schemas
 from .masters import DEFAULTS
 from .models import Approval, Event, Meeting, Notice, Post
+
+MAX_LOGO_BYTES = 200 * 1024      # 설정에 담기므로 작아야 한다(로그인 화면이 매번 받는다)
 
 router = APIRouter()
 
@@ -71,11 +76,9 @@ def _josa(word: str, with_batchim: str, without: str) -> str:
 
 
 def _check_stale(row, base_updated_at, what: str) -> None:
-    """다른 사람이 먼저 저장했는지 확인한다.
+    """낙관적 잠금 — 불러온 시점(base_updated_at)과 현재 저장본 시각이 다르면 409.
 
-    같은 문서를 둘이 동시에 열어 고치면, 나중에 저장한 쪽이 앞선 수정을 아무 말 없이 덮어쓴다.
-    클라이언트가 불러온 시점(base_updated_at)과 현재 저장본의 시각이 다르면 충돌로 보고 막는다.
-    (직렬화 과정의 미세한 오차를 감안해 1초 여유를 둔다)
+    직렬화 오차를 감안해 1초 여유.
     """
     if not base_updated_at or not row.updated_at:
         return
@@ -212,9 +215,8 @@ def get_post(pid: str, user: CurrentUser = Depends(get_current_user), db: Sessio
         raise HTTPException(404, "글 없음")
     if not _can_see_post(user, p):
         raise HTTPException(403, "이 글을 볼 권한이 없습니다")
-    # 조회수는 '내용 수정'이 아니다. p.views += 1 로 두면 onupdate 가 updated_at 까지 갱신해,
-    # 누군가 글을 열어보기만 해도 다른 사람이 편집 중이던 내용이 충돌로 막힌다.
-    # updated_at 을 명시적으로 현재값 그대로 넣어 onupdate 를 건너뛴다.
+    # 조회수 증가는 수정이 아니다 — updated_at 을 현재값 그대로 넣어 onupdate 를 건너뛴다
+    # (건너뛰지 않으면 열람만으로 낙관적 잠금 충돌이 난다).
     db.execute(update(Post).where(Post.id == pid).values(views=Post.views + 1, updated_at=Post.updated_at))
     db.commit(); db.refresh(p)
     return p
@@ -694,3 +696,23 @@ def delete_approval(aid: str, user: CurrentUser = Depends(get_current_user), db:
         raise HTTPException(409, "이미 결재가 시작되어 삭제할 수 없습니다")
     a.deleted_at = datetime.now(timezone.utc)
     db.commit()
+
+
+# ── 브랜드 이미지(로고) ──
+@router.post("/branding/image")
+async def upload_branding_image(files: list[UploadFile] = File(...), _: CurrentUser = Depends(require_roles("admin"))):
+    """로고 업로드 → data URI.
+
+    첨부는 로그인해야 열리지만 로고는 로그인 화면에도 필요하다. 파일 대신 설정값으로
+    보관해 무인증 경로를 만들지 않고, DB 백업만으로 복구되게 한다.
+    """
+    f = files[0]
+    ext = os.path.splitext(f.filename or "")[1].lower()
+    if ext not in IMAGE_EXT:
+        raise HTTPException(400, "로고는 PNG·JPG·GIF·WEBP 이미지만 올릴 수 있습니다")
+    raw = await f.read(MAX_LOGO_BYTES + 1)
+    if len(raw) > MAX_LOGO_BYTES:
+        raise HTTPException(413, f"로고 이미지는 {MAX_LOGO_BYTES // 1024}KB 이하여야 합니다")
+    mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+            ".gif": "image/gif", ".webp": "image/webp"}[ext]
+    return [{"name": f.filename, "url": f"data:{mime};base64,{base64.b64encode(raw).decode()}"}]

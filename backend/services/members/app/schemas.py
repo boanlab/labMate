@@ -82,6 +82,17 @@ class UserOut(ProfileFields):
     model_config = {"from_attributes": True}
 
 
+class DirectoryOut(BaseModel):
+    """이름 표시 전용 — 퇴사자가 남긴 기록의 작성자·담당자도 이름으로 보여야 하므로
+    비활성 구성원까지 포함한다. 연락처 등 민감한 항목은 담지 않는다."""
+    id: str
+    name: str
+    role: str
+    active: bool = True
+
+    model_config = {"from_attributes": True}
+
+
 class UserCreate(ProfileFields):
     """관리자가 사용자 추가(가입 없음, 임시 비밀번호 + 강제 변경)."""
     email: EmailStr

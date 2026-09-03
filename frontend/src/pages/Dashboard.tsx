@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useDirectory } from "../api/directory";
 import { richHtml } from "../ui/richHtml";
 import { todayKST, dtKST } from "../lib/date";
 import { FIXED_KINDS, seriesOf } from "../lib/pubClass";
@@ -59,6 +60,7 @@ function currentIdx(line: any[]): number {
 }
 
 export default function Dashboard() {
+  const dirName = useDirectory();   // 퇴사·삭제된 구성원도 이름으로 보이게
   const { me } = useAuth();
   const nav = useNavigate();
   const isMgr = !!me && (["prof", "staff", "admin"].includes(me.role) || !!me.delegated_admin);
@@ -147,8 +149,7 @@ export default function Dashboard() {
   const myInWork = !!myToday?.status && myToday.status !== "미체크" && myToday.status !== "퇴근";
   const myActions = myMeetings.flatMap((m: any) => (m.actions || []).filter((a: any) => a.assignee_id === me?.id && !a.done).map((a: any) => ({ ...a, mt: m.title })));
   const myPendingAppr = myAppr.filter((a: any) => a.status === "진행");
-  // '내 할 일'은 흩어진 것을 모으는 자리다. 회의록 액션·결재만 담으면 정작 본업(세부업무)과
-  // 필독 공지가 빠져, 결국 여러 화면을 돌아야 한다.
+  // '내 할 일' — 세부업무·회의록 액션·결재·필독 공지를 한자리에 모은다.
   const myOpenTasks = allTasks.filter((t) => t.assignee_id === me?.id && t.status !== "완료");
   const myUnackNotices = notices.filter((n: any) => n.required && !(n.acked_user_ids || []).includes(me?.id || ""));
   const todoCount = myActions.length + myPendingAppr.length + myOpenTasks.length + myUnackNotices.length;
@@ -458,7 +459,7 @@ export default function Dashboard() {
                 <tr><th>일시</th><td>{selEv.date}{selEv.end_date && selEv.end_date !== selEv.date ? ` ~ ${selEv.end_date}` : ""}{selEv.time ? ` · ${selEv.time}` : ""}</td></tr>
                 {selEv.type && <tr><th>유형</th><td>{selEv.type}</td></tr>}
                 {selEv.repeat && selEv.repeat !== "없음" && <tr><th>반복</th><td>{selEv.repeat}{selEv.until ? ` (~${selEv.until})` : ""}</td></tr>}
-                {selEv.attendees?.length ? <tr><th>참석</th><td>{selEv.attendees.map((uid: string) => users.find((u) => u.id === uid)?.name || uid).join(", ")}</td></tr> : null}
+                {selEv.attendees?.length ? <tr><th>참석</th><td>{selEv.attendees.map((uid: string) => dirName(uid)).join(", ")}</td></tr> : null}
                 {selEv.link && <tr><th>링크</th><td><a className="lnk" href={selEv.link} target="_blank" rel="noreferrer">{selEv.link}</a></td></tr>}
               </tbody></table>
               {selEv.detail && <div style={{ marginTop: 10, lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: richHtml(selEv.detail) }} />}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useDirectory } from "../api/directory";
 import { api, apiError } from "../api/client";
 import { dateKST } from "../lib/date";
 import { useAuth } from "../auth/AuthContext";
@@ -50,7 +51,7 @@ export default function AttendanceAdmin() {
   useEffect(() => setLogPage(0), [logQ]);
 
   const members = users.filter((u) => u.role !== "admin");
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
+  const uname = useDirectory();
   const pendingReqs = reqs.filter((r) => r.status === "대기");
 
   async function loadBase() {

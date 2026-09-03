@@ -1,4 +1,5 @@
 import { useEffect, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig } from "../api/config";
@@ -69,7 +70,8 @@ export default function Assets() {
     try { await api.delete(`/resource/assets/${a.id}`); load(); return true; } catch (e) { setErr(apiError(e)); return false; }
   }
 
-  const ownerName = (a: Asset) => users.find((u) => u.id === a.owner_id)?.name || a.owner_id || "—";
+  const dirName = useDirectory();
+  const ownerName = (a: Asset) => dirName(a.owner_id);
   const projCode = (a: Asset) => (a.project_id ? pcode(a.project_id) : "");
   const cols: Col<Asset>[] = [
     { key: "asset_class", label: "분류", value: (a) => a.asset_class, render: (a) => <span className="badge s-info">{a.asset_class}</span> },
