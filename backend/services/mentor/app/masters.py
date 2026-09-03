@@ -33,5 +33,7 @@ DEFAULTS: dict[str, Any] = {
     "ai_roles": ["prof", "phd", "master", "under"],   # 사용 허용 역할(staff·admin 제외)
     "ai_monthly_cost_cap_usd": 5,             # 월 상한(0이면 무제한)
     # 출력 상한 — 1200 에서는 지적 3가지 + 고쳐 쓴 예시를 담다가 끊긴다(실측).
+    # 추론형 모델은 '생각'도 이 예산에서 쓰므로 답이 짧은 기능일수록 더 넉넉해야 한다
+    # (glm 은 독려 1건에 사고 포함 2,365토큰을 썼다). 기능별 하한은 routers.BUDGET.
     "ai_max_output_tokens": 2000,
 }

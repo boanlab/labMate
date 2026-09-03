@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Kpi, Card, statusClass } from "../ui/kit";
+import { MentorNudge, collectSignals } from "../components/MentorNudge";
 import { sortMembers } from "./Members";
 
 
@@ -153,6 +154,7 @@ export default function Dashboard() {
   const myOpenTasks = allTasks.filter((t) => t.assignee_id === me?.id && t.status !== "완료");
   const myUnackNotices = notices.filter((n: any) => n.required && !(n.acked_user_ids || []).includes(me?.id || ""));
   const todoCount = myActions.length + myPendingAppr.length + myOpenTasks.length + myUnackNotices.length;
+
   const today0 = todayKST();
   const todayEvents = events.filter((e: any) => e.date === today0).sort((a: any, b: any) => (a.time || "").localeCompare(b.time || ""));
   const futureEvents = events.filter((e: any) => e.date > today0).sort((a: any, b: any) => a.date.localeCompare(b.date)).slice(0, 4);
@@ -164,6 +166,16 @@ export default function Dashboard() {
   const taskCount: Record<string, number> = {}; myTasks.forEach((t) => { taskCount[t.status] = (taskCount[t.status] || 0) + 1; });
   const overdueTasks = myTasks.filter((t) => t.status !== "완료" && t.due && t.due < today0);
   const openTasks = myTasks.filter((t) => t.status !== "완료").sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+
+  // 멘토가 짚어 줄 '밀린 일' — 이미 불러 둔 데이터에서 뽑는다(추가 요청 없음).
+  const lastReport = myAppr
+    .filter((a: any) => /주간/.test(a.type || "") && a.created_at)
+    .map((a: any) => String(a.created_at).slice(0, 10))
+    .sort().pop() || "";
+  const nudgeSignals = collectSignals({
+    tasks: myTasks, actions: myActions, unackNotices: myUnackNotices.length,
+    pendingAppr: myPendingAppr.length, lastReportAt: lastReport,
+  });
   // 프로젝트 현황: 본인이 담당자(PM) 또는 참여연구원인 진행중 프로젝트만
   const openActs = activities.filter((p) => liveStatus(p.start, p.end) !== "완료" && (seesAll || p.pm_id === me?.id || (p.members || []).includes(me?.id || "")));
   const unackNotices = notices.filter((n) => (!(n.target_user_ids || []).length || (n.target_user_ids || []).includes(me?.id || "")) && !(n.acked_user_ids || []).includes(me?.id || "")).length;
@@ -310,6 +322,11 @@ export default function Dashboard() {
             </>
           ) : <div className="muted small">예정된 일정 없음</div>}
         </div>
+        {/* 밀린 일이 있으면 맨 위에서 멘토가 먼저 짚는다(없으면 렌더되지 않는다) */}
+        {!isMgr && !!nudgeSignals.length && (
+          <div style={{ gridColumn: "span 6" }}><MentorNudge signals={nudgeSignals} /></div>
+        )}
+
         {isMgr ? (
           <div className="dash-rs" style={{ gridColumn: "span 6" }}>
             <Card title="연구원 현황" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/members")}>구성원 →</a>} testid="dash-members">

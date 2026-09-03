@@ -44,6 +44,14 @@ def _principles(db: Session) -> list[str]:
     return [r.text for r in rows]
 
 
+# 기능별 출력 예산 하한. 추론형 모델은 답이 짧아도 사고에 토큰을 쓴다.
+BUDGET: dict[str, int] = {"nudge": 4000, "philosophy": 3000}
+
+
+def budget(db: Session, feature: str) -> int:
+    return max(BUDGET.get(feature, 0), int(cfg(db, "ai_max_output_tokens") or 2000))
+
+
 def _month() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m")
 
@@ -152,7 +160,7 @@ async def review(body: schemas.ReviewIn, user: CurrentUser = Depends(get_current
     if not key:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "OpenRouter 키가 설정되지 않았습니다.")
     model = cfg(db, "ai_model") or DEFAULTS["ai_model"]
-    max_tokens = int(cfg(db, "ai_max_output_tokens") or 1200)
+    max_tokens = budget(db, body.feature)
 
     log = Usage(user_id=user.id, user_name=user.name, feature=body.feature, model=model)
     try:
@@ -301,7 +309,7 @@ async def philosophy_extract(category: str, user: CurrentUser = Depends(_require
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "먼저 몇 가지 질문에 답해 주세요.")
     # 정리는 드물게 부르는 대신 길어질 수 있어 예산을 넉넉히 준다.
     raw = await _ask(db, extract_messages(category, [{"role": r.role, "content": r.text} for r in rows]),
-                     user, "philosophy", max_tokens=3000)
+                     user, "philosophy", max_tokens=budget(db, "philosophy"))
     items = _parse_principles(raw)
     if not items:
         return schemas.ExtractOut(detail="지침을 정리하지 못했습니다. 대화를 조금 더 이어간 뒤 다시 시도해 주세요.")
@@ -376,7 +384,8 @@ async def nudge(body: dict, user: CurrentUser = Depends(get_current_user), db: S
     if not signals:
         return {"text": ""}
     level = int(body.get("level") or 1)
-    text = await _ask(db, nudge_messages(user.name, signals, _principles(db), level), user, "nudge")
+    text = await _ask(db, nudge_messages(user.name, signals, _principles(db), level), user, "nudge",
+                      max_tokens=budget(db, "nudge"))
     return {"text": text}
 
 

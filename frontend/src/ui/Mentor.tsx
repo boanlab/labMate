@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 import { api, apiError, silent } from "../api/client";
 
-export type MentorFeature = "meeting" | "note" | "task" | "report" | "schedule" | "review" | "chat";
+export type MentorFeature = "meeting" | "note" | "task" | "report" | "schedule" | "review" | "nudge" | "philosophy" | "chat";
 
 interface Status { enabled: boolean; features: Record<string, boolean>; labels: Record<string, string> }
 
