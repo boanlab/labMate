@@ -20,7 +20,7 @@ from labmate_common.security import (
 )
 
 from . import schemas
-from .models import ROLE_POSITION, ROLES, User
+from .models import ROLE_POSITION, ROLES, User, UserPref
 
 router = APIRouter()
 _redis = redis.from_url(settings.redis_url, decode_responses=True)
@@ -224,3 +224,30 @@ def delete_user(user_id: str, actor: CurrentUser = Depends(_require_manage), db:
     record(db, actor, "구성원 삭제", user.name, user.email)
     db.delete(user)
     db.commit()
+
+
+# ───────────────────────── 화면 설정(사용자별) ─────────────────────────
+# 표 컬럼 폭처럼 "이 사람이 이렇게 보고 싶다"는 값. 브라우저가 아니라 계정에 붙여
+# 두면 다른 PC 에서 접속해도 같은 화면으로 시작한다.
+
+@router.get("/prefs")
+def list_prefs(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    rows = db.scalars(select(UserPref).where(UserPref.user_id == user.id))
+    return {r.key: r.value for r in rows}
+
+
+@router.put("/prefs/{key}")
+def set_pref(key: str, body: schemas.PrefIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if len(key) > 60:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "설정 키가 너무 깁니다")
+    row = db.get(UserPref, (user.id, key))
+    if body.value is None or (isinstance(body.value, (dict, list)) and not body.value):
+        if row:                                   # 빈 값은 저장하지 않고 지운다(기본값으로 되돌리기)
+            db.delete(row); db.commit()
+        return {"key": key, "value": None}
+    if row:
+        row.value = body.value
+    else:
+        db.add(UserPref(user_id=user.id, key=key, value=body.value))
+    db.commit()
+    return {"key": key, "value": body.value}

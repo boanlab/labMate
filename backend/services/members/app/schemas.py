@@ -124,3 +124,8 @@ class ResetPasswordIn(BaseModel):
 
 class MessageOut(BaseModel):
     detail: str
+
+
+class PrefIn(BaseModel):
+    """화면 설정 저장 — 값은 자유 형태(JSON)."""
+    value: dict | list | str | int | float | bool | None = None

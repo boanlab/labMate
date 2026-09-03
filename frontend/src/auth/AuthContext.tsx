@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { api, tokenStore } from "../api/client";
+import { clearPrefs } from "../api/prefs";
 
 export interface Me {
   id: string;
@@ -58,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refresh = tokenStore.refresh;
     if (refresh) api.post("/members/logout", { refresh }).catch(() => {});
     tokenStore.clear();
+    clearPrefs();          // 같은 PC 를 다른 사람이 쓸 때 앞사람 화면 설정이 남지 않도록
     setMe(null);
   }
 
