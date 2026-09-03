@@ -9,6 +9,8 @@ export const CONFIG_SERVICE: Record<string, string> = {
   leave_types: "attendance", annual_leave_default: "attendance", attendance_states: "attendance",
   approval_types: "boards", approval_templates: "boards", post_types: "boards", event_types: "boards",
   brand_logo: "boards", lab_name: "boards", base_url: "boards", login_logo: "boards", login_subtitle: "boards",
+  ai_enabled: "mentor", ai_model: "mentor", ai_features: "mentor",
+  ai_roles: "mentor", ai_monthly_cost_cap_usd: "mentor", ai_max_output_tokens: "mentor",
   booking_resources: "resource", rack_max_u: "resource", course_types: "resource", lesson_types: "resource",
   device_types: "resource", asset_types: "resource", video_cats: "resource",
   project_types: "projects", agencies: "projects", pub_types: "projects",
