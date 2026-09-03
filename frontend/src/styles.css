@@ -517,3 +517,11 @@ body.dark .ph-turn.me { background: #26313f; }
 .ph-text { white-space: pre-wrap; font-size: 13.5px; line-height: 1.6; }
 .ph-draft { border: 1px solid var(--line); border-radius: 9px; padding: 10px; margin-bottom: 8px; }
 .nudge-list { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+
+/* 목표(OKR) */
+.okr { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.okr-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.okr-bar { height: 6px; border-radius: 3px; background: var(--line); margin: 8px 0; overflow: hidden; }
+.okr-bar > span { display: block; height: 100%; background: var(--brand-solid); }
+.kr-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; flex-wrap: wrap; }
+.kr-title { flex: 1; min-width: 140px; font-size: 13.5px; }

@@ -153,3 +153,39 @@ class ArchiveOut(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     model_config = {"from_attributes": True}
+
+
+# ── 목표(OKR) ──
+class KeyResultIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    unit: str = Field(default="건", max_length=20)
+    target: float = 1
+    current: float = 0
+    order: int = 0
+
+
+class KeyResultOut(KeyResultIn):
+    id: str
+    objective_id: str
+
+    model_config = {"from_attributes": True}
+
+
+class ObjectiveIn(BaseModel):
+    period: str = Field(min_length=1, max_length=20)
+    title: str = Field(min_length=1, max_length=200)
+    note: str = Field(default="", max_length=2000)
+    owner_id: str = ""            # 비우면 본인
+    order: int = 0
+
+
+class ObjectiveOut(BaseModel):
+    id: str
+    owner_id: str
+    period: str
+    title: str
+    note: str = ""
+    order: int = 0
+    key_results: list[KeyResultOut] = []
+
+    model_config = {"from_attributes": True}
