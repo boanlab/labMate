@@ -232,7 +232,7 @@ jobs:
           cat > .env <<'ENV'
           JWT_SECRET=ci-only-not-a-secret
           POSTGRES_PASSWORD=ci-only-not-a-secret
-          ADMIN_EMAIL=ci-admin@labmate.local
+          ADMIN_EMAIL=ci-admin@qa.kloud.zone
           ADMIN_PASSWORD=CiAdmin!2026
           ENV
 
@@ -251,7 +251,7 @@ jobs:
             if curl -sf -o /dev/null http://localhost:8080/ \
                && curl -sf -o /dev/null -X POST http://localhost:8080/api/members/login \
                     -H 'Content-Type: application/json' \
-                    -d '{"email":"ci-admin@labmate.local","password":"CiAdmin!2026"}'; then
+                    -d '{"email":"ci-admin@qa.kloud.zone","password":"CiAdmin!2026"}'; then
               echo "기동 완료(${i}초)"; exit 0
             fi
             sleep 2
@@ -267,14 +267,14 @@ jobs:
       - name: Seed personas
         working-directory: qa
         env:
-          LM_ADMIN_EMAIL: ci-admin@labmate.local
+          LM_ADMIN_EMAIL: ci-admin@qa.kloud.zone
           LM_ADMIN_PW: CiAdmin!2026
         run: node scripts/setup-users.mjs
 
       - name: Run regression suite
         working-directory: qa
         env:
-          LM_ADMIN_EMAIL: ci-admin@labmate.local
+          LM_ADMIN_EMAIL: ci-admin@qa.kloud.zone
           LM_ADMIN_PW: CiAdmin!2026
         run: ./run-all.sh
 
