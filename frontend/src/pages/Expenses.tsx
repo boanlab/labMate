@@ -38,8 +38,9 @@ export default function Expenses() {
   const [items, setItems] = useState<Exp[]>([]);
   const [projects, setProjects] = useState<Proj[]>([]);
   const [budgets, setBudgets] = useState<{ project_id: string; category: string; allocated: number; spent: number }[]>([]);
-  // 집행이 결재를 거치는지(환경설정 › 마스터데이터). 끄면 예전처럼 등록 즉시 확정된다.
-  const approvalOn = useConfig<boolean>("expense_approval", true);
+  // 집행이 결재를 거치는지(환경설정 › 마스터데이터). 기본은 꺼짐 — 등록 즉시 확정된다.
+  // 켜면 작성중 → 상신(증빙 필수) → 승인 흐름을 타고, 예산은 승인 시점에 차감된다.
+  const approvalOn = useConfig<boolean>("expense_approval", false);
   const [users, setUsers] = useState<any[]>([]);
   const [err, setErr] = useState("");
   const [adding, setAdding] = useState(false);
