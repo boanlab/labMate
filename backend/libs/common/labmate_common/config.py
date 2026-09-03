@@ -32,8 +32,8 @@ class Settings(BaseSettings):
     vapid_subject: str = "mailto:admin@labmate.local"
 
     # 첫 배포 자동 관리자 시드(.env의 ADMIN_EMAIL/ADMIN_PASSWORD)
-    admin_email: str = "labmate@kloud.zone"
-    admin_password: str = "labmate123"
+    admin_email: str = "admin@example.com"
+    admin_password: str = "labmate-admin-1234"
 
     @property
     def is_prod(self) -> bool:

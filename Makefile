@@ -19,7 +19,7 @@ export ORG VERSION          # docker-compose 의 ${ORG}/${VERSION} 치환에 전
 ## ─── 기본 ───
 .PHONY: help
 help: ## 사용 가능한 명령 목록
-	@echo "LabMate 명령어 (gateway: $(BASE)) — 관리자: labmate@kloud.zone / labmate123"
+	@echo "LabMate 명령어 (gateway: $(BASE)) — 관리자: admin@example.com / labmate-admin-1234"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
@@ -155,7 +155,7 @@ reset: ## ⚠ 모든 데이터 삭제 후 관리자만 재시드(백업 먼저 �
 	    "TRUNCATE $$tbls RESTART IDENTITY CASCADE" >/dev/null; \
 	done
 	@$(COMPOSE) restart members-service >/dev/null 2>&1
-	@echo "초기화 완료 — 관리자(labmate@kloud.zone)만 재시드됨"
+	@echo "초기화 완료 — 관리자(admin@example.com)만 재시드됨"
 
 ## ─── 검증 ───
 .PHONY: qa
