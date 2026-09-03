@@ -5,6 +5,7 @@ import { useDetailParam } from "../lib/useDetailParam";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { richHtml } from "../ui/richHtml";
@@ -43,6 +44,8 @@ export default function Board() {
   const [snap, setSnap] = useState("");   // 폼 초기 상태 — 작성 중 이탈 경고 판정용
   const [baseAt, setBaseAt] = useState<string | null>(null);   // 편집 시작 시점(낙관적 잠금)
 
+  const tableRef = useColumnResize("board");
+  const sort = useTableSort({ key: "created", dir: -1 });
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try { setItems((await api.get<Post[]>("/boards/posts")).data); api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {}); } catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }
@@ -129,7 +132,10 @@ export default function Board() {
   }
 
   const ql = q.trim().toLowerCase();
-  const filtered = items.filter((p) => (tab === "전체" || p.cat === tab) && (!ql || `${p.title} ${stripHtml(p.body || "")} ${uname(p.by_id)}`.toLowerCase().includes(ql)));
+  const filtered = sort.apply(
+    items.filter((p) => (tab === "전체" || p.cat === tab) && (!ql || `${p.title} ${stripHtml(p.body || "")} ${uname(p.by_id)}`.toLowerCase().includes(ql))),
+    { cat: (p) => p.cat, title: (p) => p.title, author: (p) => uname(p.by_id),
+      created: (p) => p.created_at || "", comments: (p) => (p.comments || []).length, views: (p) => p.views || 0 });
   const listRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [q, tab]);
@@ -252,8 +258,15 @@ export default function Board() {
       <div className="tbar" style={{ marginBottom: 8 }}><input className="tsearch" data-testid="board-search" aria-label="게시글 검색" placeholder="제목·내용·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{filtered.length}건</span></div>
       <Card pad={false}>
         <div ref={listRef}>
-        <table className="tbl fit" data-testid="board-table">
-          <thead><tr><th style={{ width: 78 }}>분류</th><th>제목</th><th className="hide-sm" style={{ width: 88 }}>작성자</th><th style={{ width: 96 }}>작성일</th><th className="hide-sm" style={{ width: 52 }}>댓글</th><th className="hide-sm" style={{ width: 52 }}>조회</th></tr></thead>
+        <table ref={tableRef} className="tbl fit" data-testid="board-table">
+          <thead><tr>
+            <th {...sort.th("cat")} style={{ width: 78 }}>분류{sort.mark("cat")}</th>
+            <th {...sort.th("title")}>제목{sort.mark("title")}</th>
+            <th {...sort.th("author", "hide-sm")} style={{ width: 88 }}>작성자{sort.mark("author")}</th>
+            <th {...sort.th("created")} style={{ width: 96 }}>작성일{sort.mark("created")}</th>
+            <th {...sort.th("comments", "hide-sm")} style={{ width: 52 }}>댓글{sort.mark("comments")}</th>
+            <th {...sort.th("views", "hide-sm")} style={{ width: 52 }}>조회{sort.mark("views")}</th>
+          </tr></thead>
           <tbody>
             {view.map((p) => (
               <tr key={p.id}>

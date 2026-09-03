@@ -1,4 +1,5 @@
 import { ReactNode, useMemo, useRef, useState } from "react";
+import { useColumnResize } from "./tableTools";
 import { useAutoPageSize } from "./pageTable";
 
 export interface Col<T> {
@@ -56,6 +57,7 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
   }, [rows, q, sort, dir, chip, cols, chips, searchKeys]);
 
   // 뷰포트 높이에 맞춰 한 페이지 행 수 계산 — 목록 페이징(useAutoPageSize)과 동일 로직으로 통일.
+  const tableRef = useColumnResize(testid || "datatable");   // 컬럼 폭 조절·기억
   const autoSize = useAutoPageSize(wrapRef, filtered.length, autoHeight);
   const effPageSize = autoHeight ? autoSize : pageSize;
   const pages = Math.max(1, Math.ceil(filtered.length / effPageSize));
@@ -86,7 +88,7 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
         <span className="muted small" style={{ marginLeft: "auto" }}>{filtered.length}건</span>
       </div>
       <div className="card scroll" style={{ margin: 0 }} ref={wrapRef}>
-        <table className={"tbl" + (fit ? " fit" : "")}>
+        <table ref={tableRef} className={"tbl" + (fit ? " fit" : "")}>
           {fit && <colgroup>{cols.map((c) => <col key={c.key} style={c.width != null ? { width: c.width } : undefined} />)}</colgroup>}
           <thead>
             <tr>

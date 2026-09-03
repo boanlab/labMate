@@ -6,6 +6,7 @@ import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
 import { Chips, formSnapshot, confirmDiscard, wonKo, won } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 
 interface TFile { name: string; url: string; }
@@ -68,6 +69,8 @@ export default function Expenses() {
   const remain = curBudget ? curBudget.allocated - curBudget.spent : null;
   const afterRemain = remain === null ? null : remain - (form.amount || 0);
 
+  const tableRef = useColumnResize("expenses");
+  const sort = useTableSort({ key: "date", dir: -1 });
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   // 상신: 집행 건을 '상신'으로 올리고, 같은 내용으로 결재 문서를 만든다.
   // 결재가 승인되면 Approvals 화면이 source_ref 를 보고 이 건을 승인 처리한다.
@@ -186,8 +189,9 @@ const EMPTY = { project_id: projects[0]?.id || "", category: "인건비", subcat
   const q = query.trim().toLowerCase();
   const matchQ = (x: Exp) => !q || [code(x.project_id), x.category, x.subcategory, x.title, uname(x.by_id), x.claim_date, String(x.amount)].some((v) => (v || "").toLowerCase().includes(q));
   const base = items.filter((x) => (!filterPid || x.project_id === filterPid) && matchQ(x));
-  const shown = base.filter((x) => statusFilter === "전체" || statusOf(x.project_id) === statusFilter)
-    .sort((a, b) => (b.claim_date || "").localeCompare(a.claim_date || ""));   // 집행일자 최신순
+  const shown = sort.apply(base.filter((x) => statusFilter === "전체" || statusOf(x.project_id) === statusFilter),
+    { date: (x) => x.claim_date || "", proj: (x) => code(x.project_id), cat: (x) => `${x.category} ${x.subcategory || ""}`,
+      title: (x) => x.title, by: (x) => uname(x.by_id), amount: (x) => x.amount, status: (x) => x.status });
   const statusCount = (t: string) => t === "전체" ? base.length : base.filter((x) => statusOf(x.project_id) === t).length;
   const total = shown.reduce((a, x) => a + x.amount, 0);
 
@@ -270,8 +274,18 @@ const EMPTY = { project_id: projects[0]?.id || "", category: "인건비", subcat
             <span className="pill">합계 {total.toLocaleString()}원</span>
           </span>
         </div>
-        <table className="tbl fit" data-testid="exp-table">
-          <thead><tr><th style={{ width: 104 }}>집행일자</th><th className="hide-sm" style={{ width: 100 }}>과제</th><th className="hide-sm" style={{ width: 130 }}>비목/세목</th><th>집행 내용</th>{isAdmin && <th className="hide-sm" style={{ width: 90 }}>등록자</th>}<th style={{ width: 104 }}>금액</th><th className="hide-sm" style={{ width: 64 }}>증빙</th>{approvalOn && <th style={{ width: 78 }}>상태</th>}<th style={{ width: 168 }}>처리</th></tr></thead>
+        <table ref={tableRef} className="tbl fit" data-testid="exp-table">
+          <thead><tr>
+            <th {...sort.th("date")} style={{ width: 104 }}>집행일자{sort.mark("date")}</th>
+            <th {...sort.th("proj", "hide-sm")} style={{ width: 100 }}>과제{sort.mark("proj")}</th>
+            <th {...sort.th("cat", "hide-sm")} style={{ width: 130 }}>비목/세목{sort.mark("cat")}</th>
+            <th {...sort.th("title")}>집행 내용{sort.mark("title")}</th>
+            {isAdmin && <th {...sort.th("by", "hide-sm")} style={{ width: 90 }}>등록자{sort.mark("by")}</th>}
+            <th {...sort.th("amount")} style={{ width: 104 }}>금액{sort.mark("amount")}</th>
+            <th className="hide-sm" style={{ width: 64 }}>증빙</th>
+            {approvalOn && <th {...sort.th("status")} style={{ width: 78 }}>상태{sort.mark("status")}</th>}
+            <th style={{ width: 168 }}>처리</th>
+          </tr></thead>
           <tbody>
             {shown.map((x) => (
               <tr key={x.id}>

@@ -6,6 +6,7 @@ import { alertDialog } from "../ui/dialog";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Chips, Req, formSnapshot, confirmDiscard, statusClass } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { todayKST } from "../lib/date";
 
@@ -30,6 +31,8 @@ export default function MyTasks() {
   const [body, setBody] = useState("");
   const [err, setErr] = useState("");
 
+  const tableRef = useColumnResize("mytasks");
+  const sort = useTableSort({ key: "due", dir: 1 });
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try {
@@ -46,9 +49,10 @@ export default function MyTasks() {
   const today = todayKST();
   const count = (s: string) => s === "전체" ? myTasks.length : myTasks.filter((t) => t.status === s).length;
   const ql = q.trim().toLowerCase();
-  const shown = (filter === "전체" ? myTasks : myTasks.filter((t) => t.status === filter))
-    .filter((t) => { if (!ql) return true; const p = projOf(t.project_id); return `${t.title} ${p?.code || ""} ${p?.name || ""}`.toLowerCase().includes(ql); })
-    .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  const shown = sort.apply(
+    (filter === "전체" ? myTasks : myTasks.filter((t) => t.status === filter))
+      .filter((t) => { if (!ql) return true; const p = projOf(t.project_id); return `${t.title} ${p?.code || ""} ${p?.name || ""}`.toLowerCase().includes(ql); }),
+    { proj: (t) => projOf(t.project_id)?.code || "", title: (t) => t.title, status: (t) => t.status, due: (t) => t.due || "9999" });
   const listRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [q, filter]);
@@ -93,8 +97,13 @@ export default function MyTasks() {
         <input className="tsearch" data-testid="task-search" aria-label="업무 검색" placeholder="업무·과제 검색" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 260 }} />
       </div>
       <div className="card scroll" ref={listRef}>
-        <table className="tbl fit" data-testid="mytasks-table">
-          <thead><tr><th style={{ width: 118 }}>과제 · 프로젝트</th><th>업무</th><th style={{ width: 72 }}>상태</th><th className="hide-sm" style={{ width: 100 }}>마감</th></tr></thead>
+        <table ref={tableRef} className="tbl fit" data-testid="mytasks-table">
+          <thead><tr>
+            <th {...sort.th("proj")} style={{ width: 118 }}>과제 · 프로젝트{sort.mark("proj")}</th>
+            <th {...sort.th("title")}>업무{sort.mark("title")}</th>
+            <th {...sort.th("status")} style={{ width: 72 }}>상태{sort.mark("status")}</th>
+            <th {...sort.th("due", "hide-sm")} style={{ width: 100 }}>마감{sort.mark("due")}</th>
+          </tr></thead>
           <tbody>
             {view.map((t) => {
               const p = projOf(t.project_id);

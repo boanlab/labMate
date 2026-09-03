@@ -2,6 +2,7 @@ import { useEffect, useState, useId } from "react";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { Chips, formSnapshot, confirmDiscard } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig } from "../api/config";
 import { confirmDialog } from "../ui/dialog";
@@ -10,6 +11,8 @@ interface Bk { id: string; resource: string; date: string; start: string; end: s
 const RESOURCES_FB = ["세미나실", "회의실", "GPU 서버", "공용 워크스테이션", "실험장비"];
 
 export default function Booking() {
+  const tableRef = useColumnResize("booking");   // 컬럼 폭 조절
+  const sort = useTableSort();   // 머리글 클릭 정렬
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const RESOURCE_MASTERS = useConfig<string[]>("booking_resources", RESOURCES_FB);
@@ -36,7 +39,9 @@ export default function Booking() {
   const upcoming = items.filter((b) => !isPast(b)).sort((a, c) => key(a).localeCompare(key(c)));
   const past = items.filter(isPast).sort((a, c) => key(c).localeCompare(key(a)));
   const byView = view === "예정" ? upcoming : view === "지난" ? past : [...upcoming, ...past];
-  const shown = byView.filter((b) => resFilter === "전체" || b.resource === resFilter);
+  const shown = sort.apply(byView.filter((b) => resFilter === "전체" || b.resource === resFilter),
+    { resource: (b) => b.resource, date: (b) => `${b.date} ${b.start}`, time: (b) => b.start,
+      by: (b) => uname(b.by_id), purpose: (b) => b.purpose });
 
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
@@ -111,8 +116,15 @@ export default function Booking() {
         <span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span>
       </div>
       <div className="card">
-        <table className="tbl fit" data-testid="booking-table">
-          <thead><tr><th style={{ width: 140 }}>자원</th><th style={{ width: 128 }}>일자</th><th style={{ width: 116 }}>시간</th><th className="hide-sm" style={{ width: 92 }}>예약자</th><th>용도</th><th style={{ width: 124 }}>작업</th></tr></thead>
+        <table ref={tableRef} className="tbl fit" data-testid="booking-table">
+          <thead><tr>
+            <th {...sort.th("resource")} style={{ width: 140 }}>자원{sort.mark("resource")}</th>
+            <th {...sort.th("date")} style={{ width: 128 }}>일자{sort.mark("date")}</th>
+            <th {...sort.th("time")} style={{ width: 116 }}>시간{sort.mark("time")}</th>
+            <th {...sort.th("by", "hide-sm")} style={{ width: 92 }}>예약자{sort.mark("by")}</th>
+            <th {...sort.th("purpose")}>용도{sort.mark("purpose")}</th>
+            <th style={{ width: 124 }}>작업</th>
+          </tr></thead>
           <tbody>
             {shown.map((b) => (
               <tr key={b.id} style={b.date === today ? { background: "var(--bsoft)" } : undefined}>

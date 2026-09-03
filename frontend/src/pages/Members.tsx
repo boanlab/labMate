@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useId } from "react";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import { todayKST } from "../lib/date";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
@@ -47,6 +48,8 @@ export default function Members() {
   const [form, setForm] = useState({ ...EMPTY });
   const up = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
+  const tableRef = useColumnResize("members");
+  const sort = useTableSort();   // 기본은 직급·입실일 순(sortMembers), 머리글을 누르면 그 컬럼 기준
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try { setUsers((await api.get<User[]>("/members/users")).data); }
@@ -142,13 +145,18 @@ export default function Members() {
     .filter((u) => (statusFilter === "all" ? true : statusFilter === "active" ? u.active : !u.active))
     .filter((u) => !q || [u.name, u.name_en, u.email, u.dept, u.student_id, u.major, u.phone].some((f) => (f || "").toLowerCase().includes(q)))
     .sort(sortMembers);
+  const visibleSorted = sort.apply(visible, {
+    name: (u) => u.name, position: (u) => u.position || "", email: (u) => u.email,
+    rno: (u) => u.researcher_no || "", degree: (u) => u.degree || "", major: (u) => u.major || "",
+    status: (u) => (u.active ? 0 : 1),
+  });
   const listRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [query, statusFilter]);
   const pageSize = useAutoPageSize(listRef, visible.length);
   const pages = Math.max(1, Math.ceil(visible.length / pageSize));
   const cur = Math.min(page, pages - 1);
-  const view = visible.slice(cur * pageSize, cur * pageSize + pageSize);
+  const view = visibleSorted.slice(cur * pageSize, cur * pageSize + pageSize);
 
   return (
     <div data-testid="page-members">
@@ -207,8 +215,17 @@ export default function Members() {
       )}
 
       <div className="card scroll" ref={listRef}>
-        <table className="tbl" data-testid="member-table">
-          <thead><tr><th>이름</th><th>직급</th><th>이메일</th><th>과학기술인번호</th><th>최종학위</th><th>전공</th><th>상태</th>{canManageUsers && <th>관리</th>}</tr></thead>
+        <table ref={tableRef} className="tbl" data-testid="member-table">
+          <thead><tr>
+            <th {...sort.th("name")}>이름{sort.mark("name")}</th>
+            <th {...sort.th("position")}>직급{sort.mark("position")}</th>
+            <th {...sort.th("email")}>이메일{sort.mark("email")}</th>
+            <th {...sort.th("rno")}>과학기술인번호{sort.mark("rno")}</th>
+            <th {...sort.th("degree")}>최종학위{sort.mark("degree")}</th>
+            <th {...sort.th("major")}>전공{sort.mark("major")}</th>
+            <th {...sort.th("status")}>상태{sort.mark("status")}</th>
+            {canManageUsers && <th>관리</th>}
+          </tr></thead>
           <tbody>
             {visible.length === 0 && <tr><td colSpan={canManageUsers ? 8 : 7} className="muted" style={{ textAlign: "center", padding: 16 }}>{!loaded ? "불러오는 중…" : "표시할 구성원이 없습니다."}</td></tr>}
             {view.map((u) => (
