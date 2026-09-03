@@ -8,6 +8,7 @@ import { confirmDiscard } from "../ui/kit";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
 import HtmlEditor from "../ui/HtmlEditorLazy";
+import { MentorButton } from "../ui/Mentor";
 import { printDoc } from "../ui/pdf";
 import { todayKST, dateKST } from "../lib/date";
 
@@ -252,7 +253,12 @@ export default function Approvals() {
             </label>
             <HtmlEditor value={body} onChange={setBody} testid="a-doc" minHeight={300} />
           </div>
-          <div className="bd" style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--line2)" }}>
+          <div className="bd" style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--line2)", flexWrap: "wrap" }}>
+            <MentorButton feature="report" collect={() => ({
+              title: form.title,
+              body: body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+              context: { 문서유형: form.type },
+            })} />
             <button className="btn ghost" onClick={() => setEditing(null)}>취소</button>
             {editing.resubmit ? (
               <button className="btn primary" data-testid="appr-add-submit" onClick={() => save()}>재상신</button>

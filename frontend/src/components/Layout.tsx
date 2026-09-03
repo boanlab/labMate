@@ -51,6 +51,7 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/att-admin", label: "근태 관리", icon: "clock", roles: ["prof"] },
   ] },
   { title: "연구실", items: [
+    { to: "/philosophy", label: "지도철학", icon: "book", roles: NO_STAFF },
     { to: "/publications", label: "실적", icon: "award", roles: ALL },
     { to: "/library", label: "교육", icon: "book", roles: NO_STAFF },
     { to: "/archive", label: "아카이브", icon: "folder", roles: ALL },

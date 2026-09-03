@@ -52,3 +52,38 @@ class UsageOut(BaseModel):
     cost_usd: float
     cap_usd: float
     by_feature: dict[str, int] = {}
+
+
+# ── 지도교수 철학 ──
+class PrincipleIn(BaseModel):
+    category: str
+    text: str = Field(min_length=2, max_length=500)
+    rationale: str = Field(default="", max_length=2000)
+    approved: bool = False
+
+
+class PrincipleOut(BaseModel):
+    id: str
+    category: str
+    text: str
+    rationale: str = ""
+    approved: bool = False
+    source: str = "ai"
+    order: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class TurnIn(BaseModel):
+    category: str
+    text: str = Field(default="", max_length=4000, description="비우면 첫 질문을 받는다")
+
+
+class TurnOut(BaseModel):
+    question: str = ""
+    history: list[dict] = []
+
+
+class ExtractOut(BaseModel):
+    drafts: list[PrincipleOut] = []
+    detail: str = ""

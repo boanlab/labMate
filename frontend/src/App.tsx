@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
+import Philosophy from "./pages/Philosophy";
 import MyPage from "./pages/MyPage";
 import Projects from "./pages/Projects";
 import MyTasks from "./pages/MyTasks";
@@ -83,6 +84,7 @@ function App() {
           <Route path="/infra" element={<Protected><Infra /></Protected>} />
           <Route path="/booking" element={<Protected roles={NO_STAFF}><Booking /></Protected>} />
           <Route path="/members" element={<Protected><Members /></Protected>} />
+          <Route path="/philosophy" element={<Protected roles={NO_STAFF}><Philosophy /></Protected>} />
           <Route path="/mypage" element={<Protected><MyPage /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

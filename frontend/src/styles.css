@@ -496,3 +496,23 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
   .appbar-brand .brand-badge { font-size: 17px; }
   .appbar-icon { width: 36px; height: 36px; }
 }
+
+/* AI 멘토 점검 결과 */
+.mentor-out { margin-top: 10px; border: 1px solid var(--brand); border-radius: 9px; background: var(--panel); padding: 10px 12px; }
+.mentor-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.mentor-body { white-space: pre-wrap; font-size: 13.5px; line-height: 1.65; }
+.cmp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin-top: 10px; }
+.cmp-col { border: 1px solid var(--line); border-radius: 9px; padding: 10px; background: var(--panel); }
+.cmp-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+
+/* 지도철학 */
+.ph-list { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
+.ph-chat { max-height: 340px; overflow-y: auto; display: grid; gap: 8px; margin-bottom: 10px; }
+.ph-turn { display: grid; gap: 2px; padding: 8px 10px; border-radius: 9px; }
+.ph-turn.ai { background: var(--panel2, #f6f8fb); }
+.ph-turn.me { background: var(--brand-weak, #eef3fb); }
+body.dark .ph-turn.ai { background: #232a35; }
+body.dark .ph-turn.me { background: #26313f; }
+.ph-who { font-size: 11.5px; font-weight: 700; opacity: .65; }
+.ph-text { white-space: pre-wrap; font-size: 13.5px; line-height: 1.6; }
+.ph-draft { border: 1px solid var(--line); border-radius: 9px; padding: 10px; margin-bottom: 8px; }

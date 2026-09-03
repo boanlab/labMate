@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, DateTime, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from labmate_common.db import Base
@@ -44,4 +44,37 @@ class Usage(Base):
     cost_usd: Mapped[float] = mapped_column(Numeric(10, 6), default=0)
     ok: Mapped[int] = mapped_column(Integer, default=1)               # 실패도 남긴다(원인 추적)
     detail: Mapped[str] = mapped_column(String(300), default="")
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class Principle(Base):
+    """지도교수의 지침 1개 — 학생 가이드 프롬프트에 주입된다.
+
+    AI 가 교수와의 대화에서 초안을 뽑아도 그대로 쓰지 않는다. 교수가 검토해
+    approved 로 바꾼 것만 학생에게 반영한다(잘못 요약된 철학이 그대로 지도로
+    나가는 것을 막는다).
+    """
+
+    __tablename__ = "mentor_principles"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    category: Mapped[str] = mapped_column(String(20), index=True)     # research/teaching/practice
+    text: Mapped[str] = mapped_column(Text)                           # 지침 본문(한 문장)
+    rationale: Mapped[str] = mapped_column(Text, default="")          # 교수가 든 이유·사례
+    approved: Mapped[bool] = mapped_column(Boolean, default=False)
+    source: Mapped[str] = mapped_column(String(20), default="ai")     # ai(대화에서 추출) / manual(직접 작성)
+    by_id: Mapped[str] = mapped_column(String(32), default="")        # 작성한 교수
+    order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class InterviewTurn(Base):
+    """철학 인터뷰 대화 기록 — 교수별로 이어서 진행한다."""
+
+    __tablename__ = "mentor_interview"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(32), index=True)
+    category: Mapped[str] = mapped_column(String(20), default="")
+    role: Mapped[str] = mapped_column(String(12))                     # assistant(질문) / user(답변)
+    text: Mapped[str] = mapped_column(Text)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
