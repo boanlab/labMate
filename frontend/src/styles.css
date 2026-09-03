@@ -51,6 +51,10 @@ body.dark .btn:not(:disabled):hover { border-color: #2f3a4c; }
 .btn:disabled { opacity: .6; cursor: default; }
 
 input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; margin-bottom: 4px; background: var(--panel); color: var(--ink); }
+/* 체크·라디오는 늘어나면 안 된다 — width:100%(위) 와 .cfg-kv td input(아래)이 라벨을 밀어낸다.
+   두 규칙 모두를 이기도록 선택자를 함께 적어 둔다. */
+input[type=checkbox], input[type=radio],
+.cfg-kv td input[type=checkbox], .cfg-kv td input[type=radio] { width: auto; margin-bottom: 0; padding: 0; flex: none; }
 label { display: block; font-size: 12.5px; color: var(--sub); margin: 8px 0 3px; }
 .form-err { background: #fdeeec; color: #c2402f; border: 1px solid #f3d3cd; border-radius: 8px; padding: 8px 11px; font-size: 13px; margin-top: 8px; }
 body.dark .form-err { background: #3a1f1d; border-color: #5a2e2a; color: #f0a99e; }
