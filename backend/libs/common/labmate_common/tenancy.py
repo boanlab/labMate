@@ -1,10 +1,9 @@
-"""멀티테넌시(org 격리) + 소프트삭제 — 전역 쿼리 필터로 일괄 적용.
+"""멀티테넌시(org 격리) + 소프트삭제 — 전역 쿼리 필터.
 
-설계: 모델이 OrgScoped/SoftDelete 믹스인을 상속하면,
- - 모든 ORM SELECT 에 자동으로 `org_id == 현재org` + `deleted_at IS NULL` 필터가 붙고(do_orm_execute),
- - INSERT 시 org_id 가 현재 요청 org 로 자동 설정된다(before_flush).
-요청별 org 는 미들웨어가 JWT(org 클레임)에서 읽어 contextvar 에 넣는다.
-→ 엔드포인트마다 필터를 다는 실수를 원천 차단(누락 시 데이터 유출 방지).
+OrgScoped/SoftDelete 믹스인 상속 시 모든 ORM SELECT 에 `org_id == 현재org` +
+`deleted_at IS NULL` 이 자동으로 붙고(do_orm_execute), INSERT 는 org_id 가 자동 설정된다
+(before_flush). 요청별 org 는 미들웨어가 JWT 의 org 클레임에서 읽어 contextvar 에 넣는다.
+엔드포인트별 필터 누락으로 인한 데이터 유출을 원천 차단.
 """
 from __future__ import annotations
 

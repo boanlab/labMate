@@ -84,8 +84,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   // 라우트 이동 시 모바일 드로어 닫기
   useEffect(() => { setDrawer(false); setMenu(false); }, [loc.pathname]);
-  // 표 셀이 좁아 말줄임(…)될 때 원문을 볼 수 없는 문제 — 마우스를 올린 순간 title 을 채운다.
-  // 화면마다 손으로 title 을 다는 대신 위임 처리해 모든 표에 동일하게 적용된다.
+  // 말줄임된 표 셀에 hover 시 title 자동 부착(위임 처리 — 화면별로 달지 않아도 된다).
   useEffect(() => {
     function onOver(e: MouseEvent) {
       const t = e.target as HTMLElement | null;
@@ -105,10 +104,8 @@ export default function Layout({ children }: { children: ReactNode }) {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       setMenu(false);
-      // 열린 모달이 있으면 배경 클릭과 동일하게 닫는다.
-      // 각 화면의 오버레이(.modal-ovl)가 target===currentTarget 일 때만 닫도록 되어 있어,
-      // 오버레이 자신에게 click 을 보내면 화면별 닫기 로직을 그대로 재사용할 수 있다.
-      // position:fixed 요소는 offsetParent 가 null 이므로 getClientRects 로 표시 여부를 본다
+      // Esc → 열린 모달 닫기. 오버레이(.modal-ovl)에 직접 click 을 보내 화면별 닫기 로직을 재사용한다.
+      // position:fixed 는 offsetParent 가 null 이므로 표시 여부는 getClientRects 로 본다.
       const ovls = Array.from(document.querySelectorAll<HTMLElement>(".modal-ovl")).filter((el) => el.getClientRects().length > 0);
       const top = ovls[ovls.length - 1];
       if (top) { e.preventDefault(); top.click(); }

@@ -65,11 +65,9 @@ class User(OrgScoped, SoftDelete, Base):
 
 
 class UserPref(Base):
-    """사용자별 화면 설정(표 컬럼 폭 등).
+    """사용자별 화면 설정(표 컬럼 폭·정렬·테마 등) — 계정에 저장해 기기가 바뀌어도 유지.
 
-    브라우저 localStorage 에만 두면 PC 를 바꿀 때마다 처음부터 맞춰야 한다.
-    계정에 붙여 두면 어디서 접속하든 같은 화면으로 시작한다.
-    org 격리가 필요 없다 — 키가 사용자 id 라 애초에 남의 것을 읽을 수 없다.
+    키가 사용자 id 라 org 격리 불필요.
     """
     __tablename__ = "user_prefs"
 

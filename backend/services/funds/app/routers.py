@@ -126,8 +126,7 @@ def _approval_on(db: Session) -> bool:
 def create_expense(body: schemas.ExpenseIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     """집행 내역 등록.
 
-    결재를 쓰면 '작성중'으로만 남기고 예산은 건드리지 않는다(승인 시점에 차감).
-    결재를 끄면 예전처럼 등록 즉시 집행으로 확정한다.
+    결재 사용 시 '작성중'(예산 차감은 승인 시점), 미사용 시 등록 즉시 '집행'.
     """
     approval = _approval_on(db)
     e = Expense(by_id=user.id, status="작성중" if approval else "집행", **body.model_dump())

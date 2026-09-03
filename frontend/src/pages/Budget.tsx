@@ -142,8 +142,7 @@ export default function BudgetPage() {
               {(() => {
                 const ta = STD.reduce((a, c) => a + (editing ? (allocated[c] || 0) : allocOf(sel, c).allocated), 0);
                 const ts = STD.reduce((a, c) => a + (c === "간접비" ? (editing ? (allocated[c] || 0) : allocOf(sel, c).allocated) : allocOf(sel, c).spent), 0);
-                // 비목 편성 합계는 과제의 '해당 연도 연구비'와 같아야 한다.
-                // 어긋난 채로 넘어가면 정산 단계에서야 발견되므로, 편성하는 자리에서 바로 대조해 준다.
+                // 비목 편성 합계 vs 과제의 해당 연도 연구비 — 편성 화면에서 즉시 대조.
                 const yearBudget = Number(String(proj?.meta?.budget_year ?? "").replace(/[^0-9]/g, "")) || 0;
                 const gap = yearBudget ? ta - yearBudget : 0;
                 return (<>

@@ -24,9 +24,7 @@ export const tokenStore = {
 };
 
 // ── 통신 중 표시 ──────────────────────────────────────────────
-// 목록 화면들은 데이터가 오기 전에도 표를 그리기 때문에, 느린 회선에서는
-// "아직 불러오는 중"과 "정말 아무것도 없음"이 똑같이 보인다.
-// 진행 중인 요청 수를 세어 화면 상단에 얇은 막대로 알려준다.
+// 진행 중인 요청 수 → 상단 진행 막대. 느린 회선에서 "로딩 중"과 "빈 목록"을 구분한다.
 let inFlight = 0;
 const busySubs = new Set<(busy: boolean) => void>();
 const notifyBusy = () => busySubs.forEach((f) => f(inFlight > 0));
@@ -87,9 +85,7 @@ api.interceptors.response.use(
   }
 );
 
-// 서버 검증 오류를 사용자 언어로 옮기기 위한 사전.
-// pydantic 이 돌려주는 영문 원문(예: "Input should be a valid date")을 그대로 노출하면
-// 화면에 갑자기 영어가 튀어나오고, 필드명도 내부 키(start, year_end …)라 알아볼 수 없다.
+// pydantic 검증 오류(영문 원문 + 내부 필드키) → 한국어 필드명·사유 사전.
 const FIELD_KO: Record<string, string> = {
   name: "이름", title: "제목", email: "이메일", password: "비밀번호", role: "역할",
   start: "시작일", end: "종료일", due: "마감일", date: "일자", claim_date: "집행일자",
