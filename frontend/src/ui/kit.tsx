@@ -71,10 +71,15 @@ export function Chips({ value, onChange, items, testid }: {
 }
 
 // ── 작성 중 이탈 보호 ───────────────────────────────────────────────
-// 목록 상단의 "+ 추가" 버튼은 폼이 열린 상태에서 다시 누르면 폼을 닫는 토글이다.
-// 입력 중이던 내용이 예고 없이 사라지지 않도록, 스냅샷과 달라졌으면 확인을 받는다.
+// 폼 토글·모달 닫기 시 스냅샷과 달라졌으면 확인을 받는다.
 
 /** 폼을 열 때의 상태를 문자열로 굳혀 둔다(수정 모드 포함). */
+/** 첨부 허용 형식 — 서버 목록(labmate_common/uploads.py)과 같게 유지. */
+export const ATTACH_ACCEPT =
+  ".pdf,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.xlsm,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.md,.csv,.tsv," +
+  ".png,.jpg,.jpeg,.gif,.webp,.bmp,.heic,.heif,.tif,.tiff," +
+  ".zip,.7z,.tar,.gz,.tgz,.bz2,.xz,.json,.yaml,.yml,.bib,.log";
+
 export const formSnapshot = (v: unknown) => JSON.stringify(v);
 
 /** 닫아도 되는지 확인. 변경된 내용이 없으면 곧바로 true. */
@@ -83,8 +88,7 @@ export async function confirmDiscard(dirty: boolean): Promise<boolean> {
   return confirmDialog("작성 중인 내용이 있습니다. 닫으면 입력한 내용이 사라집니다.\n닫을까요?", { title: "작성 취소", danger: true });
 }
 
-/** 금액을 한글 단위로 읽어준다 — 1500000000 → "15억 원".
- *  연구비는 0 하나 차이로 자릿수를 잘못 넣기 쉬워, 입력 옆에 사람이 읽는 형태를 같이 보여준다. */
+/** 금액 한글 표기 — 1500000000 → "15억 원"(자릿수 오입력 방지용 보조 표시). */
 export function wonKo(n: number): string {
   const v = Math.floor(Math.abs(Number(n) || 0));
   if (v < 10000) return "";

@@ -1,11 +1,12 @@
 import { useEffect, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { useNavigate } from "react-router-dom";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
-import { Chips, formSnapshot, confirmDiscard, wonKo, won } from "../ui/kit";
+import { Chips, formSnapshot, confirmDiscard, wonKo, won, ATTACH_ACCEPT } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 
@@ -47,7 +48,7 @@ export default function Expenses() {
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState("");
   const today = todayKST();
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || "—";
+  const uname = useDirectory();
   const code = (pid: string) => projects.find((p) => p.id === pid)?.code || "—";
   const [filterPid, setFilterPid] = useState("");
   const [query, setQuery] = useState("");
@@ -239,7 +240,7 @@ const EMPTY = { project_id: projects[0]?.id || "", category: "인건비", subcat
             </div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label htmlFor={`${uid}-7`}>증빙 첨부</label>
-              <input id={`${uid}-7`} type="file" multiple data-testid="e-files" onChange={uploadFiles} />
+              <input id={`${uid}-7`} type="file" multiple accept={ATTACH_ACCEPT} data-testid="e-files" onChange={uploadFiles} />
               {!!form.files.length && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                   {form.files.map((f, i) => (

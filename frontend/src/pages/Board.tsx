@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
 import { useDetailParam } from "../lib/useDetailParam";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard, ATTACH_ACCEPT } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
@@ -26,7 +27,7 @@ export default function Board() {
   const CATS = useConfig<string[]>("post_types", CATS_FB);
   const [items, setItems] = useState<Post[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || (id ? id.slice(0, 6) : "—");
+  const uname = useDirectory();
   const [tab, setTab] = useState("전체");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Post | null>(null);
@@ -230,7 +231,7 @@ export default function Board() {
             <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-4`}>링크(선택)</label><input id={`${uid}-4`} data-testid="b-link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label htmlFor={`${uid}-5`}>첨부파일(선택)</label>
-              <input id={`${uid}-5`} type="file" multiple data-testid="b-files" onChange={uploadFiles} />
+              <input id={`${uid}-5`} type="file" multiple accept={ATTACH_ACCEPT} data-testid="b-files" onChange={uploadFiles} />
               {!!form.files.length && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                   {form.files.map((f, i) => (

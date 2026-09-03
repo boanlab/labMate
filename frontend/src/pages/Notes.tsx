@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, AuthorMeta } from "../ui/kit";
@@ -19,7 +20,7 @@ function SharePicker({ value, all, excludeIds, disabled, onChange }: { value: st
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
-  const nameOf = (uid: string) => all.find((u) => u.id === uid)?.name || uid;
+  const nameOf = useDirectory();
   const toggle = (uid: string) => onChange(value.includes(uid) ? value.filter((x) => x !== uid) : [...value, uid]);
   const candidates = all.filter((u) => u.active !== false && !excludeIds.includes(u.id) && u.role !== "admin");
   const list = candidates.filter((u) => (u.name || "").toLowerCase().includes(q.toLowerCase()));
@@ -50,6 +51,7 @@ function SharePicker({ value, all, excludeIds, disabled, onChange }: { value: st
 }
 
 export default function Notes() {
+  const dirName = useDirectory();   // 퇴사·삭제된 구성원도 이름으로 보이게
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const [pages, setPages] = useState<Note[]>([]);
@@ -268,7 +270,7 @@ export default function Notes() {
                       {cur.tags.map((t, i) => <span key={i} className="badge s-info">#{t}{editable && <button onClick={() => patch(cur.id, { tags: cur.tags.filter((_, j) => j !== i) })} style={{ marginLeft: 3, border: "none", background: "none", cursor: "pointer", color: "inherit" }}>✕</button>}</span>)}
                       {editable && <input className="note-tag-in" placeholder="+태그" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && tagInput.trim()) { patch(cur.id, { tags: [...cur.tags, tagInput.trim()] }); setTagInput(""); } }} />}
                     </span>
-                    <AuthorMeta by={cur.owner_id} updatedBy={cur.updated_by} createdAt={cur.created_at} updatedAt={cur.updated_at} nameOf={(id) => users.find((u) => u.id === id)?.name || "—"} />
+                    <AuthorMeta by={cur.owner_id} updatedBy={cur.updated_by} createdAt={cur.created_at} updatedAt={cur.updated_at} nameOf={dirName} />
                     {saved && <span className="muted small" style={{ marginLeft: "auto" }}>저장됨 {saved}</span>}
                   </div>
                   {!editable && <div className="muted small" style={{ marginTop: 4 }}>읽기 전용(소유자·관리자만 편집)</div>}

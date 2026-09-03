@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useId, cloneElement, isValidElement, Children } from "react";
+import { useDirectory } from "../api/directory";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { richHtml } from "../ui/richHtml";
 import { todayKST } from "../lib/date";
@@ -6,7 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import { api, apiError } from "../api/client";
 import { confirmDialog, alertDialog, promptDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card, Chips, statusClass, Req, formSnapshot, confirmDiscard, wonKo } from "../ui/kit";
+import { PageHeader, Card, Chips, statusClass, Req, formSnapshot, confirmDiscard, wonKo, ATTACH_ACCEPT } from "../ui/kit";
 import { Gauge, HBars } from "../ui/Charts";
 import { useConfig, names } from "../api/config";
 import { FIXED_KINDS, seriesOf } from "../lib/pubClass";
@@ -126,7 +127,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const [form, setForm] = useState(emptyForm);
 
   const profUser = users.find((u) => u.role === "prof");
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || (id ? id.slice(0, 6) : "미지정");
+  const uname = useDirectory("미지정");
 
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
@@ -533,7 +534,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
                 <label>내용<Req/></label>
                 <HtmlEditor value={taskBody} onChange={setTaskBody} testid="tf-body" minHeight={120} />
                 <label htmlFor={`${uid}-8`}>첨부파일 (선택)</label>
-                <input id={`${uid}-8`} type="file" multiple data-testid="tf-files" onChange={uploadTaskFiles} />
+                <input id={`${uid}-8`} type="file" multiple accept={ATTACH_ACCEPT} data-testid="tf-files" onChange={uploadTaskFiles} />
                 {!!(taskForm.files && taskForm.files.length) && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                     {taskForm.files.map((f: TFile, i: number) => (

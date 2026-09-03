@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { richHtml } from "../ui/richHtml";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST, dateKST } from "../lib/date";
@@ -8,7 +9,7 @@ import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
-import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard, ATTACH_ACCEPT } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 interface TFile { name: string; url: string; }
@@ -32,7 +33,7 @@ export default function Notices() {
   const [snap, setSnap] = useState("");   // 폼을 열 때의 상태 — 작성 중 이탈 경고 판정용
   const [baseAt, setBaseAt] = useState<string | null>(null);   // 편집 시작 시점(낙관적 잠금)
   const today = todayKST();
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
+  const uname = useDirectory();
   const members = users.filter((u) => u.active !== false && u.role !== "admin");
 
   const tableRef = useColumnResize("notices");
@@ -216,7 +217,7 @@ export default function Notices() {
             <label htmlFor={`${uid}-3`}>링크(선택)</label>
             <input id={`${uid}-3`} data-testid="n-link" type="url" placeholder="https://…" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
             <label htmlFor={`${uid}-4`}>첨부파일(선택)</label>
-            <input id={`${uid}-4`} type="file" multiple data-testid="n-files" onChange={uploadFiles} />
+            <input id={`${uid}-4`} type="file" multiple accept={ATTACH_ACCEPT} data-testid="n-files" onChange={uploadFiles} />
             {!!form.files.length && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                 {form.files.map((f, i) => (

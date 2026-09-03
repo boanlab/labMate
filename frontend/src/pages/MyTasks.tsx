@@ -5,7 +5,7 @@ import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { alertDialog } from "../ui/dialog";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Chips, Req, formSnapshot, confirmDiscard, statusClass } from "../ui/kit";
+import { PageHeader, Chips, Req, formSnapshot, confirmDiscard, statusClass, ATTACH_ACCEPT } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { todayKST } from "../lib/date";
@@ -155,7 +155,7 @@ export default function MyTasks() {
               <label>내용<Req/></label>
               <HtmlEditor value={body} onChange={setBody} testid="mtf-body" minHeight={120} />
               <label htmlFor={`${uid}-7`}>첨부파일 (선택)</label>
-              <input id={`${uid}-7`} type="file" multiple onChange={uploadFiles} />
+              <input id={`${uid}-7`} type="file" multiple accept={ATTACH_ACCEPT} onChange={uploadFiles} />
               {!!(form.files && form.files.length) && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                   {form.files.map((f: TFile, i: number) => (

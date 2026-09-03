@@ -2,7 +2,7 @@ import { useEffect, useState, useId } from "react";
 import { api, apiError } from "../api/client";
 import { todayKST } from "../lib/date";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card } from "../ui/kit";
+import { PageHeader, Card, ATTACH_ACCEPT } from "../ui/kit";
 import { DataTable, Col } from "../ui/DataTable";
 import { confirmDialog } from "../ui/dialog";
 import { useConfig, names } from "../api/config";
@@ -276,7 +276,7 @@ export default function Publications() {
               </div>
             </div>
             <label style={{ marginTop: 10 }}>증빙 파일 첨부 (PDF·이미지 등, 여러 개 가능)</label>
-            <input type="file" multiple data-testid="u-file" aria-label="증빙 파일" onChange={onUpload} />
+            <input type="file" multiple accept={ATTACH_ACCEPT} data-testid="u-file" aria-label="증빙 파일" onChange={onUpload} />
             {uploading && <div className="muted small">업로드 중…</div>}
             {files.map((fi, i) => (
               <div key={i} className="io" style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>

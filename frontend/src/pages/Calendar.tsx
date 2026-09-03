@@ -1,4 +1,5 @@
 import { useEffect, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
@@ -11,8 +12,7 @@ interface Item { id: string; title: string; date: string; time?: string; type: s
 const SCOPES = ["개인", "전체 구성원", "구성원 선택"];
 const REPEATS = ["없음", "매주", "격주", "매월"];
 const LAYERS = ["업무", "회의", "마감", "예약", "출장", "휴가", "개인", "기타"];
-// 일정 칩은 이 색을 배경에 깔고 흰 글자를 얹는다 — 색상은 유지하되 흰 글자 대비 4.5:1 이상이 되도록 맞춘 값.
-// (기존 값 기준: 마감 3.87 · 출장 3.31 · 휴가 2.34 · 예약 3.38 로 AA 미달이었다)
+// 일정 칩 배경색 — 흰 글자 대비 4.5:1(WCAG AA) 이상이 되도록 맞춘 값.
 const TCOL: Record<string, string> = {
   "업무": "#3f5d7d", "회의": "#284072", "마감": "#c4382f", "출장": "#2a7676", "개인": "#7b66c4", "기타": "#5a6478",
   "휴가": "#9c6d13", "예약": "#22855a",
@@ -59,7 +59,7 @@ export default function Calendar() {
   function toggleAttendee(uid: string) {
     setForm((f) => ({ ...f, attendees: f.attendees.includes(uid) ? f.attendees.filter((x) => x !== uid) : [...f.attendees, uid] }));
   }
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || "";
+  const uname = useDirectory("");
   const evLabel = (e: Item) => {
     const n = uname(e.by_id || "");
     if (!n) return e.title;
@@ -93,8 +93,7 @@ export default function Calendar() {
           time: b.end ? `${b.start}~${b.end}` : b.start, by_id: b.by_id, detail: b.purpose,
         }));
       } catch { /* optional */ }
-      // 마감이 있는 일은 캘린더에 보여야 한다. 예전에는 일정·휴가·예약만 올려서,
-      // 정작 이번 주에 뭐가 마감인지는 캘린더만 봐서는 알 수 없었다.
+      // 일정·휴가·예약에 더해 과제·업무 마감도 함께 올린다.
       try {
         const ts = (await api.get<any[]>("/projects/tasks")).data || [];
         ts.forEach((t) => {
