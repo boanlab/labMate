@@ -516,3 +516,4 @@ body.dark .ph-turn.me { background: #26313f; }
 .ph-who { font-size: 11.5px; font-weight: 700; opacity: .65; }
 .ph-text { white-space: pre-wrap; font-size: 13.5px; line-height: 1.6; }
 .ph-draft { border: 1px solid var(--line); border-radius: 9px; padding: 10px; margin-bottom: 8px; }
+.nudge-list { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }

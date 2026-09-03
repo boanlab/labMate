@@ -49,12 +49,15 @@ async def chat(key: str, model: str, messages: list[dict[str, str]], max_tokens:
     usage = data.get("usage") or {}
     choice = (data.get("choices") or [{}])[0]
     msg = choice.get("message") or {}
-    # content 가 null 인 모델이 있다(추론형은 reasoning 에 담아 보내기도 한다).
-    text = msg.get("content") or msg.get("reasoning") or ""
+    # 답변은 content 만 쓴다. reasoning(모델의 사고 과정)은 사용자에게 보여 줄 글이
+    # 아니므로 절대 폴백으로 쓰지 않는다 — 그렇게 했다가 내부 사고가 그대로 노출됐다.
+    text = msg.get("content")
     if isinstance(text, list):        # 일부 모델은 조각 배열로 준다
         text = "".join(p.get("text", "") for p in text if isinstance(p, dict))
     text = (text or "").strip()
     if not text:
+        if msg.get("reasoning"):
+            raise MentorError("모델이 생각만 하다 길이 제한에 걸렸습니다. 출력 상한을 올리거나 다른 모델을 선택하세요.")
         raise MentorError(f"모델이 빈 응답을 돌려주었습니다(finish_reason={choice.get('finish_reason')}). 다른 모델을 선택해 보세요.")
     return {
         "text": text,
