@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useDirectory } from "../api/directory";
 import { yearKST, todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
@@ -73,7 +74,7 @@ export default function Payroll() {
   };
   const rateAt = (u: User, mm: string) => GRADE_RATES[gradeAt(u, `${year}-${mm}`)] || 0;   // 월별 단가
   const codeOf = (id: string) => projects.find((p) => p.id === id)?.code || "—";
-  const nameOf = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
+  const nameOf = useDirectory();
   // 재직 기간 밖 월은 잠금
   const active = (u: User, mm: string) => { const ym = `${year}-${mm}`; if (u.join_date && ym < u.join_date.slice(0, 7)) return false; if (u.exit_date && ym > u.exit_date.slice(0, 7)) return false; return true; };
   const stuBudget = (projId: string) => budgets.find((b) => b.project_id === projId && b.category === "학생인건비") || { allocated: 0, spent: 0 };
@@ -214,7 +215,7 @@ export default function Payroll() {
           </span>
           <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
             <label style={{ margin: 0 }}>연도</label>
-            <select value={year} data-testid="pay-year" onChange={(e) => setYear(e.target.value)} style={{ width: "auto", fontWeight: 700 }}>{years.map((y) => <option key={y}>{y}</option>)}</select>
+            <select value={year} data-testid="pay-year" aria-label="조회 연도" onChange={(e) => setYear(e.target.value)} style={{ width: "auto", fontWeight: 700 }}>{years.map((y) => <option key={y}>{y}</option>)}</select>
             {tab === "plan" && <><label style={{ margin: 0, marginLeft: 6 }}>과제</label>
               <select value={pid} data-testid="pay-project" onChange={(e) => setPid(e.target.value)} style={{ width: "auto", fontWeight: 700 }}>{yearProjects.map((p) => { const pool = String(p.meta?.payroll_pool || "").trim(); return <option key={p.id} value={p.id}>{p.code}{pool ? ` · ${pool}` : ""}</option>; })}{!yearProjects.length && <option value="">{year}년 과제 없음</option>}</select></>}
           </span>
@@ -229,16 +230,16 @@ export default function Payroll() {
             <span>{curPool ? "통합 학생인건비 예산" : "학생인건비 예산"} <b>{won(sb.allocated)}</b></span>
             {curPool && equalSpent > 0 && <span className="muted" title="균등(YYYY)은 통합 재원으로 운영 → 확정 집행으로 처리">균등 확정집행 <b>{won(equalSpent)}</b></span>}
             {curPool && <span className="muted">타 과제 사용(확정+예정) <b>{won(otherUsed)}</b></span>}
-            <span style={{ marginLeft: "auto" }}>이 과제 {year}년 편성(예정) <b style={{ color: remainForThis < 0 ? "var(--bad)" : "var(--brand)" }}>{won(planAnnual)}</b></span>
-            <span>잔여 <b style={{ color: remainForThis < 0 ? "var(--bad)" : "var(--ok)" }}>{won(remainForThis)}</b>{remainForThis < 0 && <span className="badge s-bad" style={{ marginLeft: 6 }}>{curPool ? "통합 잔여 초과" : "잔여 예산 초과"}</span>}</span>
+            <span style={{ marginLeft: "auto" }}>이 과제 {year}년 편성(예정) <b style={{ color: remainForThis < 0 ? "var(--bad-text)" : "var(--brand)" }}>{won(planAnnual)}</b></span>
+            <span>잔여 <b style={{ color: remainForThis < 0 ? "var(--bad-text)" : "var(--ok-text)" }}>{won(remainForThis)}</b>{remainForThis < 0 && <span className="badge s-bad" style={{ marginLeft: 6 }}>{curPool ? "통합 잔여 초과" : "잔여 예산 초과"}</span>}</span>
           </div>
           <div className="card scroll" style={{ margin: 0, border: "none" }}>
             <table className="tbl" data-testid="pay-matrix">
-              <thead><tr><th>구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th>연 인건비</th></tr></thead>
+              <thead><tr><th className="col-stick-l">구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th className="col-stick-r">연 인건비</th></tr></thead>
               <tbody>
                 {students.map((u) => (
                   <tr key={u.id}>
-                    <td style={{ whiteSpace: "nowrap" }}>{u.name} <span className="pill">{grade(u)}</span></td>
+                    <td className="col-stick-l" style={{ whiteSpace: "nowrap" }}>{u.name} <span className="pill">{grade(u)}</span></td>
                     {MONTHS.map((mm) => {
                       const outProj = !monthInProj(curProj, mm);
                       const lock = !active(u, mm) || outProj;
@@ -264,7 +265,7 @@ export default function Payroll() {
                         </td>
                       );
                     })}
-                    <td style={{ whiteSpace: "nowrap" }}><b style={{ color: "var(--brand)" }}>{won(MONTHS.reduce((s, mm) => s + planAmt(u, mm), 0))}</b></td>
+                    <td className="col-stick-r" style={{ whiteSpace: "nowrap" }}><b style={{ color: "var(--brand)" }}>{won(MONTHS.reduce((s, mm) => s + planAmt(u, mm), 0))}</b></td>
                   </tr>
                 ))}
               </tbody>
@@ -285,17 +286,17 @@ export default function Payroll() {
           <div className="card scroll" style={{ margin: 0, border: "none" }}>
             <table className="tbl" data-testid="pay-table">
               <thead>
-                <tr><th>구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th>연 합계</th></tr>
+                <tr><th className="col-stick-l">구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th className="col-stick-r">연 합계</th></tr>
                 <tr style={{ background: "var(--soft)" }}><th className="muted small">지급확정</th>{MONTHS.map((mm) => <th key={mm} style={{ textAlign: "center" }} className="muted small">{monthPend(mm) > 0 ? `미확정 ${monthPend(mm)}` : (payMonthTotal(mm) ? "완료" : "—")}</th>)}<th></th></tr>
               </thead>
               <tbody>
                 {payStudents.map((u) => (
                   <tr key={u.id}>
-                    <td style={{ whiteSpace: "nowrap" }}><a className="lnk" style={{ fontWeight: 700, cursor: "pointer" }} data-testid={`pay-open-${u.id}`} onClick={() => { setDetailYear(year); setDetail(u.id); }}>{u.name}</a> <span className="pill">{grade(u)}</span></td>
+                    <td className="col-stick-l" style={{ whiteSpace: "nowrap" }}><a className="lnk" style={{ fontWeight: 700, cursor: "pointer" }} data-testid={`pay-open-${u.id}`} onClick={() => { setDetailYear(year); setDetail(u.id); }}>{u.name}</a> <span className="pill">{grade(u)}</span></td>
                     {MONTHS.map((mm) => { const amt = payAmt(u.id, mm); return (
                       <td key={mm} style={{ textAlign: "center" }} data-testid={`pay-${u.id}-${mm}`} className={amt ? "" : "muted"}>{amt ? won(amt) : "–"}</td>
                     ); })}
-                    <td style={{ whiteSpace: "nowrap" }}><b style={{ color: "var(--brand)" }}>{won(payAnnual(u.id))}</b></td>
+                    <td className="col-stick-r" style={{ whiteSpace: "nowrap" }}><b style={{ color: "var(--brand)" }}>{won(payAnnual(u.id))}</b></td>
                   </tr>
                 ))}
                 {!payStudents.length && <tr><td colSpan={14} className="muted">지급 내역 없음 — [참여율 편성]에서 먼저 입력하세요</td></tr>}
@@ -337,7 +338,7 @@ export default function Payroll() {
                           <td><span className="badge s-pur">{k}</span></td>
                           <td className="small muted" title={codes} style={{ maxWidth: "min(460px, 30vw)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{codes}</td>
                           <td>{won(alloc)}</td><td title={equalSpentAll ? `과제 확정 집행 + 균등 ${won(equalSpentAll)}` : undefined}>{won(spent)}</td><td className="muted">{pend ? won(pend) : "—"}</td>
-                          <td style={{ color: alloc - spent - pend < 0 ? "var(--bad)" : "inherit" }}><b>{won(alloc - spent - pend)}</b></td>
+                          <td style={{ color: alloc - spent - pend < 0 ? "var(--bad-text)" : "inherit" }}><b>{won(alloc - spent - pend)}</b></td>
                         </tr>
                       );
                     })}
@@ -363,7 +364,7 @@ export default function Payroll() {
                   <td>{won(b.allocated)}</td>
                   <td>{won(b.spent)}</td>
                   <td className="muted">{pend ? won(pend) : "—"}</td>
-                  <td style={{ color: rem < 0 ? "var(--bad)" : "inherit" }}>{won(rem)}</td>
+                  <td style={{ color: rem < 0 ? "var(--bad-text)" : "inherit" }}>{won(rem)}</td>
                   <td><div className="bar" style={{ width: 80, display: "inline-block", verticalAlign: "middle" }}><i style={{ width: `${Math.min(rate, 100)}%`, background: rate > 90 ? "var(--bad)" : "var(--brand)" }} /></div> {rate}%</td>
                 </tr>
               ); })}

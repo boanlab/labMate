@@ -50,6 +50,15 @@ def create_access_token(*, sub: str, role: str, name: str, delegated: bool = Fal
     )
 
 
+def create_download_token(*, sub: str) -> str:
+    """첨부 다운로드 전용 토큰.
+
+    <a href>/<img src> 는 Authorization 헤더를 붙일 수 없어 httpOnly 쿠키로 보낸다.
+    쿠키가 새더라도 API 는 열리지 않도록 접근 토큰과 분리한다.
+    """
+    return _encode({"sub": sub}, timedelta(hours=settings.download_token_hours), "download")
+
+
 def create_refresh_token(*, sub: str) -> str:
     return _encode({"sub": sub}, timedelta(days=settings.refresh_token_days), "refresh")
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useDirectory } from "../api/directory";
 import { api, apiError } from "../api/client";
 import { dateKST } from "../lib/date";
 import { useAuth } from "../auth/AuthContext";
@@ -50,7 +51,7 @@ export default function AttendanceAdmin() {
   useEffect(() => setLogPage(0), [logQ]);
 
   const members = users.filter((u) => u.role !== "admin");
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
+  const uname = useDirectory();
   const pendingReqs = reqs.filter((r) => r.status === "대기");
 
   async function loadBase() {
@@ -114,7 +115,7 @@ export default function AttendanceAdmin() {
                 <td>{r.reason}</td>
                 <td>
                   <button className="btn ghost sm" data-testid={`aa-ok-${r.id}`} onClick={() => decideReq(r, "승인")}>승인</button>{" "}
-                  <button className="btn ghost sm" style={{ color: "var(--bad)" }} onClick={() => decideReq(r, "반려")}>반려</button>
+                  <button className="btn ghost sm" style={{ color: "var(--bad-text)" }} onClick={() => decideReq(r, "반려")}>반려</button>
                 </td>
               </tr>
             ))}
@@ -148,13 +149,13 @@ export default function AttendanceAdmin() {
         <div className="card-h" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <b>구성원 근태 현황 · 이력</b>
           <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <select data-testid="aa-uid" value={uid} onChange={(e) => setUid(e.target.value)} style={{ width: "auto", margin: 0 }}>
+            <select data-testid="aa-uid" aria-label="대상 구성원" value={uid} onChange={(e) => setUid(e.target.value)} style={{ width: "auto", margin: 0 }}>
               <option value="">전체 구성원</option>
               {members.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
-            <input type="date" data-testid="aa-from" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 150, margin: 0 }} />
+            <input type="date" data-testid="aa-from" aria-label="조회 시작일" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 150, margin: 0 }} />
             <span className="muted small">~</span>
-            <input type="date" data-testid="aa-to" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 150, margin: 0 }} />
+            <input type="date" data-testid="aa-to" aria-label="조회 종료일" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 150, margin: 0 }} />
             {(from || to || uid) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); setUid(""); }}>초기화</button> : <span className="muted small">{atts.length}건</span>}
           </span>
         </div>
@@ -177,7 +178,7 @@ export default function AttendanceAdmin() {
       </div>
 
       <div className="card">
-        <div className="card-h" style={{ display: "flex", alignItems: "center", gap: 8 }}><b>출퇴근 시간 보정 이력</b><input className="tsearch" data-testid="log-search" placeholder="대상·보정자·사유 검색" value={logQ} onChange={(e) => setLogQ(e.target.value)} style={{ maxWidth: 220, marginLeft: "auto" }} /><span className="muted small">{sortedLogs.length}건</span></div>
+        <div className="card-h" style={{ display: "flex", alignItems: "center", gap: 8 }}><b>출퇴근 시간 보정 이력</b><input className="tsearch" data-testid="log-search" aria-label="보정 이력 검색" placeholder="대상·보정자·사유 검색" value={logQ} onChange={(e) => setLogQ(e.target.value)} style={{ maxWidth: 220, marginLeft: "auto" }} /><span className="muted small">{sortedLogs.length}건</span></div>
         <table className="tbl" data-testid="aa-logs">
           <thead><tr><th>보정일</th><th>대상</th><th>보정자</th><th>변경 전 → 후</th><th>사유</th></tr></thead>
           <tbody>

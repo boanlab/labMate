@@ -1,0 +1,13 @@
+{
+  "name": "labmate-qa",
+  "private": true,
+  "description": "LabMate 회귀 검증 — 실제 브라우저(Playwright)로 5개 페르소나의 업무 흐름·접근성·레이아웃·보안을 확인한다",
+  "type": "module",
+  "scripts": {
+    "test": "./run-all.sh",
+    "seed": "node scripts/setup-users.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

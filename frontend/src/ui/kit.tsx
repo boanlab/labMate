@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { dateKST } from "../lib/date";
+import { confirmDialog } from "./dialog";
 
 export function Kpi({ label, value, sub, tone, onClick, testid }: { label: string; value: ReactNode; sub?: string; tone?: "blue" | "green" | "amber" | "red"; onClick?: () => void; testid?: string }) {
   return (
@@ -32,7 +33,7 @@ export function PageHeader({ crumb, title, action, testid }: { crumb?: string; t
 export const won = (n: number) => (n || 0).toLocaleString() + "원";
 
 // 필수 입력 표시 — 라벨 옆 빨간 별표
-export function Req() { return <span style={{ color: "var(--bad)", marginLeft: 1 }} title="필수 입력">*</span>; }
+export function Req() { return <span style={{ color: "var(--bad-text)", marginLeft: 1 }} title="필수 입력">*</span>; }
 
 // 작성/수정 이력 표시 — 작성자·작성일 (+ 수정됐으면 수정자·수정일)
 export function AuthorMeta({ by, updatedBy, createdAt, updatedAt, nameOf, className = "muted small" }: {
@@ -67,4 +68,36 @@ export function Chips({ value, onChange, items, testid }: {
       ))}
     </div>
   );
+}
+
+// ── 작성 중 이탈 보호 ───────────────────────────────────────────────
+// 폼 토글·모달 닫기 시 스냅샷과 달라졌으면 확인을 받는다.
+
+/** 폼을 열 때의 상태를 문자열로 굳혀 둔다(수정 모드 포함). */
+/** 첨부 허용 형식 — 서버 목록(labmate_common/uploads.py)과 같게 유지. */
+export const ATTACH_ACCEPT =
+  ".pdf,.hwp,.hwpx,.doc,.docx,.xls,.xlsx,.xlsm,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.md,.csv,.tsv," +
+  ".png,.jpg,.jpeg,.gif,.webp,.bmp,.heic,.heif,.tif,.tiff," +
+  ".zip,.7z,.tar,.gz,.tgz,.bz2,.xz,.json,.yaml,.yml,.bib,.log";
+
+export const formSnapshot = (v: unknown) => JSON.stringify(v);
+
+/** 닫아도 되는지 확인. 변경된 내용이 없으면 곧바로 true. */
+export async function confirmDiscard(dirty: boolean): Promise<boolean> {
+  if (!dirty) return true;
+  return confirmDialog("작성 중인 내용이 있습니다. 닫으면 입력한 내용이 사라집니다.\n닫을까요?", { title: "작성 취소", danger: true });
+}
+
+/** 금액 한글 표기 — 1500000000 → "15억 원"(자릿수 오입력 방지용 보조 표시). */
+export function wonKo(n: number): string {
+  const v = Math.floor(Math.abs(Number(n) || 0));
+  if (v < 10000) return "";
+  let rest = v;
+  let out = "";
+  for (const [unit, label] of [[1e12, "조"], [1e8, "억"], [1e4, "만"]] as [number, string][]) {
+    const q = Math.floor(rest / unit);
+    if (q) { out += `${q.toLocaleString()}${label} `; rest -= q * unit; }
+  }
+  if (rest) out += rest.toLocaleString();
+  return (n < 0 ? "-" : "") + out.trim() + "원";
 }

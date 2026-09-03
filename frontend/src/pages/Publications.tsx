@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import { api, apiError } from "../api/client";
 import { todayKST } from "../lib/date";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, Card } from "../ui/kit";
+import { PageHeader, Card, ATTACH_ACCEPT } from "../ui/kit";
 import { DataTable, Col } from "../ui/DataTable";
 import { confirmDialog } from "../ui/dialog";
 import { useConfig, names } from "../api/config";
@@ -72,6 +72,7 @@ const EMPTY = {
 };
 
 export default function Publications() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const canAdd = !!me && (["prof", "staff", "admin"].includes(me.role) || !!me.delegated_admin);
   const [items, setItems] = useState<Pub[]>([]);
@@ -107,11 +108,12 @@ export default function Publications() {
     finally { setUploading(false); e.target.value = ""; }
   }
 
+  const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try {
       setItems((await api.get<Pub[]>("/projects/publications")).data);
       setProjects((await api.get("/projects/projects?kind=grant")).data);
-    } catch (e) { setErr(apiError(e)); }
+    } catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }
   }
   useEffect(() => { load(); }, []);
 
@@ -179,7 +181,7 @@ export default function Publications() {
   return (
     <div data-testid="page-publications">
       <PageHeader crumb="연구실 › 실적" title="실적" action={
-        canAdd ? <button className="btn primary" data-testid="pub-add-open" onClick={() => { if (!adding) { setEditId(""); setFiles([]); setF({ ...EMPTY, kind: KINDS[0] || "SCI" }); } setAdding((v) => !v); }}>+ 실적 등록</button> : <span className="muted small">조회 전용</span>
+        canAdd ? <button className="btn primary" data-testid="pub-add-open" onClick={() => { if (!adding) { setEditId(""); setFiles([]); setF({ ...EMPTY, kind: KINDS[0] || "SCI" }); } setAdding((v) => !v); }}>+ 실적 등록</button> : <span className="muted small" title="실적 등록·수정은 지도교수와 행정 담당이 맡습니다">조회 전용 <span className="badge s-info" style={{ marginLeft: 4 }}>등록은 지도교수·행정</span></span>
       } />
       {err && <div className="form-err" data-testid="pub-error">{err}</div>}
       {adding && (
@@ -187,82 +189,82 @@ export default function Publications() {
           <div className="card-h"><b>{editId ? "실적 수정" : "실적 등록"}</b></div>
           <div className="bd">
             {/* 종류 선택에 따라 아래 입력 항목 변경 */}
-            <label>종류</label>
-            <select data-testid="u-kind" value={f.kind} onChange={(e) => up("kind", e.target.value)}>{KINDS.map((k) => <option key={k}>{k}</option>)}</select>
+            <label htmlFor={`${uid}-1`}>종류</label>
+            <select id={`${uid}-1`} data-testid="u-kind" value={f.kind} onChange={(e) => up("kind", e.target.value)}>{KINDS.map((k) => <option key={k}>{k}</option>)}</select>
             <label style={{ marginTop: 10 }}>{family(f.kind) === "특허" ? "특허 이름" : family(f.kind) === "기타" ? "실적명" : "논문제목"}</label>
-            <input data-testid="u-title" value={f.title} onChange={(e) => up("title", e.target.value)} />
+            <input data-testid="u-title" aria-label="논문·특허 제목" value={f.title} onChange={(e) => up("title", e.target.value)} />
 
             {family(f.kind) === "논문" && (<>
               <h3 style={{ fontSize: 13, color: "var(--brand)", margin: "14px 0 6px" }}>논문 정보 <span className="muted small">({f.kind})</span></h3>
-              <label>학술지명</label>
-              <input value={f.journal} onChange={(e) => up("journal", e.target.value)} />
+              <label htmlFor={`${uid}-2`}>학술지명</label>
+              <input id={`${uid}-2`} value={f.journal} onChange={(e) => up("journal", e.target.value)} />
               <div className="grid3">
-                <div><label>게재권/집</label><input value={f.vol} onChange={(e) => up("vol", e.target.value)} /></div>
-                <div><label>게재호</label><input value={f.no} onChange={(e) => up("no", e.target.value)} /></div>
-                <div><label>페이지</label><input value={f.pages} onChange={(e) => up("pages", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-3`}>게재권/집</label><input id={`${uid}-3`} value={f.vol} onChange={(e) => up("vol", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-4`}>게재호</label><input id={`${uid}-4`} value={f.no} onChange={(e) => up("no", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-5`}>페이지</label><input id={`${uid}-5`} value={f.pages} onChange={(e) => up("pages", e.target.value)} /></div>
               </div>
               <div className="grid3">
-                <div><label>게재일</label><input type="date" data-testid="u-date" value={f.pub_date} onChange={(e) => up("pub_date", e.target.value)} /></div>
-                <div><label>발행처</label><input value={f.publisher} onChange={(e) => up("publisher", e.target.value)} /></div>
-                <div><label>발행국가</label><input value={f.country} onChange={(e) => up("country", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-6`}>게재일</label><input id={`${uid}-6`} type="date" data-testid="u-date" value={f.pub_date} onChange={(e) => up("pub_date", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-7`}>발행처</label><input id={`${uid}-7`} value={f.publisher} onChange={(e) => up("publisher", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-8`}>발행국가</label><input id={`${uid}-8`} value={f.country} onChange={(e) => up("country", e.target.value)} /></div>
               </div>
               <div className="grid3">
-                <div><label>DOI</label><input value={f.doi} onChange={(e) => up("doi", e.target.value)} /></div>
-                <div><label>ISSN</label><input value={f.issn} onChange={(e) => up("issn", e.target.value)} /></div>
-                <div><label>논문언어</label><select value={f.lang} onChange={(e) => up("lang", e.target.value)}><option>영어</option><option>한글</option></select></div>
+                <div><label htmlFor={`${uid}-9`}>DOI</label><input id={`${uid}-9`} value={f.doi} onChange={(e) => up("doi", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-10`}>ISSN</label><input id={`${uid}-10`} value={f.issn} onChange={(e) => up("issn", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-11`}>논문언어</label><select id={`${uid}-11`} value={f.lang} onChange={(e) => up("lang", e.target.value)}><option>영어</option><option>한글</option></select></div>
               </div>
               <div className="grid3">
-                <div><label>제1저자수</label><input value={f.first_authors} onChange={(e) => up("first_authors", e.target.value)} /></div>
-                <div><label>교신저자수</label><input value={f.corr_authors} onChange={(e) => up("corr_authors", e.target.value)} /></div>
-                <div><label>전체저자수</label><input value={f.total_authors} onChange={(e) => up("total_authors", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-12`}>제1저자수</label><input id={`${uid}-12`} value={f.first_authors} onChange={(e) => up("first_authors", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-13`}>교신저자수</label><input id={`${uid}-13`} value={f.corr_authors} onChange={(e) => up("corr_authors", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-14`}>전체저자수</label><input id={`${uid}-14`} value={f.total_authors} onChange={(e) => up("total_authors", e.target.value)} /></div>
               </div>
             </>)}
             {family(f.kind) === "학술대회" && (<>
               <h3 style={{ fontSize: 13, color: "var(--brand)", margin: "14px 0 6px" }}>학술대회 정보</h3>
-              <label>학술대회명</label>
-              <input value={f.conf} onChange={(e) => up("conf", e.target.value)} />
+              <label htmlFor={`${uid}-15`}>학술대회명</label>
+              <input id={`${uid}-15`} value={f.conf} onChange={(e) => up("conf", e.target.value)} />
               <div className="grid3">
-                <div><label>시작일</label><input type="date" value={f.conf_start} onChange={(e) => up("conf_start", e.target.value)} /></div>
-                <div><label>종료일</label><input type="date" value={f.conf_end} onChange={(e) => up("conf_end", e.target.value)} /></div>
-                <div><label>발표일</label><input type="date" data-testid="u-date" value={f.pub_date} onChange={(e) => up("pub_date", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-16`}>시작일</label><input id={`${uid}-16`} type="date" value={f.conf_start} onChange={(e) => up("conf_start", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-17`}>종료일</label><input id={`${uid}-17`} type="date" value={f.conf_end} onChange={(e) => up("conf_end", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-18`}>발표일</label><input id={`${uid}-18`} type="date" data-testid="u-date" value={f.pub_date} onChange={(e) => up("pub_date", e.target.value)} /></div>
               </div>
               <div className="grid3">
-                <div><label>주최기관</label><input value={f.host} onChange={(e) => up("host", e.target.value)} /></div>
-                <div><label>논문집명</label><input value={f.proceedings} onChange={(e) => up("proceedings", e.target.value)} /></div>
-                <div><label>페이지</label><input value={f.pages} onChange={(e) => up("pages", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-19`}>주최기관</label><input id={`${uid}-19`} value={f.host} onChange={(e) => up("host", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-20`}>논문집명</label><input id={`${uid}-20`} value={f.proceedings} onChange={(e) => up("proceedings", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-21`}>페이지</label><input id={`${uid}-21`} value={f.pages} onChange={(e) => up("pages", e.target.value)} /></div>
               </div>
               <div className="grid3">
-                <div><label>개최국</label><input value={f.host_country} onChange={(e) => up("host_country", e.target.value)} /></div>
-                <div><label>발표장소</label><input value={f.venue} onChange={(e) => up("venue", e.target.value)} /></div>
-                <div><label>참가국명</label><input value={f.part_countries} onChange={(e) => up("part_countries", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-22`}>개최국</label><input id={`${uid}-22`} value={f.host_country} onChange={(e) => up("host_country", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-23`}>발표장소</label><input id={`${uid}-23`} value={f.venue} onChange={(e) => up("venue", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-24`}>참가국명</label><input id={`${uid}-24`} value={f.part_countries} onChange={(e) => up("part_countries", e.target.value)} /></div>
               </div>
               <div className="grid2">
-                <div><label>공동저자수</label><input value={f.co_authors} onChange={(e) => up("co_authors", e.target.value)} /></div>
-                <div><label>전체저자수</label><input value={f.total_authors} onChange={(e) => up("total_authors", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-25`}>공동저자수</label><input id={`${uid}-25`} value={f.co_authors} onChange={(e) => up("co_authors", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-26`}>전체저자수</label><input id={`${uid}-26`} value={f.total_authors} onChange={(e) => up("total_authors", e.target.value)} /></div>
               </div>
             </>)}
             {family(f.kind) === "특허" && (<>
               <h3 style={{ fontSize: 13, color: "var(--brand)", margin: "14px 0 6px" }}>특허 정보 <span className="muted small">({f.kind})</span></h3>
               <div className="grid2">
-                <div><label>출원/등록번호</label><input value={f.reg_no} onChange={(e) => up("reg_no", e.target.value)} /></div>
-                <div><label>출원인</label><input value={f.applicant} onChange={(e) => up("applicant", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-27`}>출원/등록번호</label><input id={`${uid}-27`} value={f.reg_no} onChange={(e) => up("reg_no", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-28`}>출원인</label><input id={`${uid}-28`} value={f.applicant} onChange={(e) => up("applicant", e.target.value)} /></div>
               </div>
               <div className="grid2">
-                <div><label>출원/등록일</label><input type="date" data-testid="u-date" value={f.pub_date} onChange={(e) => up("pub_date", e.target.value)} /></div>
-                <div><label>발명자수</label><input data-testid="u-invcount" value={invCount} readOnly title="발명자(소속)을 콤마(,)로 구분해 자동 계산" style={{ background: "var(--soft)", cursor: "not-allowed" }} /></div>
+                <div><label htmlFor={`${uid}-29`}>출원/등록일</label><input id={`${uid}-29`} type="date" data-testid="u-date" value={f.pub_date} onChange={(e) => up("pub_date", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-30`}>발명자수</label><input id={`${uid}-30`} data-testid="u-invcount" value={invCount} readOnly title="발명자(소속)을 콤마(,)로 구분해 자동 계산" style={{ background: "var(--soft)", cursor: "not-allowed" }} /></div>
               </div>
             </>)}
             {family(f.kind) === "기타" && (
               <div className="grid2" style={{ marginTop: 10 }}>
-                <div><label>등록일</label><input type="date" data-testid="u-date" value={f.pub_date} onChange={(e) => up("pub_date", e.target.value)} /></div>
+                <div><label htmlFor={`${uid}-31`}>등록일</label><input id={`${uid}-31`} type="date" data-testid="u-date" value={f.pub_date} onChange={(e) => up("pub_date", e.target.value)} /></div>
               </div>
             )}
 
             <label style={{ marginTop: 10 }}>{family(f.kind) === "특허" ? "발명자(소속)" : "저자(소속)"}</label>
-            <input data-testid="u-authors" value={f.authors} onChange={(e) => up("authors", e.target.value)} placeholder="예: 홍길동(단국대), 김연구(단국대)" />
+            <input data-testid="u-authors" aria-label="저자" value={f.authors} onChange={(e) => up("authors", e.target.value)} placeholder="예: 홍길동(단국대), 김연구(단국대)" />
             <label style={{ marginTop: 10 }}>{family(f.kind) === "특허" ? "특허사사" : "사사"}{f.funding_type === "연구과제" && selFunding.length ? ` · ${selFunding.length}건 선택` : ""} {f.funding_type === "연구과제" && <span className="muted small">(과제 중복 선택 가능)</span>}</label>
             <div className="grid3">
-              <select data-testid="u-funding-type" value={f.funding_type} onChange={(e) => setF((s) => ({ ...s, funding_type: e.target.value, funding: "" }))}>
+              <select data-testid="u-funding-type" aria-label="사사 유형" value={f.funding_type} onChange={(e) => setF((s) => ({ ...s, funding_type: e.target.value, funding: "" }))}>
                 <option>연구과제</option><option>기타</option>
               </select>
               <div style={{ gridColumn: "span 2" }}>
@@ -274,7 +276,7 @@ export default function Publications() {
               </div>
             </div>
             <label style={{ marginTop: 10 }}>증빙 파일 첨부 (PDF·이미지 등, 여러 개 가능)</label>
-            <input type="file" multiple data-testid="u-file" onChange={onUpload} />
+            <input type="file" multiple accept={ATTACH_ACCEPT} data-testid="u-file" aria-label="증빙 파일" onChange={onUpload} />
             {uploading && <div className="muted small">업로드 중…</div>}
             {files.map((fi, i) => (
               <div key={i} className="io" style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
@@ -285,7 +287,7 @@ export default function Publications() {
             <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
               <button className="btn primary" data-testid="pub-add-submit">{editId ? "저장" : "등록"}</button>
               <button type="button" className="btn ghost" data-testid="pub-add-cancel" onClick={() => { setAdding(false); setEditId(""); setFiles([]); }}>취소</button>
-              {editId && <button type="button" data-testid="pub-del" onClick={async () => { const u = items.find((x) => x.id === editId); if (u && await delPub(u)) { setAdding(false); setEditId(""); setFiles([]); } }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
+              {editId && <button type="button" data-testid="pub-del" onClick={async () => { const u = items.find((x) => x.id === editId); if (u && await delPub(u)) { setAdding(false); setEditId(""); setFiles([]); } }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
             </div>
           </div>
         </form>
@@ -314,7 +316,7 @@ export default function Publications() {
 
       <DataTable rows={items} cols={cols} testid="pub-table" searchPlaceholder="제목·저자·학술지 검색…"
         searchKeys={(u) => [u.title, u.authors, u.funding].join(" ")} pageSize={12} defaultSort="year" defaultDir={-1}
-        chips={{ get: seriesOf, values: KINDS }} empty="실적 없음" />
+        chips={{ get: seriesOf, values: KINDS }} empty={loaded ? "실적 없음" : "불러오는 중…"} />
 
       {detail && (
         <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) setDetail(null); }}>

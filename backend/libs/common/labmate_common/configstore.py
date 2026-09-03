@@ -1,14 +1,8 @@
-"""관리자 편집형 마스터데이터(설정) 공통 저장소.
+"""관리자 편집형 마스터데이터(설정) 저장소.
 
-각 서비스가 자기 도메인의 드롭다운/규칙 마스터(비목·휴가종류·결재 문서유형·예약자원·
-등급단가 등)를 코드 상수가 아니라 DB에 보관하고 관리자 API로 편집할 수 있게 한다.
-
-사용법(서비스 main.py):
-    from labmate_common.configstore import make_config_router
-    app.include_router(make_config_router(DEFAULTS))
-
-`DEFAULTS`는 {키: 기본값} 딕셔너리. 미설정 키는 기본값으로 응답하므로
-프론트는 항상 완전한 마스터셋을 받는다(빈 DB에서도 동작).
+드롭다운·규칙 마스터(비목·휴가종류·결재 문서유형·예약자원·등급단가)를 DB 에 두고
+관리자 API 로 편집. 서비스 main.py 에서 `make_config_router(DEFAULTS)` 를 mount.
+DEFAULTS 는 {키: 기본값} — 미설정 키는 기본값으로 응답(빈 DB 에서도 동작).
 """
 from __future__ import annotations
 

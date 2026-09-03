@@ -13,6 +13,7 @@ export default function Login() {
   const [brand, setBrand] = useState<{ login_logo?: string; login_subtitle?: string }>({});
   useEffect(() => { api.get("/boards/branding").then((r) => setBrand(r.data)).catch(() => {}); }, []);
   const [busy, setBusy] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,17 +33,34 @@ export default function Login() {
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <div className="brand">
-          {brand.login_logo ? <img className="brand-logo" src={fileUrl(brand.login_logo)} alt="로고" style={{ width: "100%", maxWidth: 200, height: "auto", display: "block", margin: 0 }} /> : <><span className="brand-badge">L</span>LabMate</>}
+          {brand.login_logo && !logoFailed
+            // 첨부는 로그인해야 열리므로, 공개 경로가 아닌 예전 로고는 안 보일 수 있다 → 글자 브랜드로 되돌린다
+            ? <img className="brand-logo" src={fileUrl(brand.login_logo)} alt="로고" onError={() => setLogoFailed(true)} style={{ width: "100%", maxWidth: 200, height: "auto", display: "block", margin: 0 }} />
+            : <><span className="brand-badge">L</span>LabMate</>}
         </div>
         <div className="muted" style={{ marginTop: 2, marginBottom: 20 }}>
           {brand.login_subtitle || "연구실 그룹웨어"}
         </div>
-        <label>이메일</label>
-        <input data-testid="login-email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
-        <label>비밀번호</label>
+        <label htmlFor="login-email">이메일</label>
         <input
+          id="login-email"
+          data-testid="login-email"
+          type="email"
+          inputMode="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="username"
+        />
+        <label htmlFor="login-password">비밀번호</label>
+        <input
+          id="login-password"
           data-testid="login-password"
           type="password"
+          required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"

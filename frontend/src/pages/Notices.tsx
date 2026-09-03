@@ -1,18 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { richHtml } from "../ui/richHtml";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST, dateKST } from "../lib/date";
 import { api, apiError } from "../api/client";
+import { useDetailParam } from "../lib/useDetailParam";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
-import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
+import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard, ATTACH_ACCEPT } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 interface TFile { name: string; url: string; }
 interface Notice { id: string; title: string; body: string; by_id: string; required: boolean; due: string | null; acked_user_ids: string[]; link?: string; files?: TFile[]; target_user_ids?: string[]; updated_by?: string; created_at?: string; updated_at?: string; }
 
 export default function Notices() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const isMgr = !!me && (["prof", "staff"].includes(me.role) || !!me.delegated_admin);   // 공지 작성·관리 = 교수·행정·위임
   const [items, setItems] = useState<Notice[]>([]);
@@ -21,27 +25,45 @@ export default function Notices() {
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState("");
   const [open, setOpen] = useState<Notice | null>(null);
+  const detail = useDetailParam(items, open, (n) => setOpen(n), () => setOpen(null));   // 상세를 URL(?open=)에 반영
   const [q, setQ] = useState("");
   const emptyForm = { title: "", required: false, due: "", link: "", files: [] as TFile[], targetMode: "all" as "all" | "select", target_user_ids: [] as string[], by_id: "" };
   const [form, setForm] = useState(emptyForm);
   const [body, setBody] = useState("");
+  const [snap, setSnap] = useState("");   // 폼을 열 때의 상태 — 작성 중 이탈 경고 판정용
+  const [baseAt, setBaseAt] = useState<string | null>(null);   // 편집 시작 시점(낙관적 잠금)
   const today = todayKST();
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
+  const uname = useDirectory();
   const members = users.filter((u) => u.active !== false && u.role !== "admin");
 
+  const tableRef = useColumnResize("notices");
+  const sort = useTableSort({ key: "created", dir: -1 }, "notices");   // 기본: 최근 등록순
+  const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try {
       setItems((await api.get<Notice[]>("/boards/notices")).data);
       setUsers((await api.get<any[]>("/members/users")).data);
-    } catch (e) { setErr(apiError(e)); }
+    } catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }
   }
   useEffect(() => { load(); }, []);
 
-  function openForm() { setEditId(""); setForm({ ...emptyForm, by_id: me?.id || "" }); setAdding(true); setBody(""); }
+  function openForm() {
+    setBaseAt(null);
+    const f = { ...emptyForm, by_id: me?.id || "" };
+    setEditId(""); setForm(f); setAdding(true); setBody(""); setSnap(formSnapshot({ form: f, body: "" }));
+  }
+  function closeForm() { setAdding(false); setEditId(""); setForm(emptyForm); setBody(""); setSnap(""); }
+  // 상단 토글 버튼 — 작성 중이면 확인 후 닫는다
+  async function toggleForm() {
+    if (!adding) return openForm();
+    if (!(await confirmDiscard(formSnapshot({ form, body }) !== snap))) return;
+    closeForm();
+  }
   function editNotice(n: Notice) {
     setEditId(n.id);
     setForm({ title: n.title, required: n.required, due: n.due || "", link: n.link || "", files: n.files || [], targetMode: (n.target_user_ids && n.target_user_ids.length) ? "select" : "all", target_user_ids: n.target_user_ids || [], by_id: n.by_id });
-    setOpen(null); setAdding(true); setBody(n.body || "");
+    setOpen(null); setAdding(true); setBody(n.body || ""); setBaseAt(n.updated_at || null);
+    setSnap(formSnapshot({ form: { title: n.title, required: n.required, due: n.due || "", link: n.link || "", files: n.files || [], targetMode: (n.target_user_ids && n.target_user_ids.length) ? "select" : "all", target_user_ids: n.target_user_ids || [], by_id: n.by_id }, body: n.body || "" }));
   }
   function toggleTarget(uid: string) { setForm((f) => ({ ...f, target_user_ids: f.target_user_ids.includes(uid) ? f.target_user_ids.filter((x) => x !== uid) : [...f.target_user_ids, uid] })); }
   async function uploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -57,10 +79,13 @@ export default function Notices() {
     e.preventDefault(); setErr("");
     if (!form.title.trim()) return setErr("제목을 입력하세요");
     if (!body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, "").trim()) return setErr("내용을 입력하세요");
+    // 이미 지난 마감일은 올리는 순간 "초과" 로 뜨는 무의미한 공지가 된다(달력 min 은 직접 입력으로 우회 가능).
+    if (form.due && form.due < today && !editId) return setErr("확인 마감일이 이미 지났습니다 — 오늘 이후로 지정하세요");
     const payload = {
       title: form.title, body, required: form.required, due: form.due || null,
       link: form.link, files: form.files, target_user_ids: form.targetMode === "select" ? form.target_user_ids : [],
       notify_uids: form.targetMode === "all" ? members.map((u) => u.id) : [],   // 전체 공지 알림 대상(전 구성원)
+      base_updated_at: editId ? baseAt : null,   // 다른 사람이 먼저 고쳤는지 서버가 확인
     };
     try {
       if (editId) await api.patch(`/boards/notices/${editId}`, payload);
@@ -70,7 +95,7 @@ export default function Notices() {
   }
   async function delNotice(n: Notice) {
     if (!await confirmDialog("이 공지를 삭제할까요?")) return;
-    try { await api.delete(`/boards/notices/${n.id}`); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
+    try { await api.delete(`/boards/notices/${n.id}`); detail.hide(); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
   }
   async function ack(n: Notice) {
     try { const r = await api.post<Notice>(`/boards/notices/${n.id}/ack`); if (open) setOpen(r.data); load(); } catch (e) { setErr(apiError(e)); }
@@ -78,7 +103,15 @@ export default function Notices() {
 
   const audience = (n: Notice) => (n.target_user_ids && n.target_user_ids.length) ? n.target_user_ids : members.map((u) => u.id);
   const ackInfo = (n: Notice) => { const aud = audience(n); return { acked: aud.filter((id) => n.acked_user_ids.includes(id)).length, total: aud.length }; };
-  const shown = items.filter((n) => !q.trim() || `${n.title} ${stripHtml(n.body || "")}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const filtered = items.filter((n) => !q.trim() || `${n.title} ${stripHtml(n.body || "")}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = sort.apply(filtered, {
+    title: (n) => n.title,
+    author: (n) => uname(n.by_id),
+    created: (n) => n.created_at || "",
+    target: (n) => (n.target_user_ids?.length ? `선택 ${n.target_user_ids.length}` : "전체"),
+    due: (n) => n.due || "",
+    ack: (n) => (mustAck(n) ? (n.acked_user_ids || []).includes(me?.id || "") ? 1 : 0 : 2),
+  });
   const listRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [q]);
@@ -96,7 +129,7 @@ export default function Notices() {
         <PageHeader crumb={"소통 › 공지사항" + (open.required ? " · 필독" : "")} title={open.title} action={
           <span style={{ display: "flex", gap: 6 }}>
             {canEdit(open) && <button className="btn ghost" onClick={() => editNotice(open)}>수정</button>}
-            <button className="btn ghost" onClick={() => setOpen(null)}>목록</button>
+            <button className="btn ghost" data-testid="notice-back" onClick={detail.hide}>목록</button>
           </span>
         } />
         {err && <div className="form-err" data-testid="notice-error">{err}</div>}
@@ -139,7 +172,7 @@ export default function Notices() {
         </Card>
         {canEdit(open) && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-            <button data-testid="notice-del" onClick={() => delNotice(open)} style={{ background: "none", border: "none", color: "var(--bad)", fontSize: 11.5, padding: "2px 4px", textDecoration: "underline", opacity: 0.8 }}>공지사항 삭제</button>
+            <button data-testid="notice-del" onClick={() => delNotice(open)} style={{ background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, padding: "2px 4px", textDecoration: "underline", opacity: 0.8 }}>공지사항 삭제</button>
           </div>
         )}
       </div>
@@ -150,7 +183,7 @@ export default function Notices() {
     <div data-testid="page-notices">
       <div className="page-head">
         <div><div className="crumb">소통 › 공지사항</div><h1>공지사항</h1></div>
-        {isMgr && <button className="btn primary" data-testid="notice-add-open" onClick={() => (adding ? setAdding(false) : openForm())}>+ 공지 작성</button>}
+        {isMgr && <button className={"btn " + (adding ? "ghost" : "primary")} data-testid="notice-add-open" onClick={toggleForm}>{adding ? "닫기" : "+ 공지 작성"}</button>}
       </div>
       {err && <div className="form-err" data-testid="notice-error">{err}</div>}
       {adding && (
@@ -159,8 +192,8 @@ export default function Notices() {
             {editId && <div className="io" style={{ marginBottom: 10 }}>수정 중</div>}
             <div className="muted small" style={{ marginBottom: 8 }}>작성자 · <b>{uname(form.by_id)}</b></div>
             <div className="grid3">
-              <div style={{ gridColumn: "span 2" }}><label>제목<Req/></label><input data-testid="n-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-              <div><label>확인 마감일(선택)</label><input data-testid="n-due" type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} /></div>
+              <div style={{ gridColumn: "span 2" }}><label htmlFor={`${uid}-1`}>제목<Req/></label><input id={`${uid}-1`} data-testid="n-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+              <div><label htmlFor={`${uid}-2`}>확인 마감일(선택)</label><input id={`${uid}-2`} data-testid="n-due" type="date" min={today} value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} /></div>
             </div>
             <div className="grid3" style={{ marginTop: 4 }}>
               <div style={{ gridColumn: "span 2" }}>
@@ -181,10 +214,10 @@ export default function Notices() {
               </div>
             )}
             <label>내용<Req/></label><HtmlEditor value={body} onChange={setBody} testid="n-body" minHeight={200} />
-            <label>링크(선택)</label>
-            <input data-testid="n-link" type="url" placeholder="https://…" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
-            <label>첨부파일(선택)</label>
-            <input type="file" multiple data-testid="n-files" onChange={uploadFiles} />
+            <label htmlFor={`${uid}-3`}>링크(선택)</label>
+            <input id={`${uid}-3`} data-testid="n-link" type="url" placeholder="https://…" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
+            <label htmlFor={`${uid}-4`}>첨부파일(선택)</label>
+            <input id={`${uid}-4`} type="file" multiple accept={ATTACH_ACCEPT} data-testid="n-files" onChange={uploadFiles} />
             {!!form.files.length && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                 {form.files.map((f, i) => (
@@ -196,15 +229,23 @@ export default function Notices() {
             )}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
               <button className="btn primary" data-testid="notice-add-submit">{editId ? "저장" : "작성"}</button>
-              <button type="button" className="btn ghost" onClick={() => { setAdding(false); setEditId(""); setForm(emptyForm); }}>취소</button>
+              <button type="button" className="btn ghost" onClick={toggleForm}>취소</button>
             </div>
           </div>
         </form>
       )}
-      <div className="tbar"><input className="tsearch" data-testid="notice-search" placeholder="제목·내용 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
+      <div className="tbar"><input className="tsearch" data-testid="notice-search" aria-label="공지 검색" placeholder="제목·내용 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
       <div className="card" ref={listRef}>
-        <table className="tbl fit" data-testid="notice-table">
-          <thead><tr><th>공지</th><th className="hide-sm" style={{ width: 90 }}>작성자</th><th className="hide-sm" style={{ width: 96 }}>작성일</th><th className="hide-sm" style={{ width: 90 }}>대상</th><th style={{ width: 96 }}>마감</th><th style={{ width: 92 }}>내 확인</th>{isMgr && <th className="hide-sm" style={{ width: 84 }}>현황</th>}</tr></thead>
+        <table ref={tableRef} className="tbl fit" data-testid="notice-table">
+          <thead><tr>
+            <th {...sort.th("title")}>공지{sort.mark("title")}</th>
+            <th {...sort.th("author", "hide-sm")} style={{ width: 90 }}>작성자{sort.mark("author")}</th>
+            <th {...sort.th("created", "hide-sm")} style={{ width: 96 }}>작성일{sort.mark("created")}</th>
+            <th {...sort.th("target", "hide-sm")} style={{ width: 90 }}>대상{sort.mark("target")}</th>
+            <th style={{ width: 96 }} {...sort.th("due")}>마감{sort.mark("due")}</th>
+            <th style={{ width: 92 }} {...sort.th("ack")}>내 확인{sort.mark("ack")}</th>
+            {isMgr && <th className="hide-sm" style={{ width: 84 }}>현황</th>}
+          </tr></thead>
           <tbody>
             {view.map((n) => {
               const acked = me ? n.acked_user_ids.includes(me.id) : false;
@@ -212,7 +253,7 @@ export default function Notices() {
               const info = ackInfo(n);
               return (
                 <tr key={n.id}>
-                  <td>{n.required && <span className="badge s-bad" style={{ marginRight: 6 }}>필독</span>}<a className="lnk" style={{ fontWeight: 600 }} data-testid={`notice-open-${n.id}`} onClick={() => setOpen(n)}>{n.title}</a><div className="muted small">{stripHtml(n.body)}{(n.files && n.files.length) ? ` 📎${n.files.length}` : ""}{n.link ? " 🔗" : ""}</div></td>
+                  <td>{n.required && <span className="badge s-bad" style={{ marginRight: 6 }}>필독</span>}<a className="lnk" style={{ fontWeight: 600 }} title={n.title} data-testid={`notice-open-${n.id}`} onClick={() => detail.show(n)}>{n.title}</a><div className="muted small" title={stripHtml(n.body)}>{stripHtml(n.body)}{(n.files && n.files.length) ? ` 📎${n.files.length}` : ""}{n.link ? " 🔗" : ""}</div></td>
                   <td className="small muted hide-sm">{uname(n.by_id)}</td>
                   <td className="small muted hide-sm">{dateKST(n.created_at) || "—"}</td>
                   <td className="small muted hide-sm">{(n.target_user_ids && n.target_user_ids.length) ? `선택 ${n.target_user_ids.length}명` : "전체"}</td>
@@ -222,7 +263,7 @@ export default function Notices() {
                 </tr>
               );
             })}
-            {!shown.length && <tr><td colSpan={isMgr ? 7 : 6} className="muted">{items.length ? "검색 결과 없음" : "공지 없음"}</td></tr>}
+            {!shown.length && <tr><td colSpan={isMgr ? 7 : 6} className="muted">{!loaded ? "불러오는 중…" : items.length ? "검색 결과 없음" : "아직 등록된 공지가 없습니다"}</td></tr>}
           </tbody>
         </table>
       </div>

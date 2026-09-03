@@ -19,10 +19,15 @@ async function downloadBlob(path: string, filename: string) {
 }
 
 // 역할별 모듈 접근 매트릭스(프론트 표현용 — 실제 권한은 각 서비스가 강제)
-const MODULES = ["대시보드", "캘린더", "연구과제", "프로젝트", "전자결재", "자원예약", "공지", "게시판", "회의록", "연구비집행", "예산", "학생인건비", "근태", "휴가", "구성원", "실적", "교육", "자산", "인프라"];
+const MODULES = ["대시보드", "캘린더", "연구과제", "프로젝트", "세부업무", "연구노트", "전자결재", "자원예약", "공지", "게시판", "회의록", "연구비집행", "예산", "학생인건비", "근태", "근태 관리", "휴가", "구성원", "실적", "교육", "아카이브", "자산", "인프라", "환경설정", "감사로그"];
 function perm(role: string, mod: string): "rw" | "r" | "-" {
-  // 관리자(admin)는 대시보드·구성원·환경설정만
-  if (role === "admin") return mod === "대시보드" || mod === "구성원" ? "rw" : "-";
+  // 관리자(admin)는 대시보드·구성원·환경설정·감사로그만
+  if (role === "admin") {
+    if (mod === "감사로그") return "r";                                        // 조회 전용
+    return ["대시보드", "구성원", "환경설정"].includes(mod) ? "rw" : "-";
+  }
+  if (mod === "환경설정" || mod === "감사로그") return "-";                     // 관리자 전용
+  if (mod === "근태 관리") return role === "prof" ? "rw" : "-";                 // 구성원 근태 승인·보정=지도교수만
   const manage = role === "prof" || role === "staff";   // 도메인 관리자급
   switch (mod) {
     case "예산": case "연구비집행": return manage ? "rw" : "-";                // 연구비=교수·행정만
@@ -30,8 +35,9 @@ function perm(role: string, mod: string): "rw" | "r" | "-" {
     case "구성원": return (role === "staff" || role === "prof") ? "rw" : "r";  // 관리=지도교수·행정, 그 외 조회
     case "휴가": return "rw";                                                 // 전원 신청 가능(학사 포함)
     case "연구과제": return role === "prof" ? "rw" : "r";                      // 생성·수정=교수·위임, 그 외 조회
-    case "전자결재": case "프로젝트": case "자원예약": case "게시판": case "회의록": case "교육":
+    case "전자결재": case "프로젝트": case "자원예약": case "게시판": case "회의록": case "교육": case "연구노트":
       return role === "staff" ? "-" : "rw";                                   // 행정 차단(위임 학생은 본인 역할로 접근)
+    case "세부업무": case "아카이브": return "rw";                              // 행정 포함 전원(관리자 제외)
     case "실적": case "자산": case "인프라": return manage ? "rw" : "r";       // 관리=교수·행정, 학생 전원 조회
     default: return "rw";
   }
@@ -287,7 +293,8 @@ function BrandingPanel() {
   useEffect(() => { load(); }, []);
   async function uploadOne(file: File): Promise<string> {
     const fd = new FormData(); fd.append("files", file);
-    const r = await api.post<{ url: string }[]>("/projects/uploads", fd, { headers: { "Content-Type": "multipart/form-data" } });
+    // 로고는 설정값(data URI)으로 보관 — 첨부는 로그인해야 열리지만 로그인 화면에도 필요하다.
+    const r = await api.post<{ url: string }[]>("/boards/branding/image", fd, { headers: { "Content-Type": "multipart/form-data" } });
     return r.data?.[0]?.url || "";
   }
   async function uploadLogo(file: File) {
@@ -315,7 +322,7 @@ function BrandingPanel() {
           </div>
           {loginLogo && <button className="btn ghost sm" data-testid="brand-login-logo-remove" onClick={removeLoginLogo}>기본 로고 사용</button>}
         </div>
-        <input type="file" accept="image/*" data-testid="brand-login-logo-upload" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLoginLogo(f); e.target.value = ""; }} />
+        <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp" data-testid="brand-login-logo-upload" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLoginLogo(f); e.target.value = ""; }} />
         <label style={{ marginTop: 12 }}>로그인 부제 <span className="muted small">(기본값: "연구실 그룹웨어")</span></label>
         <div style={{ display: "flex", gap: 6 }}>
           <input data-testid="brand-login-sub" value={loginSub} placeholder="예: 소규모 연구실 그룹웨어 · 단독 운영" onChange={(e) => setLoginSub(e.target.value)} />
@@ -330,7 +337,7 @@ function BrandingPanel() {
           </div>
           {logo && <button className="btn ghost sm" data-testid="brand-logo-remove" onClick={removeLogo}>기본 로고 사용</button>}
         </div>
-        <input type="file" accept="image/*" data-testid="brand-logo-upload" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ""; }} />
+        <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp" data-testid="brand-logo-upload" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ""; }} />
       </Card>
       <Card title="연구실 이름 · 도메인" testid="brand-meta-card">
         <label>연구실 이름 <span className="muted small">(기본값: "연구실 그룹웨어")</span></label>

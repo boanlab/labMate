@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
+import { useDirectory } from "../api/directory";
 import { richHtml } from "../ui/richHtml";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
+import { useDetailParam } from "../lib/useDetailParam";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
 interface Action { id?: string; title: string; assignee_id: string; due: string; done: boolean; task_id?: string; }
@@ -21,6 +24,9 @@ function ongoing(p: any, isGrant: boolean): boolean {
 }
 
 export default function Meetings() {
+  const tableRef = useColumnResize("meetings");   // 컬럼 폭 조절
+  const sort = useTableSort({ key: "date", dir: -1 }, "meetings");   // 머리글 클릭 정렬
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const isMgr = !!me && ["prof", "staff", "admin"].includes(me.role);
   const [items, setItems] = useState<Meeting[]>([]);
@@ -31,17 +37,22 @@ export default function Meetings() {
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState<null | { id?: string }>(null);
   const [open, setOpen] = useState<Meeting | null>(null);
+  const [baseAt, setBaseAt] = useState<string | null>(null);   // 편집 시작 시점(낙관적 잠금)
+  const detail = useDetailParam(items, open, (m) => setOpen(m), () => setOpen(null));   // 상세를 URL(?open=)에 반영
   const [q, setQ] = useState("");
   const today = todayKST();
   const [form, setForm] = useState({ date: today, title: "", project_id: "", decisions: "", attendees: [] as string[], actions: [] as Action[] });
   const [dec, setDec] = useState("");
 
-  const uname = (id: string) => users.find((u) => u.id === id)?.name || id.slice(0, 6);
+  const uname = useDirectory();
   const taskById: Record<string, any> = Object.fromEntries(tasks.map((t: any) => [t.id, t]));
   const isDone = (a: Action) => (a.task_id ? taskById[a.task_id]?.status === "완료" : !!a.done);
   const projName = (id?: string) => { const p = [...grants, ...activities].find((x) => x.id === id); return p ? `${p.code} · ${p.name}` : ""; };
   const projCode = (id?: string) => [...grants, ...activities].find((x) => x.id === id)?.code || "";
-  const shown = items.filter((m) => !q.trim() || `${m.title} ${m.decisions || ""} ${projCode(m.project_id)} ${uname(m.by_id)}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = sort.apply(
+    items.filter((m) => !q.trim() || `${m.title} ${m.decisions || ""} ${projCode(m.project_id)} ${uname(m.by_id)}`.toLowerCase().includes(q.trim().toLowerCase())),
+    { date: (m) => m.date || "", code: (m) => projCode(m.project_id), title: (m) => m.title,
+      author: (m) => uname(m.by_id), att: (m) => (m.attendees || []).length });
   const listRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [q]);
@@ -53,6 +64,7 @@ export default function Meetings() {
   const mineProj = (p: any) => !!me && (p.lead_id === me.id || p.pm_id === me.id || (p.members || []).includes(me.id));
   const ongoingGrants = grants.filter((p) => (ongoing(p, true) && mineProj(p)) || p.id === form.project_id);
   const ongoingActs = activities.filter((p) => (ongoing(p, false) && mineProj(p)) || p.id === form.project_id);
+  const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try {
       setItems((await api.get<Meeting[]>("/boards/meetings")).data);
@@ -60,14 +72,14 @@ export default function Meetings() {
       api.get("/projects/projects?kind=grant").then((r) => setGrants(r.data)).catch(() => {});
       api.get("/projects/projects?kind=activity").then((r) => setActivities(r.data)).catch(() => {});
       api.get("/projects/tasks").then((r) => setTasks(r.data)).catch(() => {});
-    } catch (e) { setErr(apiError(e)); }
+    } catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }
   }
   useEffect(() => { load(); }, []);
 
-  function openNew() { setForm({ date: today, title: "", project_id: "", decisions: "", attendees: [], actions: [] }); setEditing({}); setDec(""); }
+  function openNew() { setBaseAt(null); setForm({ date: today, title: "", project_id: "", decisions: "", attendees: [], actions: [] }); setEditing({}); setDec(""); }
   function openEdit(m: Meeting) {
     setForm({ date: m.date, title: m.title, project_id: m.project_id || "", decisions: m.decisions, attendees: m.attendees || [], actions: (m.actions || []).map((a) => ({ ...a })) });
-    setEditing({ id: m.id }); setDec(m.decisions || "");
+    setEditing({ id: m.id }); setDec(m.decisions || ""); setBaseAt(m.updated_at || null);
   }
   function toggleAttendee(uid: string) {
     setForm((f) => ({ ...f, attendees: f.attendees.includes(uid) ? f.attendees.filter((x) => x !== uid) : [...f.attendees, uid] }));
@@ -94,14 +106,14 @@ export default function Meetings() {
     }
     const payload = { ...form, actions, decisions: dec };
     try {
-      if (editing?.id) await api.put(`/boards/meetings/${editing.id}`, payload);
+      if (editing?.id) await api.put(`/boards/meetings/${editing.id}`, { ...payload, base_updated_at: baseAt });
       else await api.post("/boards/meetings", payload);
       setEditing(null); load();
     } catch (e) { setErr(apiError(e)); }
   }
   async function del(m: Meeting) {
     if (!await confirmDialog("회의록을 삭제할까요?")) return;
-    try { await api.delete(`/boards/meetings/${m.id}`); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
+    try { await api.delete(`/boards/meetings/${m.id}`); detail.hide(); setOpen(null); load(); } catch (e) { setErr(apiError(e)); }
   }
   async function toggleAction(m: Meeting, a: Action) {
     try { const r = await api.post<Meeting>(`/boards/meetings/${m.id}/actions/${a.id}/toggle`); setOpen(r.data); load(); } catch (e) { setErr(apiError(e)); }
@@ -114,11 +126,11 @@ export default function Meetings() {
         <PageHeader crumb="소통 › 회의록" title={editing.id ? "회의록 수정" : "회의록 작성"} action={<button className="btn ghost" onClick={() => setEditing(null)}>목록</button>} />
         {err && <div className="form-err" data-testid="meeting-error">{err}</div>}
         <Card>
-          <div><label>제목<Req/></label><input data-testid="mt-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+          <div><label htmlFor={`${uid}-1`}>제목<Req/></label><input id={`${uid}-1`} data-testid="mt-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
           <div className="grid2" style={{ marginBottom: 10 }}>
-            <div><label>일자</label><input data-testid="mt-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-            <div><label>관련 프로젝트 <span className="muted small">(선택 시 액션아이템이 세부 업무로 등록)</span></label>
-              <select data-testid="mt-project" value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} style={{ margin: 0 }}>
+            <div><label htmlFor={`${uid}-2`}>일자</label><input id={`${uid}-2`} data-testid="mt-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+            <div><label htmlFor={`${uid}-3`}>관련 프로젝트 <span className="muted small">(선택 시 액션아이템이 세부 업무로 등록)</span></label>
+              <select id={`${uid}-3`} data-testid="mt-project" value={form.project_id} onChange={(e) => setForm({ ...form, project_id: e.target.value })} style={{ margin: 0 }}>
                 <option value="">(없음 — 회의록에서 직접 체크)</option>
                 {ongoingGrants.length > 0 && <optgroup label="연구과제">{ongoingGrants.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}</optgroup>}
                 {ongoingActs.length > 0 && <optgroup label="프로젝트">{ongoingActs.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}</optgroup>}
@@ -160,8 +172,8 @@ export default function Meetings() {
       <div data-testid="page-meeting-view">
         <PageHeader crumb="소통 › 회의록" title={open.title} action={
           <span style={{ display: "flex", gap: 6 }}>
-            {(open.by_id === me?.id || isMgr) && <button className="btn ghost" data-testid="meeting-edit" onClick={() => { openEdit(open); setOpen(null); }}>수정</button>}
-            <button className="btn ghost" onClick={() => setOpen(null)}>목록</button>
+            {(open.by_id === me?.id || isMgr) && <button className="btn ghost" data-testid="meeting-edit" onClick={() => { openEdit(open); detail.hide(); setOpen(null); }}>수정</button>}
+            <button className="btn ghost" data-testid="meeting-back" onClick={detail.hide}>목록</button>
           </span>
         } />
         {err && <div className="form-err" data-testid="meeting-error">{err}</div>}
@@ -198,7 +210,7 @@ export default function Meetings() {
         </Card>
         {(open.by_id === me?.id || isMgr) && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-            <button data-testid="meeting-del" onClick={() => del(open)} style={{ background: "none", border: "none", color: "var(--bad)", fontSize: 11.5, padding: "2px 4px", textDecoration: "underline", opacity: 0.8 }}>회의록 삭제</button>
+            <button data-testid="meeting-del" onClick={() => del(open)} style={{ background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, padding: "2px 4px", textDecoration: "underline", opacity: 0.8 }}>회의록 삭제</button>
           </div>
         )}
       </div>
@@ -216,23 +228,30 @@ export default function Meetings() {
 
       <div className="tbar"><input className="tsearch" data-testid="meeting-search" placeholder="제목·결정사항·프로젝트·작성자 검색…" value={q} onChange={(e) => setQ(e.target.value)} /><span className="muted small" style={{ marginLeft: "auto" }}>{shown.length}건</span></div>
       <div className="card" ref={listRef}>
-        <table className="tbl fit" data-testid="meeting-table">
-          <thead><tr><th style={{ width: 104 }}>일자</th><th className="hide-sm" style={{ width: 130 }}>관리코드</th><th>제목</th><th className="hide-sm" style={{ width: 100 }}>작성자</th><th className="hide-sm" style={{ width: 64 }}>참석</th><th style={{ width: 104 }}>액션</th></tr></thead>
+        <table ref={tableRef} className="tbl fit" data-testid="meeting-table">
+          <thead><tr>
+            <th {...sort.th("date")} style={{ width: 104 }}>일자{sort.mark("date")}</th>
+            <th {...sort.th("code", "hide-sm")} style={{ width: 130 }}>관리코드{sort.mark("code")}</th>
+            <th {...sort.th("title")}>제목{sort.mark("title")}</th>
+            <th {...sort.th("author", "hide-sm")} style={{ width: 100 }}>작성자{sort.mark("author")}</th>
+            <th {...sort.th("att", "hide-sm")} style={{ width: 64 }}>참석{sort.mark("att")}</th>
+            <th style={{ width: 104 }}>액션</th>
+          </tr></thead>
           <tbody>
             {view.map((m) => {
               const done = (m.actions || []).filter((a) => isDone(a)).length;
               return (
-                <tr key={m.id} style={{ cursor: "pointer" }} onClick={() => setOpen(m)}>
+                <tr key={m.id} style={{ cursor: "pointer" }} onClick={() => detail.show(m)}>
                   <td>{m.date}</td>
                   <td className="small muted hide-sm">{projCode(m.project_id) || "-"}</td>
-                  <td><a style={{ cursor: "pointer", fontWeight: 600 }} data-testid={`mt-open-${m.id}`} onClick={(e) => { e.stopPropagation(); setOpen(m); }}>{m.title}</a></td>
+                  <td><a style={{ cursor: "pointer", fontWeight: 600 }} data-testid={`mt-open-${m.id}`} onClick={(e) => { e.stopPropagation(); detail.show(m); }}>{m.title}</a></td>
                   <td className="small muted hide-sm">{uname(m.by_id)}</td>
                   <td className="hide-sm">{(m.attendees || []).length}명</td>
                   <td><span className={"badge " + (m.actions?.length && done === m.actions.length ? "s-ok" : "s-info")}>{done}/{m.actions?.length || 0}</span></td>
                 </tr>
               );
             })}
-            {!shown.length && <tr><td colSpan={6} className="muted">{items.length ? "검색 결과 없음" : "회의록 없음"}</td></tr>}
+            {!shown.length && <tr><td colSpan={6} className="muted">{!loaded ? "불러오는 중…" : items.length ? "검색 결과 없음" : "아직 등록된 회의록이 없습니다"}</td></tr>}
           </tbody>
         </table>
       </div>

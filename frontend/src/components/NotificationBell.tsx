@@ -1,13 +1,14 @@
 // 인앱 알림 센터 — 처리 대기 항목을 주기적으로 종(bell)에 표시, 새 항목은 브라우저 데스크톱 알림
 import { useEffect, useRef, useState } from "react";
-import { todayKST } from "../lib/date";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api/client";
+import { api, silent } from "../api/client";
+import { usePref } from "../api/prefs";
 import { useAuth } from "../auth/AuthContext";
 import { Icon } from "../ui/icons";
 import { registerPush, pushActive } from "../lib/push";
 
-interface Noti { id: string; title: string; sub: string; link: string; icon: string; svc?: string; read?: boolean; }
+interface Noti { id: string; title: string; sub: string; link: string; icon: string; svc?: string; read?: boolean; derived?: boolean; }
+// 데스크톱 알림 중복 방지용 — 이것만은 기기별이어야 한다(PC 마다 한 번씩 떠야 하므로 계정에 두지 않는다).
 const SEEN_KEY = "labmate.notif.seen";
 // 영구 알림을 조회할 서비스와 kind→아이콘 매핑
 const NOTIF_SVCS = ["projects", "boards", "attendance"];
@@ -21,15 +22,15 @@ export function NotificationBell() {
   const nav = useNavigate();
   const [items, setItems] = useState<Noti[]>([]);
   const [open, setOpen] = useState(false);
-  const [read, setRead] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("labmate.notif.read") || "[]"); } catch { return []; } });
-  // 영구 알림은 서버 read_at, 파생 리마인더는 localStorage 로 읽음 판정
-  const isRead = (i: Noti) => (i.svc ? !!i.read : read.includes(i.id));
+  // 파생 리마인더를 종에서 닫은 기록도 계정에 둔다 — 노트북에서 닫은 것이 데스크톱에서 되살아나지 않도록
+  const [read, setRead] = usePref<string[]>("notif_read", []);
+  // 읽음 판정 — 저장 알림은 서버 read_at, 파생 리마인더는 계정 설정(임시로 닫아 둘 수 있게).
+  const isRead = (i: Noti) => (i.derived ? read.includes(i.id) : !!i.read);
   const unread = items.filter((i) => !isRead(i));
   const ref = useRef<HTMLDivElement>(null);
-  const isMgr = !!me && (["prof", "staff", "admin"].includes(me.role) || !!me.delegated_admin);
   function markAllRead() {
-    const ids = items.map((i) => i.id); setRead(ids); localStorage.setItem("labmate.notif.read", JSON.stringify(ids));
-    setItems((list) => list.map((i) => (i.svc ? { ...i, read: true } : i)));   // 영구 알림 낙관적 읽음
+    const ids = items.map((i) => i.id); setRead(ids);
+    setItems((list) => list.map((i) => (i.derived ? i : { ...i, read: true })));   // 저장 알림 낙관적 읽음
     NOTIF_SVCS.forEach((s) => { api.post(`/${s}/notifications/read`, {}).catch(() => { /* */ }); });
   }
 
@@ -49,39 +50,20 @@ export function NotificationBell() {
 
   async function poll() {
     if (!me) return;
+    // 각 서비스가 저장 알림 + 파생 항목을 /notifications 로 함께 내려준다(3개 서비스 병렬 조회).
+    const results = await Promise.all(NOTIF_SVCS.map((s) =>
+      api.get<any[]>(`/${s}/notifications`, silent).then((r) => ({ s, rows: r.data || [] })).catch(() => ({ s, rows: [] as any[] }))));
     const out: Noti[] = [];
-    const today = todayKST();
-    // 영구 알림(서버 저장) — 참여자/담당자 지정·결재 요청/결과·댓글 등
-    for (const s of NOTIF_SVCS) {
-      try {
-        const rows = (await api.get<any[]>(`/${s}/notifications`)).data || [];
-        rows.forEach((n) => out.push({ id: "n-" + n.id, title: n.title, sub: n.body, link: n.link, icon: KIND_ICON[n.kind] || "bell", svc: s, read: !!n.read_at }));
-      } catch { /* */ }
-    }
-    // 관리자: 승인 대기 요청(역할 기반 → 파생 유지)
-    if (isMgr) {
-      try {
-        const lv = (await api.get<any[]>("/attendance/leaves/inbox")).data || [];
-        lv.forEach((l) => out.push({ id: "lv-" + l.id, title: "휴가 승인 요청", sub: `${l.type} ${l.start_date}~${l.end_date}`, link: "/leave", icon: "sun" }));
-      } catch { /* */ }
-      try {
-        const cr = (await api.get<any[]>("/attendance/attendance/correct-requests")).data || [];
-        cr.forEach((r) => { if (r.status === "대기") out.push({ id: "cr-" + r.id, title: "근태 정정 요청", sub: `${r.date} · ${r.reason || ""}`, link: "/att-admin", icon: "clock" }); });
-      } catch { /* */ }
-    }
-    try {
-      const mts = (await api.get<any[]>("/boards/meetings")).data || [];
-      mts.forEach((m) => (m.actions || []).forEach((a: any) => {
-        if (a.assignee_id === me.id && !a.done) out.push({ id: "act-" + a.id, title: "내 할 일" + (a.due && a.due <= today ? " (마감 도래)" : ""), sub: a.title, link: "/meetings", icon: "clipboard" });
+    for (const { s, rows } of results) {
+      rows.forEach((n) => out.push({
+        id: n.derived ? n.id : "n-" + n.id,
+        title: n.title, sub: n.body, link: n.link,
+        icon: KIND_ICON[n.kind] || "bell", svc: s,
+        read: !!n.read_at, derived: !!n.derived,
       }));
-    } catch { /* */ }
-    try {
-      const nt = (await api.get<any[]>("/boards/notices")).data || [];
-      nt.forEach((n) => { if (n.required && !(n.acked_user_ids || []).includes(me.id)) out.push({ id: "nt-" + n.id, title: "필독 공지 미확인", sub: n.title, link: "/notices", icon: "bell" }); });
-    } catch { /* */ }
-
+    }
     setItems(out);
-    setRead((r) => r.filter((id) => out.some((o) => o.id === id)));   // 처리된 항목은 read 목록에서도 제거
+    setRead(read.filter((id) => out.some((o) => o.id === id)));      // 처리된 항목은 read 목록에서도 제거
     // 새 항목 → 데스크톱 알림
     let seen: string[] = [];
     try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); } catch { /* */ }
@@ -96,10 +78,14 @@ export function NotificationBell() {
 
   useEffect(() => {
     poll();
-    const t = setInterval(poll, 45000);
+    // 폴링 45초 — 화면이 보일 때만, 탭 복귀 시 즉시 1회.
+    const tick = () => { if (!document.hidden) poll(); };
+    const t = setInterval(tick, 45000);
     const onFocus = () => poll();                 // 탭 복귀/처리 후 즉시 갱신
+    const onVis = () => { if (!document.hidden) poll(); };
     window.addEventListener("focus", onFocus);
-    return () => { clearInterval(t); window.removeEventListener("focus", onFocus); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(t); window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVis); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id]);
 

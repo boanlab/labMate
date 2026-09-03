@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
+import { todayKST } from "../lib/date";
 import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 
@@ -29,6 +31,7 @@ const EMPTY = {
 };
 
 export default function Members() {
+  const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { canManageUsers, me } = useAuth();
   // 위임 학생 권한상승 방지 — 교수/관리자 계정·위임·역할 변경 차단
   const isRealAdmin = !!me && (["prof", "staff", "admin"].includes(me.role) || !!me.delegated_admin);   // 위임 학생도 구성원 전체 관리 가능
@@ -45,9 +48,12 @@ export default function Members() {
   const [form, setForm] = useState({ ...EMPTY });
   const up = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
+  const tableRef = useColumnResize("members");
+  const sort = useTableSort(null, "members");   // 기본은 직급·입실일 순(sortMembers), 머리글을 누르면 그 컬럼 기준
+  const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try { setUsers((await api.get<User[]>("/members/users")).data); }
-    catch (e) { setErr(apiError(e)); }
+    catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }
   }
   useEffect(() => { load(); }, []);
 
@@ -85,8 +91,46 @@ export default function Members() {
   async function toggleInfra(u: User) {
     try { await api.patch(`/members/users/${u.id}`, { infra_manager: !u.infra_manager }); load(); } catch (e) { setErr(apiError(e)); }
   }
+  /** 오프보딩 전에 넘겨야 할 것들을 모아 본다 — 계정을 끊고 나면 무엇이 남았는지 확인하기 어렵다. */
+  async function handoverSummary(u: User): Promise<string[]> {
+    const today = todayKST();
+    const get = async <T,>(url: string): Promise<T[]> => {
+      try { return (await api.get<T[]>(url)).data || []; } catch { return []; }
+    };
+    const [tasks, assets, apprs, bookings, projects] = await Promise.all([
+      get<any>("/projects/tasks"),
+      get<any>("/resource/assets"),
+      get<any>("/boards/approvals"),
+      get<any>("/resource/bookings"),
+      get<any>("/projects/projects"),
+    ]);
+    const lines: string[] = [];
+    const myTasks = tasks.filter((t) => t.assignee_id === u.id && t.status !== "완료");
+    if (myTasks.length) lines.push(`· 진행 중 세부업무 ${myTasks.length}건 — ${myTasks.slice(0, 2).map((t) => t.title).join(", ")}${myTasks.length > 2 ? " 외" : ""}`);
+    const myAssets = assets.filter((a) => a.owner_id === u.name || a.owner_id === u.id);
+    if (myAssets.length) lines.push(`· 책임 자산 ${myAssets.length}건 — ${myAssets.slice(0, 2).map((a) => a.name).join(", ")}${myAssets.length > 2 ? " 외" : ""}`);
+    const myApprs = apprs.filter((a) => a.by_id === u.id && a.status === "진행");
+    if (myApprs.length) lines.push(`· 결재 진행 중 문서 ${myApprs.length}건`);
+    const myBk = bookings.filter((b) => b.by_id === u.id && b.date >= today);
+    if (myBk.length) lines.push(`· 예정된 자원예약 ${myBk.length}건`);
+    const myProj = projects.filter((p) => p.pm_id === u.id || (p.members || []).includes(u.id));
+    if (myProj.length) lines.push(`· 참여 중 과제·프로젝트 ${myProj.length}건 — ${myProj.slice(0, 2).map((p) => p.code).join(", ")}${myProj.length > 2 ? " 외" : ""}`);
+    return lines;
+  }
+
   async function toggleActive(u: User) {
-    if (u.active && !await confirmDialog(`${u.name} 계정을 비활성화(오프보딩)할까요?`)) return;
+    if (u.active) {
+      const lines = await handoverSummary(u);
+      const msg = [
+        `${u.name} 님을 오프보딩합니다.`,
+        "",
+        lines.length ? "인계가 필요한 항목:" : "인계할 항목이 없습니다.",
+        ...lines,
+        "",
+        "비활성화하면 로그인이 차단되고 퇴실일이 오늘로 기록됩니다. 계속할까요?",
+      ].join("\n");
+      if (!await confirmDialog(msg, { title: "구성원 오프보딩", danger: true })) return;
+    }
     try { await api.patch(`/members/users/${u.id}`, { active: !u.active }); load(); } catch (e) { setErr(apiError(e)); }
   }
   async function delUser(u: User): Promise<boolean> {
@@ -101,13 +145,18 @@ export default function Members() {
     .filter((u) => (statusFilter === "all" ? true : statusFilter === "active" ? u.active : !u.active))
     .filter((u) => !q || [u.name, u.name_en, u.email, u.dept, u.student_id, u.major, u.phone].some((f) => (f || "").toLowerCase().includes(q)))
     .sort(sortMembers);
+  const visibleSorted = sort.apply(visible, {
+    name: (u) => u.name, position: (u) => u.position || "", email: (u) => u.email,
+    rno: (u) => u.researcher_no || "", degree: (u) => u.degree || "", major: (u) => u.major || "",
+    status: (u) => (u.active ? 0 : 1),
+  });
   const listRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [query, statusFilter]);
   const pageSize = useAutoPageSize(listRef, visible.length);
   const pages = Math.max(1, Math.ceil(visible.length / pageSize));
   const cur = Math.min(page, pages - 1);
-  const view = visible.slice(cur * pageSize, cur * pageSize + pageSize);
+  const view = visibleSorted.slice(cur * pageSize, cur * pageSize + pageSize);
 
   return (
     <div data-testid="page-members">
@@ -118,9 +167,9 @@ export default function Members() {
       {err && <div className="form-err" data-testid="member-error">{err}</div>}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap", marginBottom: 10 }}>
-        <input data-testid="member-search" placeholder="이름·이메일·학번·학과·전공 검색" value={query} onChange={(e) => setQuery(e.target.value)} style={{ flex: "1 1 auto", minWidth: 0 }} />
+        <input data-testid="member-search" aria-label="구성원 검색" placeholder="이름·이메일·학번·학과·전공 검색" value={query} onChange={(e) => setQuery(e.target.value)} style={{ flex: "1 1 auto", minWidth: 0 }} />
         {canSeeInactive && (
-          <select data-testid="member-status-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} style={{ flex: "0 0 auto", width: 120 }}>
+          <select data-testid="member-status-filter" aria-label="재직 상태 필터" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} style={{ flex: "0 0 auto", width: 120 }}>
             <option value="all">전체</option>
             <option value="active">활성</option>
             <option value="inactive">비활성</option>
@@ -134,42 +183,51 @@ export default function Members() {
           <div className="card-h"><b>{editId ? "구성원 수정" : "구성원 추가"}</b></div>
           <div className="bd grid2">
             <div className="fsec first">신원</div>
-            <div><label>이름 *</label><input data-testid="m-name" value={form.name} onChange={(e) => up("name", e.target.value)} /></div>
-            <div><label>영문이름</label><input data-testid="m-nameEn" value={form.name_en} onChange={(e) => up("name_en", e.target.value)} /></div>
-            <div><label>생년월일</label><input type="date" value={form.birth} onChange={(e) => up("birth", e.target.value)} /></div>
-            <div><label>성별</label><select value={form.gender} onChange={(e) => up("gender", e.target.value)}><option value="">(선택)</option><option>남</option><option>여</option></select></div>
-            <div><label>휴대폰</label><input value={form.phone} onChange={(e) => up("phone", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-1`}>이름 *</label><input id={`${uid}-1`} data-testid="m-name" value={form.name} onChange={(e) => up("name", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-2`}>영문이름</label><input id={`${uid}-2`} data-testid="m-nameEn" value={form.name_en} onChange={(e) => up("name_en", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-3`}>생년월일</label><input id={`${uid}-3`} type="date" value={form.birth} onChange={(e) => up("birth", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-4`}>성별</label><select id={`${uid}-4`} value={form.gender} onChange={(e) => up("gender", e.target.value)}><option value="">(선택)</option><option>남</option><option>여</option></select></div>
+            <div><label htmlFor={`${uid}-5`}>휴대폰</label><input id={`${uid}-5`} value={form.phone} onChange={(e) => up("phone", e.target.value)} /></div>
             <div className="fsec">계정</div>
-            <div><label>이메일 *{editId && <span className="muted small"> (변경 불가)</span>}</label><input data-testid="m-email" value={form.email} disabled={!!editId} onChange={(e) => up("email", e.target.value)} /></div>
-            <div><label>임시 비밀번호{editId && <span className="muted small"> (입력 시 초기화)</span>}</label><input data-testid="m-temp" value={form.temp_password} placeholder={editId ? "변경 시에만 입력" : ""} onChange={(e) => up("temp_password", e.target.value)} /></div>
-            <div><label>입실(입사)일</label><input type="date" value={form.join_date} onChange={(e) => up("join_date", e.target.value)} /></div>
-            <div><label>퇴실(퇴사)일 <span className="muted small">(비활성화 시 자동 기록)</span></label><input type="date" value={form.exit_date} onChange={(e) => up("exit_date", e.target.value)} /></div>
-            <div><label>석사과정 입학일 <span className="muted small">(인건비 단가 적용)</span></label><input type="date" data-testid="m-master-start" value={form.master_start} onChange={(e) => up("master_start", e.target.value)} /></div>
-            <div><label>박사과정 입학일 <span className="muted small">(인건비 단가 적용)</span></label><input type="date" data-testid="m-phd-start" value={form.phd_start} onChange={(e) => up("phd_start", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-6`}>이메일 *{editId && <span className="muted small"> (변경 불가)</span>}</label><input id={`${uid}-6`} data-testid="m-email" value={form.email} disabled={!!editId} onChange={(e) => up("email", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-7`}>임시 비밀번호{editId && <span className="muted small"> (입력 시 초기화)</span>}</label><input id={`${uid}-7`} data-testid="m-temp" value={form.temp_password} placeholder={editId ? "변경 시에만 입력" : ""} onChange={(e) => up("temp_password", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-8`}>입실(입사)일</label><input id={`${uid}-8`} type="date" value={form.join_date} onChange={(e) => up("join_date", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-9`}>퇴실(퇴사)일 <span className="muted small">(비활성화 시 자동 기록)</span></label><input id={`${uid}-9`} type="date" value={form.exit_date} onChange={(e) => up("exit_date", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-10`}>석사과정 입학일 <span className="muted small">(인건비 단가 적용)</span></label><input id={`${uid}-10`} type="date" data-testid="m-master-start" value={form.master_start} onChange={(e) => up("master_start", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-11`}>박사과정 입학일 <span className="muted small">(인건비 단가 적용)</span></label><input id={`${uid}-11`} type="date" data-testid="m-phd-start" value={form.phd_start} onChange={(e) => up("phd_start", e.target.value)} /></div>
             <div className="fsec">소속</div>
-            <div><label>학과</label><input data-testid="m-dept" value={form.dept} onChange={(e) => up("dept", e.target.value)} /></div>
-            <div><label>학번</label><input data-testid="m-stid" value={form.student_id} onChange={(e) => up("student_id", e.target.value)} /></div>
-            <div><label>직급 <span className="muted small">(인건비 등급 자동 적용)</span></label><select data-testid="m-role" value={form.role} onChange={(e) => up("role", e.target.value)}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_KO[r]}</option>)}</select></div>
+            <div><label htmlFor={`${uid}-12`}>학과</label><input id={`${uid}-12`} data-testid="m-dept" value={form.dept} onChange={(e) => up("dept", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-13`}>학번</label><input id={`${uid}-13`} data-testid="m-stid" value={form.student_id} onChange={(e) => up("student_id", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-14`}>직급 <span className="muted small">(인건비 등급 자동 적용)</span></label><select id={`${uid}-14`} data-testid="m-role" value={form.role} onChange={(e) => up("role", e.target.value)}>{ROLES.map((r) => <option key={r} value={r}>{ROLE_KO[r]}</option>)}</select></div>
             <div className="fsec">과제 정보</div>
-            <div><label>과학기술인번호</label><input data-testid="m-stno" value={form.researcher_no} onChange={(e) => up("researcher_no", e.target.value)} /></div>
-            <div><label>최종학위</label><input data-testid="m-degree" value={form.degree} onChange={(e) => up("degree", e.target.value)} placeholder="예: 석사" /></div>
-            <div><label>전공</label><input data-testid="m-major" value={form.major} onChange={(e) => up("major", e.target.value)} /></div>
-            <div><label>학위취득년도</label><input value={form.grad_year} onChange={(e) => up("grad_year", e.target.value)} placeholder="예: 2023" /></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>비고</label><input value={form.note} onChange={(e) => up("note", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-15`}>과학기술인번호</label><input id={`${uid}-15`} data-testid="m-stno" value={form.researcher_no} onChange={(e) => up("researcher_no", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-16`}>최종학위</label><input id={`${uid}-16`} data-testid="m-degree" value={form.degree} onChange={(e) => up("degree", e.target.value)} placeholder="예: 석사" /></div>
+            <div><label htmlFor={`${uid}-17`}>전공</label><input id={`${uid}-17`} data-testid="m-major" value={form.major} onChange={(e) => up("major", e.target.value)} /></div>
+            <div><label htmlFor={`${uid}-18`}>학위취득년도</label><input id={`${uid}-18`} value={form.grad_year} onChange={(e) => up("grad_year", e.target.value)} placeholder="예: 2023" /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-19`}>비고</label><input id={`${uid}-19`} value={form.note} onChange={(e) => up("note", e.target.value)} /></div>
           </div>
           <div className="bd" style={{ borderTop: "1px solid var(--line2)", display: "flex", gap: 8, alignItems: "center" }}>
             <button className="btn primary" data-testid="member-add-submit">{editId ? "저장" : "추가 (첫 로그인 시 비밀번호 변경 강제)"}</button>
             <button type="button" className="btn ghost" onClick={closeForm}>취소</button>
-            {editId && <button type="button" data-testid="member-del" onClick={async () => { const u = users.find((x) => x.id === editId); if (u && await delUser(u)) closeForm(); }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
+            {editId && <button type="button" data-testid="member-del" onClick={async () => { const u = users.find((x) => x.id === editId); if (u && await delUser(u)) closeForm(); }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
           </div>
         </form>
       )}
 
       <div className="card scroll" ref={listRef}>
-        <table className="tbl" data-testid="member-table">
-          <thead><tr><th>이름</th><th>직급</th><th>이메일</th><th>과학기술인번호</th><th>최종학위</th><th>전공</th><th>상태</th>{canManageUsers && <th>관리</th>}</tr></thead>
+        <table ref={tableRef} className="tbl" data-testid="member-table">
+          <thead><tr>
+            <th {...sort.th("name")}>이름{sort.mark("name")}</th>
+            <th {...sort.th("position")}>직급{sort.mark("position")}</th>
+            <th {...sort.th("email")}>이메일{sort.mark("email")}</th>
+            <th {...sort.th("rno")}>과학기술인번호{sort.mark("rno")}</th>
+            <th {...sort.th("degree")}>최종학위{sort.mark("degree")}</th>
+            <th {...sort.th("major")}>전공{sort.mark("major")}</th>
+            <th {...sort.th("status")}>상태{sort.mark("status")}</th>
+            {canManageUsers && <th>관리</th>}
+          </tr></thead>
           <tbody>
-            {visible.length === 0 && <tr><td colSpan={canManageUsers ? 8 : 7} className="muted" style={{ textAlign: "center", padding: 16 }}>표시할 구성원이 없습니다.</td></tr>}
+            {visible.length === 0 && <tr><td colSpan={canManageUsers ? 8 : 7} className="muted" style={{ textAlign: "center", padding: 16 }}>{!loaded ? "불러오는 중…" : "표시할 구성원이 없습니다."}</td></tr>}
             {view.map((u) => (
               <tr key={u.id}>
                 <td><a className="lnk" style={{ fontWeight: 700 }} data-testid={`member-open-${u.email}`} onClick={() => setDetail(u)}>{u.name}</a>{u.delegated_admin ? <span className="badge s-pur" style={{ marginLeft: 6 }}>행정위임</span> : ""}{u.infra_manager ? <span className="badge s-info" style={{ marginLeft: 6 }}>인프라담당</span> : ""}</td>

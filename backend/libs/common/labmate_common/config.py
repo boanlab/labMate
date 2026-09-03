@@ -18,8 +18,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 15
     refresh_token_days: int = 14
+    # 첨부 다운로드 전용 쿠키의 수명(시간). 접근 토큰보다 길게 둬야 화면을 오래 열어 둔
+    # 사용자가 첨부를 눌렀을 때 갑자기 막히지 않는다. 로그아웃하면 즉시 폐기된다.
+    download_token_hours: int = 12
 
     upload_dir: str = "/data/uploads"
+    # 첨부 한 개당 상한(MB). gateway 의 client_max_body_size 보다 작아야 의미가 있다.
+    max_upload_mb: int = 30
 
     # Web Push(VAPID) — 모든 서비스가 동일 키 공유. 미설정 시 푸시 비활성(인앱 알림은 정상).
     vapid_public_key: str = ""

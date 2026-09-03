@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect } from "react";
+import { useDirectory } from "../api/directory";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { PageHeader, AuthorMeta } from "../ui/kit";
+import { PageHeader, AuthorMeta, ATTACH_ACCEPT } from "../ui/kit";
 import { confirmDialog } from "../ui/dialog";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 
@@ -10,6 +11,7 @@ interface Doc { id: string; parent_id: string; sort: number; title: string; icon
 
 // 아카이브 — 트리형 문서. 전 구성원 열람·작성·수정, 삭제는 작성자·교수. 기본 읽기 전용(수정 버튼으로 편집).
 export default function Archive() {
+  const dirName = useDirectory();   // 퇴사·삭제된 구성원도 이름으로 보이게
   const { me } = useAuth();
   const [pages, setPages] = useState<Doc[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -155,7 +157,7 @@ export default function Archive() {
                     {edit && <input className="note-tag-in" placeholder="+태그" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && tagInput.trim()) { patch(cur.id, { tags: [...cur.tags, tagInput.trim()] }); setTagInput(""); } }} />}
                     {!edit && !cur.tags.length && <span className="muted small">—</span>}
                   </span>
-                  <AuthorMeta by={cur.owner_id} updatedBy={cur.updated_by} createdAt={cur.created_at} updatedAt={cur.updated_at} nameOf={(id) => users.find((u) => u.id === id)?.name || "—"} />
+                  <AuthorMeta by={cur.owner_id} updatedBy={cur.updated_by} createdAt={cur.created_at} updatedAt={cur.updated_at} nameOf={dirName} />
                   {saved && <span className="muted small" style={{ marginLeft: "auto" }}>저장됨 {saved}</span>}
                 </div>
               </div>
@@ -164,7 +166,7 @@ export default function Archive() {
               </div>
               <div className="notes-arch-files">
                 <div className="arch-files-h">첨부파일{cur.files?.length ? ` (${cur.files.length})` : ""}
-                  {edit && <label className="btn ghost sm" style={{ marginLeft: 8 }}>+ 파일<input type="file" multiple data-testid="arch-file-input" style={{ display: "none" }} onChange={(e) => { if (e.target.files?.length) uploadFiles(cur, e.target.files); e.target.value = ""; }} /></label>}
+                  {edit && <label className="btn ghost sm" style={{ marginLeft: 8 }}>+ 파일<input type="file" multiple accept={ATTACH_ACCEPT} data-testid="arch-file-input" style={{ display: "none" }} onChange={(e) => { if (e.target.files?.length) uploadFiles(cur, e.target.files); e.target.value = ""; }} /></label>}
                 </div>
                 <div className="arch-files-list">
                   {(cur.files || []).map((f, i) => <span key={i} className="badge s-info arch-file"><a href={f.url} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "none" }}>📎 {f.name}</a>{edit && <button onClick={() => patch(cur.id, { files: cur.files.filter((_, j) => j !== i) })} style={{ marginLeft: 4, border: "none", background: "none", cursor: "pointer", color: "inherit" }}>✕</button>}</span>)}

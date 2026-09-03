@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { api, tokenStore } from "../api/client";
+import { clearDirectory } from "../api/directory";
+import { clearHints, clearPrefs } from "../api/prefs";
 
 export interface Me {
   id: string;
@@ -49,6 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, password: string) {
     const { data } = await api.post("/members/login", { email, password });
+    // 로그아웃 없이 계정만 바뀌는 경우에도 앞사람 설정이 남지 않도록 여기서도 비운다.
+    clearPrefs(); clearHints(); clearDirectory();
     tokenStore.set(data.access, data.refresh);
     await refreshMe();
     return { mustChange: !!data.must_change_password };
@@ -58,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refresh = tokenStore.refresh;
     if (refresh) api.post("/members/logout", { refresh }).catch(() => {});
     tokenStore.clear();
+    clearPrefs(); clearHints(); clearDirectory();   // 같은 PC 를 다른 사람이 쓸 때 앞사람 화면 설정이 남지 않도록
     setMe(null);
   }
 

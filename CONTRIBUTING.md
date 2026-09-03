@@ -20,9 +20,10 @@ make logs S=members-service   # 개별 서비스 로그
 | 경로 | 내용 |
 |---|---|
 | `backend/services/<service>/app/` | `models.py`(SQLAlchemy) · `schemas.py`(Pydantic) · `routers.py` · `main.py` |
-| `backend/libs/common/labmate_common/` | 공통 모듈(db · config · security · audit · configstore · dataadmin · tenancy · migrate) |
-| `frontend/src/` | React 페이지·컴포넌트 |
+| `backend/libs/common/labmate_common/` | 공통 모듈(db · config · security · deps · audit · configstore · dataadmin · tenancy · migrate · notifications · push · uploads) |
+| `frontend/src/` | `pages/` 화면 · `components/` 공용 UI · `ui/` 표·폼·다이얼로그 · `api/` 서버 통신·설정 · `lib/` 순수 유틸 |
 | `deploy/` | nginx 게이트웨이 · postgres 초기화 |
+| `qa/` | 회귀 검증(Playwright) — `make qa` |
 
 서비스 6종(members · projects · funds · attendance · boards · resource)은 독립 DB를 사용하고 공통 JWT로 인증을 공유합니다.
 
@@ -54,4 +55,5 @@ PR과 `main` push마다 GitHub Actions(`.github/workflows/ci.yml`)가 돕니다.
 1. 브랜치 생성 후 작업합니다.
 2. 백엔드 변경 시 `make dev-up && make health`로 정상 기동을 확인합니다.
 3. 게이트웨이가 옛 컨테이너 IP를 캐시하면 `make gateway-restart`.
-4. PR에 변경 의도와 영향 범위를 간략히 적습니다.
+4. 새 동작을 추가했으면 `qa/scripts/`에 검증도 함께 넣고, 로컬 스택(`make dev-up`)에 대고 `make qa`로 돌려 확인합니다. 이 회귀는 CI 에 물려 있지 않습니다 — 전제 데이터가 쌓인 로컬 DB에서만 안정적으로 통과합니다(빈 DB 대응은 별도 과제).
+5. PR에 변경 의도와 영향 범위를 간략히 적습니다.

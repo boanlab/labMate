@@ -6,7 +6,7 @@ from datetime import datetime
 
 from datetime import date as date_t
 
-from sqlalchemy import Boolean, Date, DateTime, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from labmate_common.db import Base
@@ -62,3 +62,16 @@ class User(OrgScoped, SoftDelete, Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UserPref(Base):
+    """사용자별 화면 설정(표 컬럼 폭·정렬·테마 등) — 계정에 저장해 기기가 바뀌어도 유지.
+
+    키가 사용자 id 라 org 격리 불필요.
+    """
+    __tablename__ = "user_prefs"
+
+    user_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
