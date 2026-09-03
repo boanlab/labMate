@@ -7,6 +7,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, Req } from "../ui/kit";
 import { useConfig, names } from "../api/config";
 import { todayKST } from "../lib/date";
+import { usePref } from "../api/prefs";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { MentorButton } from "../ui/Mentor";
 
@@ -62,6 +63,8 @@ export default function Calendar() {
     setForm((f) => ({ ...f, attendees: f.attendees.includes(uid) ? f.attendees.filter((x) => x !== uid) : [...f.attendees, uid] }));
   }
   const uname = useDirectory("");
+  // 딥워크 — 평일 같은 시각에 확보해 둔 집중 시간. 일정이 아니라 표시만 한다.
+  const [deep] = usePref<{ on: boolean; from: string; to: string }>("deep_work", { on: false, from: "", to: "" });
   const evLabel = (e: Item) => {
     const n = uname(e.by_id || "");
     if (!n) return e.title;
@@ -234,6 +237,9 @@ export default function Calendar() {
               return (
                 <div key={i} className={"day" + (!inMonth ? " off" : "") + (ds === todayStr ? " today" : "")} onClick={() => inMonth && setDayModal(ds)}>
                   <div className="dn">{d.getDate()}</div>
+                  {deep?.on && inMonth && d.getDay() !== 0 && d.getDay() !== 6 && (
+                    <span className="ev deep" title={`딥워크 ${deep.from}~${deep.to}`}>🎧 {deep.from}~{deep.to}</span>
+                  )}
                   {evs.slice(0, 4).map((e) => <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={evLabel(e)}>{e.recurring ? "🔁 " : ""}{evLabel(e)}</span>)}
                   {evs.length > 4 && <span className="more">+{evs.length - 4}건</span>}
                 </div>

@@ -9,6 +9,7 @@ import { NotificationBell } from "./NotificationBell";
 import { InstallButton } from "./InstallButton";
 import { TopProgress } from "./TopProgress";
 import { GlobalSearch } from "./GlobalSearch";
+import { MentorChat } from "./MentorChat";
 
 const ROLE_LABEL: Record<string, string> = {
   prof: "지도교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리자",
@@ -130,6 +131,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       {/* 키보드 사용자가 사이드바 메뉴 전체를 건너뛰고 본문으로 바로 가도록(WCAG 2.4.1 Bypass Blocks) */}
       <a className="skip-link" href="#main" data-testid="skip-link">본문으로 건너뛰기</a>
       <TopProgress />
+      <MentorChat />
       <header className="appbar">
         <div className="appbar-l">
           <button className="hamburger" data-testid="hamburger" aria-label="메뉴 접기/펼치기" title="메뉴 접기/펼치기" onClick={toggleSidebar}>☰</button>
