@@ -174,11 +174,24 @@ export type SortState = { key: string; dir: 1 | -1 } | null;
  *   <th {...sort.th("date")}>일자</th>
  *   sort.apply(rows, { date: (r) => r.date, name: (r) => r.name })
  */
-export function useTableSort(initial: SortState = null) {
-  const [sort, setSort] = useState<SortState>(initial);
+export function useTableSort(initial: SortState = null, storageKey?: string) {
+  const prefKey = storageKey ? `sort.${storageKey}` : "";
+  const [sort, setSort] = useState<SortState>(() => (prefKey ? peekPref<SortState>(prefKey) ?? initial : initial));
+
+  // 정렬 기준도 화면 설정이라 계정에 남긴다 — 늦게 도착하면 그때 맞춘다
+  useEffect(() => {
+    if (!prefKey) return;
+    loadPrefs();
+    return onPrefsReady(() => {
+      const v = peekPref<SortState>(prefKey);
+      setSort(v === undefined ? initial : v);       // 계정에 없으면 화면 기본 정렬로
+    });
+  }, [prefKey]);
 
   function toggle(key: string) {
-    setSort((s) => (s && s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: 1 }));
+    const next: SortState = sort && sort.key === key ? { key, dir: sort.dir === 1 ? -1 : 1 } : { key, dir: 1 };
+    setSort(next);
+    if (prefKey) setPref(prefKey, next);
   }
   /** 머리글에 펼쳐 넣을 속성 — 클릭·표시·보조기술 안내를 함께 준다.
    *  extra 로 hide-sm 같은 클래스를 함께 넘길 수 있다. */

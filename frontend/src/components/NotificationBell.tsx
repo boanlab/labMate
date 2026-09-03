@@ -2,11 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, silent } from "../api/client";
+import { usePref } from "../api/prefs";
 import { useAuth } from "../auth/AuthContext";
 import { Icon } from "../ui/icons";
 import { registerPush, pushActive } from "../lib/push";
 
 interface Noti { id: string; title: string; sub: string; link: string; icon: string; svc?: string; read?: boolean; derived?: boolean; }
+// 데스크톱 알림 중복 방지용 — 이것만은 기기별이어야 한다(PC 마다 한 번씩 떠야 하므로 계정에 두지 않는다).
 const SEEN_KEY = "labmate.notif.seen";
 // 영구 알림을 조회할 서비스와 kind→아이콘 매핑
 const NOTIF_SVCS = ["projects", "boards", "attendance"];
@@ -20,14 +22,15 @@ export function NotificationBell() {
   const nav = useNavigate();
   const [items, setItems] = useState<Noti[]>([]);
   const [open, setOpen] = useState(false);
-  const [read, setRead] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem("labmate.notif.read") || "[]"); } catch { return []; } });
-  // 저장 알림은 서버 read_at, 파생 리마인더(미확인 공지·승인 대기 등)는 localStorage 로 판정.
+  // 파생 리마인더를 종에서 닫은 기록도 계정에 둔다 — 노트북에서 닫은 것이 데스크톱에서 되살아나지 않도록
+  const [read, setRead] = usePref<string[]>("notif_read", []);
+  // 저장 알림은 서버 read_at, 파생 리마인더(미확인 공지·승인 대기 등)는 계정 설정으로 판정.
   // 파생 항목은 실제로 처리해야 사라지지만, 오래 남는 리마인더는 종에서 임시로 닫을 수 있어야 한다.
   const isRead = (i: Noti) => (i.derived ? read.includes(i.id) : !!i.read);
   const unread = items.filter((i) => !isRead(i));
   const ref = useRef<HTMLDivElement>(null);
   function markAllRead() {
-    const ids = items.map((i) => i.id); setRead(ids); localStorage.setItem("labmate.notif.read", JSON.stringify(ids));
+    const ids = items.map((i) => i.id); setRead(ids);
     setItems((list) => list.map((i) => (i.derived ? i : { ...i, read: true })));   // 저장 알림 낙관적 읽음
     NOTIF_SVCS.forEach((s) => { api.post(`/${s}/notifications/read`, {}).catch(() => { /* */ }); });
   }
@@ -63,7 +66,7 @@ export function NotificationBell() {
       }));
     }
     setItems(out);
-    setRead((r) => r.filter((id) => out.some((o) => o.id === id)));   // 처리된 항목은 read 목록에서도 제거
+    setRead(read.filter((id) => out.some((o) => o.id === id)));      // 처리된 항목은 read 목록에서도 제거
     // 새 항목 → 데스크톱 알림
     let seen: string[] = [];
     try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); } catch { /* */ }

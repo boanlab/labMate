@@ -32,7 +32,7 @@ export default function MyTasks() {
   const [err, setErr] = useState("");
 
   const tableRef = useColumnResize("mytasks");
-  const sort = useTableSort({ key: "due", dir: 1 });
+  const sort = useTableSort({ key: "due", dir: 1 }, "mytasks");
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try {

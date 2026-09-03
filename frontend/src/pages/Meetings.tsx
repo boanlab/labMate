@@ -24,7 +24,7 @@ function ongoing(p: any, isGrant: boolean): boolean {
 
 export default function Meetings() {
   const tableRef = useColumnResize("meetings");   // 컬럼 폭 조절
-  const sort = useTableSort({ key: "date", dir: -1 });   // 머리글 클릭 정렬
+  const sort = useTableSort({ key: "date", dir: -1 }, "meetings");   // 머리글 클릭 정렬
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const isMgr = !!me && ["prof", "staff", "admin"].includes(me.role);

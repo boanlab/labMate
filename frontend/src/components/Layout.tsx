@@ -4,6 +4,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../ui/theme";
 import { Icon } from "../ui/icons";
 import { useConfig, fileUrl } from "../api/config";
+import { usePref } from "../api/prefs";
 import { NotificationBell } from "./NotificationBell";
 import { InstallButton } from "./InstallButton";
 import { TopProgress } from "./TopProgress";
@@ -70,14 +71,15 @@ export default function Layout({ children }: { children: ReactNode }) {
   const brandLogo = useConfig<string>("brand_logo", "");
   const labName = useConfig<string>("lab_name", "");
   const [drawer, setDrawer] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("lm_sidebar_collapsed") === "1");   // 데스크탑 사이드바 접기
+  // 사이드바 접힘도 계정에 저장 — PC 를 옮겨도 같은 상태로 시작한다
+  const [collapsed, setCollapsed] = usePref<boolean>("sidebar_collapsed", false, { hint: true });
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // 사이드 메뉴 토글 — 모바일은 드로어, 데스크탑은 접기/펼치기
   function toggleSidebar() {
     if (window.innerWidth <= 860) setDrawer((v) => !v);
-    else setCollapsed((v) => { localStorage.setItem("lm_sidebar_collapsed", v ? "0" : "1"); return !v; });
+    else setCollapsed(!collapsed);
   }
 
   // 라우트 이동 시 모바일 드로어 닫기

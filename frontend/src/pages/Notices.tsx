@@ -36,7 +36,7 @@ export default function Notices() {
   const members = users.filter((u) => u.active !== false && u.role !== "admin");
 
   const tableRef = useColumnResize("notices");
-  const sort = useTableSort({ key: "created", dir: -1 });   // 기본: 최근 등록순
+  const sort = useTableSort({ key: "created", dir: -1 }, "notices");   // 기본: 최근 등록순
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try {
