@@ -6,6 +6,7 @@ import { PageHeader, AuthorMeta } from "../ui/kit";
 import { todayKST } from "../lib/date";
 import { confirmDialog } from "../ui/dialog";
 import HtmlEditor from "../ui/HtmlEditorLazy";
+import { MentorButton } from "../ui/Mentor";
 const ROLE_KO: Record<string, string> = { prof: "교수", phd: "박사과정", master: "석사과정", under: "학부", staff: "행정", admin: "관리자" };
 interface Note { id: string; parent_id: string; sort: number; title: string; icon: string; content: string; project_id: string; tags: string[]; owner_id: string; updated_by?: string; share_uids: string[]; created_at?: string; updated_at?: string; }
 
@@ -273,6 +274,15 @@ export default function Notes() {
                     <AuthorMeta by={cur.owner_id} updatedBy={cur.updated_by} createdAt={cur.created_at} updatedAt={cur.updated_at} nameOf={dirName} />
                     {saved && <span className="muted small" style={{ marginLeft: "auto" }}>저장됨 {saved}</span>}
                   </div>
+                  {editable && (
+                    <div style={{ marginTop: 6 }}>
+                      <MentorButton feature="note" collect={() => ({
+                        title: cur.title,
+                        body: (cur.content || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+                        context: { 태그: (cur.tags || []).join(", ") },
+                      })} />
+                    </div>
+                  )}
                   {!editable && <div className="muted small" style={{ marginTop: 4 }}>읽기 전용(소유자·관리자만 편집)</div>}
                 </div>
                 <div className="notes-editor-doc">

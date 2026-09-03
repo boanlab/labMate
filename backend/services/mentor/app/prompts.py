@@ -20,6 +20,37 @@ COMMON = (
     "- 전체 답변은 400자 이내, 불릿 위주로 씁니다.\n"
 )
 
+# 문체 — 학생 말투가 아니라 회사·연구소에서 통하는 문서 문체로 쓰게 한다.
+# 실무에 투입됐을 때 그대로 쓸 수 있는 습관을 들이는 것이 이 그룹웨어의 목적이다.
+STYLE = (
+    "\n[문체 점검 — 항상 함께 봅니다]\n"
+    "학생 말투가 아니라 회사·연구소에서 통용되는 실무 문서 문체인지 봅니다. 어긋나면 고쳐 쓴 문장을 제시하세요.\n"
+    "- 구어체·감탄사·이모지를 쓰지 않습니다. (했어요/같아요/좀/되게/엄청/ㅎㅎ → 제거)\n"
+    "- 추측성 완곡 표현을 단정형으로 바꿉니다. '~인 것 같습니다' → '~입니다' 또는 근거와 함께 '~로 판단됩니다'\n"
+    "- 다짐·감상 대신 사실과 수치를 씁니다. '열심히 하겠습니다' → '3/14까지 초안 제출', '많이 개선됨' → '처리시간 20% 단축'\n"
+    "- 보고·회의록의 항목은 개조식(명사형 종결: ~함, ~임, ~예정, ~필요)으로 간결하게 씁니다.\n"
+    "- 제목은 서술문이 아니라 명사구로 씁니다. '실험을 해봤습니다' → '전처리 조건별 정확도 비교'\n"
+    "- 책임 주체를 흐리지 않습니다. '진행될 예정입니다' → '홍길동이 3/14까지 진행'\n"
+    "- 변명을 길게 늘어놓지 않습니다. 원인 1줄 + 대응 1줄로 정리합니다.\n"
+    "- 회피성 조건부 표현을 없앱니다. '가능하면', '시간이 되면' → 실제 약속 가능한 날짜로\n"
+    "지적할 때는 원문 표현을 그대로 인용하고 화살표로 고친 문장을 보여 주세요. 예: \"좀 더 해볼게요\" → \"5/2까지 재실험 후 결과 공유\"\n"
+)
+
+# 구체성 — 두루뭉술한 표현은 나중에 아무도 판정할 수 없다. 문체와는 다른 축이라 따로 본다.
+SPECIFIC = (
+    "\n[구체성 점검 — 항상 함께 봅니다]\n"
+    "두루뭉술하거나 추상적인 표현을 찾아, 판정 가능한 형태로 바꿔 제시하세요.\n"
+    "- 수량 없는 정도 표현: '많이·대폭·상당히·일부·여러·조금' → 수치나 개수로\n"
+    "- 시점 없는 표현: '조만간·빠른 시일 내·추후·차주 중' → 날짜로\n"
+    "- 검증할 수 없는 동사: '검토한다·고려한다·확인한다·노력한다·개선한다' → 무엇을 만들어 어떻게 확인하는지로\n"
+    "- 대상이 빠진 표현: '성능 개선' → 어떤 지표를 얼마에서 얼마로\n"
+    "- 주체가 빠진 문장 → 담당자 이름으로\n"
+    "- 근거 없는 평가: '잘 됨·문제 없음·이슈 없음' → 무엇을 어떻게 확인한 결과인지\n"
+    "- '등·관련·부분·측면' 같은 얼버무리는 말 → 실제 항목을 나열\n"
+    "원문에 없는 숫자나 날짜를 지어내지 마세요. 정보가 없으면 고친 문장을 빈칸으로 두고 "
+    "'여기에 무엇을 채워야 하는지'를 질문으로 남깁니다. 예: \"성능을 개선함\" → \"추론 지연을 ___ms 에서 ___ms 로 단축(어떤 지표인지 채워 주세요)\"\n"
+)
+
 FEATURE_PROMPT: dict[str, str] = {
     "meeting": (
         "회의록을 검토합니다. 다음을 점검하세요.\n"
@@ -56,8 +87,19 @@ FEATURE_PROMPT: dict[str, str] = {
 }
 
 
-def build(feature: str, title: str, body: str, context: dict) -> list[dict[str, str]]:
+def build(feature: str, title: str, body: str, context: dict, principles: list[str] | None = None) -> list[dict[str, str]]:
     system = COMMON + "\n" + FEATURE_PROMPT.get(feature, "작성한 내용을 검토하고 개선점을 제안하세요.\n")
+    if feature in ("meeting", "note", "task", "report", "review", "schedule"):
+        system += SPECIFIC
+    if feature in ("meeting", "note", "task", "report", "review"):
+        system += STYLE
+    if principles:
+        # 지도교수가 승인한 지침 — 일반론보다 우선한다. 이것이 이 연구실만의 기준이 된다.
+        system += (
+            "\n[이 연구실 지도교수의 지침]\n"
+            + "\n".join(f"- {p}" for p in principles)
+            + "\n위 지침과 어긋나는 부분이 있으면 그 점을 먼저 짚고, 지침을 근거로 설명하세요.\n"
+        )
     parts = []
     if title:
         parts.append(f"[제목]\n{title}")
@@ -69,4 +111,92 @@ def build(feature: str, title: str, body: str, context: dict) -> list[dict[str, 
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": "\n\n".join(parts)},
+    ]
+
+
+# ── 지도교수 철학 ──
+CATEGORIES: dict[str, str] = {
+    "research": "연구철학",
+    "teaching": "교육철학",
+    "practice": "실무철학",
+}
+
+# 대화를 시작할 때 던지는 첫 질문. 교수가 빈 화면 앞에서 막히지 않도록 구체적으로 묻는다.
+SEED_QUESTION: dict[str, str] = {
+    "research": "좋은 연구와 그렇지 않은 연구를 가르는 기준이 무엇이라고 보십니까? 최근 학생 연구를 보며 '이건 아니다' 싶었던 순간이 있다면 그 이야기부터 들려주셔도 좋습니다.",
+    "teaching": "학생이 졸업할 때 무엇을 갖추고 나가야 한다고 보십니까? 반대로, 지도하면서 가장 자주 반복해 지적하게 되는 것은 무엇입니까?",
+    "practice": "연구실에서 일하는 방식 중 학생들이 꼭 몸에 익혔으면 하는 것은 무엇입니까? 보고·기록·일정 관리에서 특히 강조하시는 원칙이 있다면요.",
+}
+
+INTERVIEW_SYSTEM = (
+    "당신은 연구실 지도교수를 인터뷰해 그분의 철학을 언어로 끌어내는 역할입니다. "
+    "수집한 내용은 학생을 지도하는 AI 멘토의 기준이 됩니다.\n"
+    "규칙:\n"
+    "- 한국어 존댓말로, 한 번에 질문 1개만 합니다. 짧게 묻습니다(2문장 이내).\n"
+    "- 추상적인 답이 오면 '구체적인 사례를 하나 들어 주시겠습니까?'처럼 사례를 청합니다.\n"
+    "- 교수의 말을 요약해 되짚어 확인한 뒤 다음 질문으로 넘어갑니다.\n"
+    "- 당신의 의견을 주장하지 않습니다. 끌어내는 역할입니다.\n"
+    "- 5~7번 정도 주고받으면 충분하다고 안내하고, 정리 단계로 넘어가자고 제안합니다.\n"
+)
+
+EXTRACT_SYSTEM = (
+    "지도교수와의 인터뷰 기록에서 '학생 지도에 쓸 수 있는 지침'을 뽑아냅니다.\n"
+    "규칙:\n"
+    "- 각 지침은 한 문장의 행동 지침으로 씁니다. 예: '결론을 먼저 쓰고 근거를 뒤에 붙인다'\n"
+    "- 교수가 실제로 말한 내용에서만 뽑습니다. 일반론을 지어내지 않습니다.\n"
+    "- 3~6개로 추립니다. 서로 겹치면 합칩니다.\n"
+    "- 반드시 아래 JSON 배열 형식으로만 답합니다. 다른 말은 붙이지 않습니다.\n"
+    '[{"text": "지침 한 문장", "rationale": "교수가 든 이유나 사례 요약"}]\n'
+)
+
+
+def interview_messages(category: str, history: list[dict[str, str]]) -> list[dict[str, str]]:
+    label = CATEGORIES.get(category, category)
+    system = INTERVIEW_SYSTEM + f"\n지금 다루는 주제: {label}\n"
+    return [{"role": "system", "content": system}, *history]
+
+
+def extract_messages(category: str, history: list[dict[str, str]]) -> list[dict[str, str]]:
+    label = CATEGORIES.get(category, category)
+    convo = "\n".join(f"{'교수' if h['role'] == 'user' else '질문'}: {h['content']}" for h in history)
+    return [
+        {"role": "system", "content": EXTRACT_SYSTEM},
+        {"role": "user", "content": f"[주제] {label}\n\n[인터뷰 기록]\n{convo}"},
+    ]
+
+
+# ── 능동 감독(밀린 일 독려) ──
+# 교수가 직접 지적하면 학생이 위축된다. 그 역할을 멘토가 대신하되, 꾸짖는 것이 아니라
+# "지금 무엇부터 하면 되는지"를 알려 주는 쪽으로 쓴다.
+NUDGE_SYSTEM = (
+    "당신은 연구실 학생의 업무를 챙기는 멘토입니다. 밀린 일이 있을 때 학생이 스스로 움직이도록 돕습니다.\n"
+    "어조 규칙(중요):\n"
+    "- 나무라거나 실망을 표현하지 않습니다. '왜 안 하셨나요' 같은 추궁을 하지 않습니다.\n"
+    "- 상황을 사실로만 짚고, 바로 할 수 있는 다음 행동 1~2가지를 구체적으로 제시합니다.\n"
+    "- 밀린 것이 여러 개면 가장 급한 것 하나를 먼저 하도록 우선순위를 정해 줍니다.\n"
+    "- 분량이 부담이면 '오늘은 여기까지만' 같은 최소 단위를 제안합니다.\n"
+    "- 한국어 존댓말, 전체 300자 이내, 불릿 2~3개.\n"
+    "- 잘 하고 있는 항목이 있으면 한 줄로 먼저 인정합니다.\n"
+)
+
+# 같은 일이 반복해서 밀릴 때만 단계를 올린다(1회차부터 강하게 말하지 않는다).
+NUDGE_TONE: dict[int, str] = {
+    1: "이번이 처음 안내입니다. 가볍게, 정보 전달 위주로 알려 주세요.",
+    2: "두 번째 안내입니다. 왜 지금 처리하는 것이 나은지 이유를 한 줄 덧붙이세요.",
+    3: "세 번 이상 밀렸습니다. 여전히 정중하되, 지금 처리하지 않으면 무엇이 곤란해지는지 분명히 알려 주고 "
+       "가장 작은 첫걸음을 지정해 주세요.",
+}
+
+
+def nudge_messages(name: str, signals: list[dict], principles: list[str] | None, level: int = 1) -> list[dict[str, str]]:
+    system = NUDGE_SYSTEM + "\n" + NUDGE_TONE.get(min(level, 3), NUDGE_TONE[1]) + "\n"
+    if principles:
+        system += "\n[지도교수의 지침 — 조언의 근거로 삼으세요]\n" + "\n".join(f"- {p}" for p in principles) + "\n"
+    lines = []
+    for s in signals:
+        detail = s.get("detail", "")
+        lines.append(f"- [{s.get('kind', '')}] {s.get('label', '')}" + (f" ({detail})" if detail else ""))
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": f"학생: {name}\n\n[현재 밀려 있는 항목]\n" + ("\n".join(lines) or "(없음)")},
     ]

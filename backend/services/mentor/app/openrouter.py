@@ -48,8 +48,16 @@ async def chat(key: str, model: str, messages: list[dict[str, str]], max_tokens:
     data = r.json()
     usage = data.get("usage") or {}
     choice = (data.get("choices") or [{}])[0]
+    msg = choice.get("message") or {}
+    # content 가 null 인 모델이 있다(추론형은 reasoning 에 담아 보내기도 한다).
+    text = msg.get("content") or msg.get("reasoning") or ""
+    if isinstance(text, list):        # 일부 모델은 조각 배열로 준다
+        text = "".join(p.get("text", "") for p in text if isinstance(p, dict))
+    text = (text or "").strip()
+    if not text:
+        raise MentorError(f"모델이 빈 응답을 돌려주었습니다(finish_reason={choice.get('finish_reason')}). 다른 모델을 선택해 보세요.")
     return {
-        "text": (choice.get("message") or {}).get("content", "").strip(),
+        "text": text,
         "model": data.get("model", model),
         "prompt_tokens": int(usage.get("prompt_tokens") or 0),
         "completion_tokens": int(usage.get("completion_tokens") or 0),

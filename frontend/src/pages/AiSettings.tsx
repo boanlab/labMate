@@ -12,6 +12,7 @@ interface Cfg {
   ai_enabled: boolean; ai_model: string; ai_features: Record<string, boolean>;
   ai_roles: string[]; ai_monthly_cost_cap_usd: number; ai_max_output_tokens: number;
 }
+interface CmpRow { model: string; ok: boolean; text?: string; detail?: string; cost_usd?: number; tokens?: number; seconds?: number }
 interface UsageInfo { month: string; calls: number; cost_usd: number; cap_usd: number; by_feature: Record<string, number> }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -29,6 +30,9 @@ export function AiSettingsPanel() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [cmpText, setCmpText] = useState("");
+  const [cmpModels, setCmpModels] = useState("qwen/qwen3.7-plus, anthropic/claude-sonnet-5");
+  const [cmp, setCmp] = useState<CmpRow[]>([]);
 
   async function load() {
     try {
@@ -42,6 +46,7 @@ export function AiSettingsPanel() {
     } catch (e) { setErr(apiError(e)); }
   }
   useEffect(() => { load(); }, []);
+  useEffect(() => { api.get<{ text: string }>("/mentor/compare/sample").then((r) => setCmpText(r.data.text)).catch(() => {}); }, []);
 
   async function put(k: keyof Cfg, v: any) {
     if (!cfg) return;
@@ -75,6 +80,15 @@ export function AiSettingsPanel() {
     setBusy(true);
     try { await api.delete("/mentor/key"); setMsg("키가 삭제되었습니다."); load(); }
     catch (e) { setErr(apiError(e)); } finally { setBusy(false); }
+  }
+
+  async function runCompare() {
+    setBusy(true); setErr(""); setCmp([]);
+    try {
+      const models = cmpModels.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 4);
+      const { data } = await api.post<{ results: CmpRow[] }>("/mentor/compare", { models, text: cmpText });
+      setCmp(data.results); load();
+    } catch (e) { setErr(apiError(e)); } finally { setBusy(false); }
   }
 
   async function loadModels() {
@@ -183,6 +197,40 @@ export function AiSettingsPanel() {
             </label>
           ))}
         </div>
+      </Card>
+
+      <Card title="모델 비교">
+        <p className="muted small" style={{ marginTop: 0 }}>
+          같은 글을 여러 모델에 보내 결과를 나란히 봅니다. 어느 모델이 우리 연구실 글을 잘 봐 주는지
+          직접 확인한 뒤 위에서 바꾸세요. <b>비교 호출도 사용량에 포함됩니다.</b>
+        </p>
+        <label htmlFor={`${uid}-sample`} className="muted small">점검할 예시 글</label>
+        <textarea id={`${uid}-sample`} data-testid="ai-cmp-text" rows={3} value={cmpText}
+          onChange={(e) => setCmpText(e.target.value)} style={{ width: "100%" }} />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
+          <span className="muted small">비교할 모델(최대 4개, 쉼표로 구분)</span>
+        </div>
+        <input data-testid="ai-cmp-models" value={cmpModels} onChange={(e) => setCmpModels(e.target.value)}
+          style={{ width: "100%" }} placeholder="qwen/qwen3.7-plus, anthropic/claude-sonnet-5" />
+        <button className="btn primary sm" data-testid="ai-cmp-run" disabled={busy || !st?.configured} style={{ marginTop: 6 }}
+          onClick={runCompare}>{busy ? "비교 중…" : "비교 실행"}</button>
+        {!!cmp.length && (
+          <div className="cmp-grid" data-testid="ai-cmp-out">
+            {cmp.map((r) => (
+              <div key={r.model} className="cmp-col">
+                <div className="cmp-head">
+                  <b>{r.model}</b>
+                  {r.ok
+                    ? <span className="muted small">${(r.cost_usd ?? 0).toFixed(5)} · {r.tokens}토큰 · {r.seconds}초</span>
+                    : <span className="badge s-bad">실패</span>}
+                </div>
+                <div className="mentor-body">{r.ok ? r.text : r.detail}</div>
+                {r.ok && <button className="btn ghost sm" style={{ marginTop: 6 }}
+                  onClick={() => put("ai_model", r.model)}>이 모델로 설정</button>}
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       <Card title="이번 달 사용량">
