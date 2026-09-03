@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { loadPrefs, onPrefsReady, peekPref, setPref } from "../api/prefs";
 
 /* 표 공용 도구 — 컬럼 너비 조절과 머리글 클릭 정렬.
  *
@@ -8,14 +9,15 @@ import { useEffect, useRef, useState } from "react";
 
 const MIN_W = 56;                 // 이보다 좁으면 내용이 읽히지 않는다
 const GRIP = 7;                   // 머리글 오른쪽 경계에서 이 거리 안을 잡으면 폭 조절
-const KEY = (k: string) => `lm.colw.${k}`;
+const KEY = (k: string) => `colw.${k}`;
 const DESKTOP = "(min-width: 861px)";   // 좁은 화면에서는 컬럼이 접히므로 폭 조절을 끈다
 
+// 폭은 계정에 저장한다 — 브라우저에만 두면 PC 를 바꿀 때마다 다시 맞춰야 한다.
 function load(key: string): Record<number, number> {
-  try { return JSON.parse(localStorage.getItem(KEY(key)) || "{}"); } catch { return {}; }
+  return (peekPref<Record<number, number>>(KEY(key))) || {};
 }
 function save(key: string, v: Record<number, number>) {
-  try { localStorage.setItem(KEY(key), JSON.stringify(v)); } catch { /* 저장 실패는 무시 */ }
+  setPref(KEY(key), v);
 }
 
 /**
@@ -31,6 +33,15 @@ export function useColumnResize(storageKey: string) {
   // 화면이 원래 지정한 폭. 초기화할 때 이 값으로 되돌린다.
   // (React 는 style 값이 그대로면 다시 쓰지 않으므로, 우리가 지운 값은 우리가 되살려야 한다)
   const original = useRef<string[] | null>(null);
+
+  // 설정은 세션당 한 번 받는다. 늦게 도착하면 그때 폭을 다시 입힌다.
+  useEffect(() => {
+    loadPrefs();
+    return onPrefsReady(() => {
+      const v = load(storageKey);
+      if (Object.keys(v).length) { widths.current = v; setNonce((n) => n + 1); }
+    });
+  }, [storageKey]);
 
   // React 가 다시 그리면 인라인 style 이 되돌아가므로 매 렌더 후 다시 입힌다.
   useEffect(() => {

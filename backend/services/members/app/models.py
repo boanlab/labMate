@@ -6,7 +6,7 @@ from datetime import datetime
 
 from datetime import date as date_t
 
-from sqlalchemy import Boolean, Date, DateTime, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from labmate_common.db import Base
@@ -62,3 +62,18 @@ class User(OrgScoped, SoftDelete, Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UserPref(Base):
+    """사용자별 화면 설정(표 컬럼 폭 등).
+
+    브라우저 localStorage 에만 두면 PC 를 바꿀 때마다 처음부터 맞춰야 한다.
+    계정에 붙여 두면 어디서 접속하든 같은 화면으로 시작한다.
+    org 격리가 필요 없다 — 키가 사용자 id 라 애초에 남의 것을 읽을 수 없다.
+    """
+    __tablename__ = "user_prefs"
+
+    user_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
