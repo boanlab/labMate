@@ -154,7 +154,9 @@ data/                          # postgres 데이터 · 업로드 파일(영속)
 
 ## 검증
 
-실제 브라우저(Playwright/Chromium)로 5개 페르소나의 업무 흐름·접근성·레이아웃·보안을 확인합니다. CI 에서 매 PR 마다 돕니다.
+실제 브라우저(Playwright/Chromium)로 5개 페르소나의 업무 흐름·접근성·레이아웃·보안을 확인합니다.
+전제 데이터(과제·공지·근태 등)가 쌓인 로컬 스택에서 손으로 돌리는 것을 전제로 하며, CI 에는
+물려 있지 않습니다 — 빈 DB 에서는 상당수 검증이 전제 데이터 부재로 실패합니다.
 
 ```bash
 make qa-seed   # 페르소나 계정 생성(최초 1회)
@@ -185,7 +187,7 @@ make restore FILE=data/backups/labmate_<시각>.tar.gz   # 복구(현재 DB·첨
 
 스키마 변경(컬럼 추가/개명)은 각 서비스 `main.py` lifespan의 `Base.metadata.create_all` + `rename_columns` 멱등 마이그레이션으로 적용됩니다.
 
-변경 후에는 `make qa`로 회귀 검증을 돌려 보세요. 주석은 핵심만 명사형으로 남기고 작업 이력은 적지 않습니다([CONTRIBUTING.md](CONTRIBUTING.md)).
+변경 후에는 로컬 스택에 대고 `make qa`로 회귀 검증을 돌려 보세요(CI 에는 물려 있지 않음). 주석은 핵심만 명사형으로 남기고 작업 이력은 적지 않습니다([CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ---
 

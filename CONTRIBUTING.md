@@ -45,7 +45,6 @@ PR과 `main` push마다 GitHub Actions(`.github/workflows/ci.yml`)가 돕니다.
 | `compose` | compose 파일 보간/스키마 | `docker compose config -q` |
 | `shell` | postgres init 스크립트 | `shellcheck deploy/postgres/init/*.sh` |
 | `images` | 변경된 서비스의 이미지 빌드 | `make build` |
-| `e2e` | 스택 기동 후 실제 브라우저 회귀 검증 | `make qa` |
 
 린트는 지금 실제 오류(문법·미정의 이름·미사용 임포트)만 막습니다. 스타일 규칙은 기존 코드 정리 후 `backend/ruff.toml`의 `select`에 추가하면 됩니다.
 
@@ -56,5 +55,5 @@ PR과 `main` push마다 GitHub Actions(`.github/workflows/ci.yml`)가 돕니다.
 1. 브랜치 생성 후 작업합니다.
 2. 백엔드 변경 시 `make dev-up && make health`로 정상 기동을 확인합니다.
 3. 게이트웨이가 옛 컨테이너 IP를 캐시하면 `make gateway-restart`.
-4. `make qa`로 회귀 검증을 돌립니다. 새 동작을 추가했으면 `qa/scripts/`에 검증도 함께 넣습니다.
+4. 새 동작을 추가했으면 `qa/scripts/`에 검증도 함께 넣고, 로컬 스택(`make dev-up`)에 대고 `make qa`로 돌려 확인합니다. 이 회귀는 CI 에 물려 있지 않습니다 — 전제 데이터가 쌓인 로컬 DB에서만 안정적으로 통과합니다(빈 DB 대응은 별도 과제).
 5. PR에 변경 의도와 영향 범위를 간략히 적습니다.
