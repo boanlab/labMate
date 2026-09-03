@@ -45,7 +45,7 @@ export default function Board() {
   const [baseAt, setBaseAt] = useState<string | null>(null);   // 편집 시작 시점(낙관적 잠금)
 
   const tableRef = useColumnResize("board");
-  const sort = useTableSort({ key: "created", dir: -1 });
+  const sort = useTableSort({ key: "created", dir: -1 }, "board");
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try { setItems((await api.get<Post[]>("/boards/posts")).data); api.get<any[]>("/members/users").then((r) => setUsers(r.data)).catch(() => {}); } catch (e) { setErr(apiError(e)); } finally { setLoaded(true); }

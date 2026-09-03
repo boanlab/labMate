@@ -49,7 +49,7 @@ export default function Members() {
   const up = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
   const tableRef = useColumnResize("members");
-  const sort = useTableSort();   // 기본은 직급·입실일 순(sortMembers), 머리글을 누르면 그 컬럼 기준
+  const sort = useTableSort(null, "members");   // 기본은 직급·입실일 순(sortMembers), 머리글을 누르면 그 컬럼 기준
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   async function load() {
     try { setUsers((await api.get<User[]>("/members/users")).data); }

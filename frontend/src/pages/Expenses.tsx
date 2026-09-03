@@ -70,7 +70,7 @@ export default function Expenses() {
   const afterRemain = remain === null ? null : remain - (form.amount || 0);
 
   const tableRef = useColumnResize("expenses");
-  const sort = useTableSort({ key: "date", dir: -1 });
+  const sort = useTableSort({ key: "date", dir: -1 }, "expenses");
   const [loaded, setLoaded] = useState(false);   // 첫 조회 완료 여부 — "없음"과 "불러오는 중"을 구분
   // 상신: 집행 건을 '상신'으로 올리고, 같은 내용으로 결재 문서를 만든다.
   // 결재가 승인되면 Approvals 화면이 source_ref 를 보고 이 건을 승인 처리한다.

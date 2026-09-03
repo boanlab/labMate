@@ -12,7 +12,7 @@ const RESOURCES_FB = ["세미나실", "회의실", "GPU 서버", "공용 워크�
 
 export default function Booking() {
   const tableRef = useColumnResize("booking");   // 컬럼 폭 조절
-  const sort = useTableSort();   // 머리글 클릭 정렬
+  const sort = useTableSort(null, "booking");   // 머리글 클릭 정렬
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const RESOURCE_MASTERS = useConfig<string[]>("booking_resources", RESOURCES_FB);

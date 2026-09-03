@@ -20,7 +20,7 @@ function calcDays(start_date: string, end_date: string, type: string): number {
 
 export default function Leave() {
   const tableRef = useColumnResize("leave");   // 컬럼 폭 조절
-  const sort = useTableSort();   // 머리글 클릭 정렬
+  const sort = useTableSort(null, "leave");   // 머리글 클릭 정렬
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
   const [mine, setMine] = useState<Lv[]>([]);
