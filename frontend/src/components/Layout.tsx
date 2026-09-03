@@ -30,6 +30,7 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/grants", label: "연구과제", icon: "award", roles: ["prof", "phd", "master", "under", "staff"] },
     { to: "/projects", label: "프로젝트", icon: "folder", roles: NO_STAFF },
     { to: "/tasks", label: "세부업무", icon: "clipboard", roles: ["prof", "phd", "master", "under", "staff"] },
+    { to: "/goals", label: "목표", icon: "award", roles: NO_STAFF },
     { to: "/notes", label: "연구노트", icon: "book", roles: NO_STAFF },
     { to: "/approvals", label: "전자결재", icon: "doc", roles: NO_STAFF },
     { to: "/booking", label: "자원예약", icon: "pin", roles: NO_STAFF },

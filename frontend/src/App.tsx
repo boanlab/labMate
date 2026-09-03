@@ -7,6 +7,7 @@ import ChangePassword from "./pages/ChangePassword";
 import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import Philosophy from "./pages/Philosophy";
+import Goals from "./pages/Goals";
 import MyPage from "./pages/MyPage";
 import Projects from "./pages/Projects";
 import MyTasks from "./pages/MyTasks";
@@ -63,6 +64,7 @@ function App() {
           <Route path="/grants" element={<Protected roles={STUDENT5}><Projects key="grant" kind="grant" /></Protected>} />
           <Route path="/projects" element={<Protected roles={NO_STAFF}><Projects key="activity" kind="activity" /></Protected>} />
           <Route path="/tasks" element={<Protected roles={STUDENT5}><MyTasks /></Protected>} />
+          <Route path="/goals" element={<Protected roles={NO_STAFF}><Goals /></Protected>} />
           <Route path="/notes" element={<Protected roles={NO_STAFF}><Notes /></Protected>} />
           <Route path="/publications" element={<Protected roles={STUDENT5}><Publications /></Protected>} />
           <Route path="/expenses" element={<Protected roles={["prof", "staff"]}><Expenses /></Protected>} />
