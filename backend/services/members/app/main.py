@@ -13,6 +13,7 @@ from . import models  # noqa: F401  (모델 등록)
 from labmate_common.audit import make_audit_router
 from labmate_common.tenancy import OrgMiddleware
 from labmate_common.dataadmin import make_data_admin_router
+from .models import UserPref  # noqa: F401 — create_all 대상 등록
 from .routers import router
 
 

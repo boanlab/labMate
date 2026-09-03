@@ -5,7 +5,7 @@ import { api } from "./client";
 
 // 설정 키 → 소유 서비스 매핑
 export const CONFIG_SERVICE: Record<string, string> = {
-  budget_types: "funds", grade_rates: "funds",
+  budget_types: "funds", grade_rates: "funds", expense_approval: "funds",
   leave_types: "attendance", annual_leave_default: "attendance", attendance_states: "attendance",
   approval_types: "boards", approval_templates: "boards", post_types: "boards", event_types: "boards",
   brand_logo: "boards", lab_name: "boards", base_url: "boards", login_logo: "boards", login_subtitle: "boards",

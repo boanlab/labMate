@@ -5,7 +5,7 @@ import uuid
 from datetime import date as date_t
 from datetime import datetime
 
-from sqlalchemy import JSON, Date, DateTime, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from labmate_common.db import Base
@@ -32,6 +32,7 @@ class Asset(OrgScoped, SoftDelete, Base):
     location: Mapped[str] = mapped_column(String(200), default="")
     buy_date: Mapped[date_t | None] = mapped_column(Date, nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")
+    bookable: Mapped[bool] = mapped_column(Boolean, default=False)   # 자원예약 대상(공용 장비)
 
 
 class Device(OrgScoped, SoftDelete, Base):

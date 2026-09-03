@@ -1,8 +1,4 @@
-"""중앙 감사 로그(서비스별 기록 + 관리자 집계).
-
-각 서비스가 자기 DB의 audit_logs 에 주요 행위를 남기고, 관리자 화면이 6개 서비스의
-/admin/audit 를 모아 시간순으로 보여준다(백업/복구와 동일한 집계 패턴).
-"""
+"""감사 로그 — 서비스별 audit_logs 기록 + 관리자 화면의 6개 서비스 집계."""
 from __future__ import annotations
 
 from datetime import datetime

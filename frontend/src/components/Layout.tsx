@@ -4,8 +4,11 @@ import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../ui/theme";
 import { Icon } from "../ui/icons";
 import { useConfig, fileUrl } from "../api/config";
+import { usePref } from "../api/prefs";
 import { NotificationBell } from "./NotificationBell";
 import { InstallButton } from "./InstallButton";
+import { TopProgress } from "./TopProgress";
+import { GlobalSearch } from "./GlobalSearch";
 
 const ROLE_LABEL: Record<string, string> = {
   prof: "지도교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리자",
@@ -68,22 +71,45 @@ export default function Layout({ children }: { children: ReactNode }) {
   const brandLogo = useConfig<string>("brand_logo", "");
   const labName = useConfig<string>("lab_name", "");
   const [drawer, setDrawer] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("lm_sidebar_collapsed") === "1");   // 데스크탑 사이드바 접기
+  // 사이드바 접힘도 계정에 저장 — PC 를 옮겨도 같은 상태로 시작한다
+  const [collapsed, setCollapsed] = usePref<boolean>("sidebar_collapsed", false, { hint: true });
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // 사이드 메뉴 토글 — 모바일은 드로어, 데스크탑은 접기/펼치기
   function toggleSidebar() {
     if (window.innerWidth <= 860) setDrawer((v) => !v);
-    else setCollapsed((v) => { localStorage.setItem("lm_sidebar_collapsed", v ? "0" : "1"); return !v; });
+    else setCollapsed(!collapsed);
   }
 
   // 라우트 이동 시 모바일 드로어 닫기
   useEffect(() => { setDrawer(false); setMenu(false); }, [loc.pathname]);
+  // 말줄임된 표 셀에 hover 시 title 자동 부착(위임 처리 — 화면별로 달지 않아도 된다).
+  useEffect(() => {
+    function onOver(e: MouseEvent) {
+      const t = e.target as HTMLElement | null;
+      const cell = t && t.closest ? (t.closest("td, th") as HTMLElement | null) : null;
+      if (!cell || cell.hasAttribute("title")) return;
+      if (cell.querySelector("[title]")) return;                 // 안쪽에 이미 툴팁이 있으면 둔다
+      if (cell.scrollWidth <= cell.clientWidth + 1) return;       // 잘리지 않았으면 불필요
+      const txt = (cell.textContent || "").trim();
+      if (txt) cell.setAttribute("title", txt);
+    }
+    document.addEventListener("mouseover", onOver, true);
+    return () => document.removeEventListener("mouseover", onOver, true);
+  }, []);
   // 외부 클릭·Esc 로 계정 메뉴 닫기
   useEffect(() => {
     function onDoc(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false); }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setMenu(false); }
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setMenu(false);
+      // Esc → 열린 모달 닫기. 오버레이(.modal-ovl)에 직접 click 을 보내 화면별 닫기 로직을 재사용한다.
+      // position:fixed 는 offsetParent 가 null 이므로 표시 여부는 getClientRects 로 본다.
+      const ovls = Array.from(document.querySelectorAll<HTMLElement>(".modal-ovl")).filter((el) => el.getClientRects().length > 0);
+      const top = ovls[ovls.length - 1];
+      if (top) { e.preventDefault(); top.click(); }
+    }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
@@ -99,6 +125,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className={"appshell" + (drawer ? " drawer-open" : "") + (collapsed ? " sidebar-collapsed" : "")}>
+      {/* 키보드 사용자가 사이드바 메뉴 전체를 건너뛰고 본문으로 바로 가도록(WCAG 2.4.1 Bypass Blocks) */}
+      <a className="skip-link" href="#main" data-testid="skip-link">본문으로 건너뛰기</a>
+      <TopProgress />
       <header className="appbar">
         <div className="appbar-l">
           <button className="hamburger" data-testid="hamburger" aria-label="메뉴 접기/펼치기" title="메뉴 접기/펼치기" onClick={toggleSidebar}>☰</button>
@@ -108,6 +137,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           </span>
         </div>
         <div className="appbar-r">
+          <GlobalSearch />
           <InstallButton />
           <NotificationBell />
           <button className="appbar-icon" data-testid="theme-toggle" title="다크모드" onClick={toggle}>{dark ? "☀" : "🌙"}</button>
@@ -154,7 +184,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
         <div className="side-foot muted small">LabMate · {labName || "연구실 그룹웨어"}</div>
       </aside>
-      <main className="content" data-testid="content">
+      <main className="content" id="main" tabIndex={-1} data-testid="content">
         {children}
       </main>
       </div>

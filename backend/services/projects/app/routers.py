@@ -8,7 +8,6 @@ import os
 import re
 import secrets
 import string
-import uuid as _uuid
 import zipfile
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -17,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from labmate_common.config import settings
+from labmate_common.uploads import save_uploads
 from labmate_common.db import get_db
 from labmate_common.deps import CurrentUser, get_current_user
 from labmate_common.notifications import notify
@@ -282,15 +282,7 @@ def delete_ms(mid: str, user: CurrentUser = Depends(get_current_user), db: Sessi
 @router.post("/uploads")
 async def upload_files(files: list[UploadFile] = File(...), _: CurrentUser = Depends(get_current_user)):
     """다중 파일 업로드 → [{name,url}]. 정적 서빙 경로(/uploads/<service>/...)를 반환."""
-    os.makedirs(settings.upload_dir, exist_ok=True)
-    out = []
-    for f in files:
-        ext = os.path.splitext(f.filename or "")[1][:12]
-        stored = f"{_uuid.uuid4().hex}{ext}"
-        with open(os.path.join(settings.upload_dir, stored), "wb") as w:
-            w.write(await f.read())
-        out.append({"name": f.filename, "url": f"/uploads/{settings.service_name}/{stored}"})
-    return out
+    return await save_uploads(files, dest_dir=settings.upload_dir, url_prefix=f"/uploads/{settings.service_name}")
 
 
 # ── 실적 ──
