@@ -25,8 +25,8 @@ make dev-up    # 소스에서 빌드해 기동(개발 — 소스 마운트·리�
 
 | 항목 | 값 |
 |---|---|
-| 관리자 계정 | `labmate@kloud.zone` |
-| 기본 비밀번호 | `labmate123` |
+| 관리자 계정 | `admin@example.com` |
+| 기본 비밀번호 | `labmate-admin-1234` |
 
 > 관리자 계정은 첫 배포 시 `.env`의 `ADMIN_EMAIL` / `ADMIN_PASSWORD`로 **자동 생성**됩니다(이미 관리자가 있으면 건너뜀). 로그인 후 비밀번호 변경을 권장합니다.
 
@@ -42,8 +42,8 @@ GATEWAY_PORT=8080                  # 외부 노출 포트
 POSTGRES_USER=labmate
 POSTGRES_PASSWORD=change-me        # 강력한 값으로 변경
 JWT_SECRET=change-me               # openssl rand -hex 32
-ADMIN_EMAIL=labmate@kloud.zone     # 첫 배포 자동 관리자 시드
-ADMIN_PASSWORD=labmate123
+ADMIN_EMAIL=admin@example.com     # 첫 배포 자동 관리자 시드
+ADMIN_PASSWORD=labmate-admin-1234
 
 VAPID_PUBLIC_KEY=                  # Web Push(선택). 미설정 시 인앱 알림만
 VAPID_PRIVATE_KEY=                 # 공개키=uncompressed point, 개인키=raw 32B scalar (base64url)

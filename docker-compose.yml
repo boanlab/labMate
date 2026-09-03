@@ -50,8 +50,8 @@ services:
       SERVICE_NAME: members
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-labmate}:${POSTGRES_PASSWORD}@postgres:5432/labmate_members
       UPLOAD_DIR: /data/uploads/members
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-labmate@kloud.zone}        # 첫 배포 자동 관리자 시드
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-labmate123}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}        # 첫 배포 자동 관리자 시드
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-labmate-admin-1234}
     volumes:
       - ./data/uploads/members:/data/uploads/members
     depends_on:
