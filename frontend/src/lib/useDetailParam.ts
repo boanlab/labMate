@@ -2,14 +2,11 @@ import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 
 /**
- * 목록과 상세를 한 라우트 안에서 오가는 화면에서, 열려 있는 상세를 URL(`?open=<id>`)에 담는다.
+ * 열린 상세를 URL(`?open=<id>`)에 반영 — 새로고침 유지·뒤로가기·링크 공유.
  *
- * 이걸 하지 않으면 상세를 보다 새로고침하면 목록으로 튕기고, 뒤로가기는 이전 메뉴로 빠져나가며,
- * "이 공지 좀 봐" 하고 링크를 건네줄 수도 없다. 그룹웨어에서는 링크 공유가 특히 아쉽다.
- *
- * @param items   목록 데이터(로드 완료 후 URL 의 id 를 여기서 찾는다)
+ * @param items   목록 데이터(로드 후 URL 의 id 를 여기서 찾는다)
  * @param open    현재 열린 상세(없으면 null)
- * @param onOpen  상세를 여는 동작(서버 조회가 필요하면 여기서 한다)
+ * @param onOpen  상세를 여는 동작
  * @param onClose 상세를 닫는 동작
  */
 export function useDetailParam<T extends { id: string }>(

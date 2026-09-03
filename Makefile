@@ -157,6 +157,19 @@ reset: ## ⚠ 모든 데이터 삭제 후 관리자만 재시드(백업 먼저 �
 	@$(COMPOSE) restart members-service >/dev/null 2>&1
 	@echo "초기화 완료 — 관리자(labmate@kloud.zone)만 재시드됨"
 
+## ─── 검증 ───
+.PHONY: qa
+qa: ## 회귀 검증 실행(실제 브라우저) — 스택이 떠 있어야 한다
+	@cd qa && [ -d node_modules ] || npm ci --no-audit --no-fund
+	@cd qa && npx playwright install chromium >/dev/null 2>&1 || true
+	@cd qa && ./run-all.sh
+
+.PHONY: qa-seed
+qa-seed: ## 회귀 검증용 페르소나 계정 생성(최초 1회)
+	@cd qa && LM_ADMIN_EMAIL=$$(grep '^ADMIN_EMAIL=' ../.env | cut -d= -f2) \
+	          LM_ADMIN_PW=$$(grep '^ADMIN_PASSWORD=' ../.env | cut -d= -f2-) \
+	          node scripts/setup-users.mjs
+
 ## ─── 정리 ───
 .PHONY: clean
 clean: ## 컨테이너+네트워크 제거(DB·업로드 데이터는 data/ 에 유지)

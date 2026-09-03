@@ -20,9 +20,10 @@ make logs S=members-service   # 개별 서비스 로그
 | 경로 | 내용 |
 |---|---|
 | `backend/services/<service>/app/` | `models.py`(SQLAlchemy) · `schemas.py`(Pydantic) · `routers.py` · `main.py` |
-| `backend/libs/common/labmate_common/` | 공통 모듈(db · config · security · audit · configstore · dataadmin · tenancy · migrate) |
-| `frontend/src/` | React 페이지·컴포넌트 |
+| `backend/libs/common/labmate_common/` | 공통 모듈(db · config · security · deps · audit · configstore · dataadmin · tenancy · migrate · notifications · push · uploads) |
+| `frontend/src/` | `pages/` 화면 · `components/` 공용 UI · `ui/` 표·폼·다이얼로그 · `api/` 서버 통신·설정 · `lib/` 순수 유틸 |
 | `deploy/` | nginx 게이트웨이 · postgres 초기화 |
+| `qa/` | 회귀 검증(Playwright) — `make qa` |
 
 서비스 6종(members · projects · funds · attendance · boards · resource)은 독립 DB를 사용하고 공통 JWT로 인증을 공유합니다.
 
@@ -44,6 +45,7 @@ PR과 `main` push마다 GitHub Actions(`.github/workflows/ci.yml`)가 돕니다.
 | `compose` | compose 파일 보간/스키마 | `docker compose config -q` |
 | `shell` | postgres init 스크립트 | `shellcheck deploy/postgres/init/*.sh` |
 | `images` | 변경된 서비스의 이미지 빌드 | `make build` |
+| `e2e` | 스택 기동 후 실제 브라우저 회귀 검증 | `make qa` |
 
 린트는 지금 실제 오류(문법·미정의 이름·미사용 임포트)만 막습니다. 스타일 규칙은 기존 코드 정리 후 `backend/ruff.toml`의 `select`에 추가하면 됩니다.
 
@@ -54,4 +56,5 @@ PR과 `main` push마다 GitHub Actions(`.github/workflows/ci.yml`)가 돕니다.
 1. 브랜치 생성 후 작업합니다.
 2. 백엔드 변경 시 `make dev-up && make health`로 정상 기동을 확인합니다.
 3. 게이트웨이가 옛 컨테이너 IP를 캐시하면 `make gateway-restart`.
-4. PR에 변경 의도와 영향 범위를 간략히 적습니다.
+4. `make qa`로 회귀 검증을 돌립니다. 새 동작을 추가했으면 `qa/scripts/`에 검증도 함께 넣습니다.
+5. PR에 변경 의도와 영향 범위를 간략히 적습니다.

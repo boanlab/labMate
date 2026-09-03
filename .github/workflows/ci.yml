@@ -210,3 +210,82 @@ jobs:
           load: false
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  e2e:
+    name: e2e · 회귀 검증(실제 브라우저)
+    runs-on: ubuntu-latest
+    # 이미지 빌드가 깨졌으면 스택이 뜨지 않는다 — 먼저 걸리게 둔다.
+    needs: [backend, frontend, compose]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: qa/package-lock.json
+
+      # compose 가 `:?` 로 필수 선언한 값들. CI 전용 임시값이며 어디에도 남지 않는다.
+      - name: Write .env
+        run: |
+          cat > .env <<'ENV'
+          JWT_SECRET=ci-only-not-a-secret
+          POSTGRES_PASSWORD=ci-only-not-a-secret
+          ADMIN_EMAIL=ci-admin@labmate.local
+          ADMIN_PASSWORD=CiAdmin!2026
+          ENV
+
+      - name: Build and start stack
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml build
+          docker compose -f docker-compose.yml up -d --remove-orphans
+          # 게이트웨이는 기동 시점에 서비스 IP 를 굳혀 둔다 — 서비스가 다 뜬 뒤 한 번 다시 읽힌다.
+          docker compose -f docker-compose.yml restart gateway
+
+      - name: Wait until ready
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 90); do
+            if curl -sf -o /dev/null http://localhost:8080/ \
+               && curl -sf -o /dev/null -X POST http://localhost:8080/api/members/login \
+                    -H 'Content-Type: application/json' \
+                    -d '{"email":"ci-admin@labmate.local","password":"CiAdmin!2026"}'; then
+              echo "기동 완료(${i}초)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "기동 실패 — 컨테이너 상태:"; docker compose ps; exit 1
+
+      - name: Install Playwright
+        working-directory: qa
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Seed personas
+        working-directory: qa
+        env:
+          LM_ADMIN_EMAIL: ci-admin@labmate.local
+          LM_ADMIN_PW: CiAdmin!2026
+        run: node scripts/setup-users.mjs
+
+      - name: Run regression suite
+        working-directory: qa
+        env:
+          LM_ADMIN_EMAIL: ci-admin@labmate.local
+          LM_ADMIN_PW: CiAdmin!2026
+        run: ./run-all.sh
+
+      # 실패했을 때 로그·스크린샷 없이 원인을 되짚는 것은 사실상 불가능하다.
+      - name: Collect diagnostics
+        if: failure()
+        run: docker compose -f docker-compose.yml logs --tail=300 > qa/out/containers.log || true
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: qa-output
+          path: qa/out/
+          retention-days: 7

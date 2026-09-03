@@ -4,10 +4,8 @@ import { api, silent } from "../api/client";
 import { Icon } from "../ui/icons";
 
 /**
- * 전역 검색 — 메뉴를 몰라도 이름만으로 찾아가게 한다.
- *
- * 메뉴가 24개라 "그 공지 어디 있더라"를 해결하려면 어느 화면인지 먼저 떠올려야 했다.
- * 열 때 한 번만 모아 두고 입력에 따라 화면에서 걸러, 타자마다 서버를 때리지 않는다.
+ * 전역 검색(Ctrl/Cmd+K) — 10개 모듈을 이름으로 한 번에 찾는다.
+ * 열 때 1회만 조회하고 입력 필터링은 화면에서 한다.
  */
 type Hit = { group: string; title: string; sub: string; to: string };
 

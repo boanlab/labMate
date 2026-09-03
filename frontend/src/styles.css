@@ -71,13 +71,9 @@ body.dark .form-err { background: #3a1f1d; border-color: #5a2e2a; color: #f0a99e
 .login-card .muted { color: #6b7685; }
 .login-card label { color: #6b7685; }
 .login-card input { background: #fff; color: #1f2733; border-color: #d9dee5; }
-.login-card .demo-row { background: #fafbfc; color: #1f2733; border-color: #e4e7ec; }
 .brand { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 12px; line-height: 1.2; margin-bottom: 10px; }
 .brand-badge { background: var(--brand-solid); color: #fff; width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 17px; }
 .brand-logo { height: 30px; max-width: 170px; object-fit: contain; display: block; }
-.demo { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
-.demo-row { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: #fafbfc; border-radius: 7px; padding: 6px 9px; margin-bottom: 5px; font-size: 12.5px; }
-.demo-row:hover { border-color: var(--brand); }
 
 /* 셸 */
 .appshell { display: flex; flex-direction: column; min-height: 100vh; }
@@ -100,7 +96,6 @@ body.dark .form-err { background: #3a1f1d; border-color: #5a2e2a; color: #f0a99e
 .appbar-icon:hover { background: rgba(255,255,255,.17); }
 .appbody { display: flex; flex: 1; min-height: 0; }
 .side { width: 224px; background: var(--sidebar); color: #cdd3dd; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid var(--appbar-line); }
-.side-logo { font-weight: 800; font-size: 19px; color: #fff; display: flex; align-items: center; gap: 9px; padding: 18px 18px 12px; }
 .side-nav { flex: 1; padding: 12px 10px; overflow: auto; }
 .nav-group { margin-bottom: 12px; }
 .nav-title { font-size: 10.5px; color: #8b95a6; padding: 4px 11px; margin-top: 2px; text-transform: uppercase; letter-spacing: .6px; font-weight: 700; }
@@ -118,7 +113,6 @@ body.dark .form-err { background: #3a1f1d; border-color: #5a2e2a; color: #f0a99e
 .prof-av { width: 34px; height: 34px; border-radius: 50%; background: var(--brand-solid); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
 .prof-name { color: #fff; font-size: 13.5px; font-weight: 600; }
 .content { flex: 1; padding: 16px 20px; min-width: 0; max-width: 100%; overflow: auto; }
-.content-top { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
 
 .page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: -.4px; font-weight: 700; }
@@ -488,3 +482,13 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .arch-files-h { display: flex; align-items: center; font-size: 12px; font-weight: 600; color: var(--sub); margin-bottom: 6px; }
 .arch-files-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .arch-file { padding: 5px 10px; }
+
+/* 아주 좁은 폰(≤380px) — 앱바 우측 그룹이 넘치지 않도록 브랜드 글자를 접고 간격을 줄인다 */
+@media (max-width: 380px) {
+  .appbar { padding: 0 6px 0 8px; }
+  .appbar-l { gap: 6px; }
+  .appbar-r { gap: 4px; }
+  .appbar-brand { font-size: 0; gap: 0; }
+  .appbar-brand .brand-badge { font-size: 17px; }
+  .appbar-icon { width: 36px; height: 36px; }
+}

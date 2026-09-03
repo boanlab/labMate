@@ -24,8 +24,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   // 파생 리마인더를 종에서 닫은 기록도 계정에 둔다 — 노트북에서 닫은 것이 데스크톱에서 되살아나지 않도록
   const [read, setRead] = usePref<string[]>("notif_read", []);
-  // 저장 알림은 서버 read_at, 파생 리마인더(미확인 공지·승인 대기 등)는 계정 설정으로 판정.
-  // 파생 항목은 실제로 처리해야 사라지지만, 오래 남는 리마인더는 종에서 임시로 닫을 수 있어야 한다.
+  // 읽음 판정 — 저장 알림은 서버 read_at, 파생 리마인더는 계정 설정(임시로 닫아 둘 수 있게).
   const isRead = (i: Noti) => (i.derived ? read.includes(i.id) : !!i.read);
   const unread = items.filter((i) => !isRead(i));
   const ref = useRef<HTMLDivElement>(null);
@@ -51,9 +50,7 @@ export function NotificationBell() {
 
   async function poll() {
     if (!me) return;
-    // 예전에는 종이 목록 API(공지·회의록·과제·예산·휴가·근태정정)를 따로 받아 직접 걸렀다.
-    // 폴링 1회에 요청 9건이 순차로 나갔고, 목록 전체를 받아 대부분 버리는 낭비도 있었다.
-    // 지금은 각 서비스가 자기 도메인의 파생 항목까지 /notifications 로 함께 내려준다.
+    // 각 서비스가 저장 알림 + 파생 항목을 /notifications 로 함께 내려준다(3개 서비스 병렬 조회).
     const results = await Promise.all(NOTIF_SVCS.map((s) =>
       api.get<any[]>(`/${s}/notifications`, silent).then((r) => ({ s, rows: r.data || [] })).catch(() => ({ s, rows: [] as any[] }))));
     const out: Noti[] = [];
@@ -81,8 +78,7 @@ export function NotificationBell() {
 
   useEffect(() => {
     poll();
-    // 알림 1회 갱신에 여러 서비스를 훑기 때문에, 보고 있지도 않은 탭에서 45초마다 도는 것은 낭비다.
-    // 화면이 보일 때만 돌리고, 다시 보이는 순간 한 번 갱신한다.
+    // 폴링 45초 — 화면이 보일 때만, 탭 복귀 시 즉시 1회.
     const tick = () => { if (!document.hidden) poll(); };
     const t = setInterval(tick, 45000);
     const onFocus = () => poll();                 // 탭 복귀/처리 후 즉시 갱신

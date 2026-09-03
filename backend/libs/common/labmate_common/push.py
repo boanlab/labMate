@@ -1,11 +1,8 @@
-"""Web Push(PWA) — 브라우저 푸시 구독 저장 + VAPID 서명 발송.
+"""Web Push(PWA) — 구독 저장 + VAPID 서명 발송.
 
-인앱 알림(notifications.py)과 짝을 이룬다. 서비스마다 DB가 분리돼 있어 구독도
-서비스별 `push_subscriptions` 테이블에 저장하고(프론트가 3개 서비스에 모두 등록),
-`notify()`가 알림을 만들 때 같은 서비스 DB의 구독으로 푸시를 쏜다.
-
-pywebpush는 발송 함수 안에서 지연 임포트 → 미설치 서비스(members 등)는 영향 없음.
-발송은 데몬 스레드에서 비동기 처리(요청 지연·실패 격리). 만료 구독(404/410)은 정리.
+인앱 알림(notifications.py)의 짝. 구독은 서비스별 `push_subscriptions` 에 저장하고,
+`notify()` 가 같은 서비스 DB 의 구독으로 발송. pywebpush 는 지연 임포트(미설치 서비스 무영향),
+발송은 데몬 스레드(요청 지연·실패 격리), 만료 구독(404/410)은 정리.
 """
 from __future__ import annotations
 
