@@ -18,7 +18,7 @@ from .masters import DEFAULTS, FEATURES
 from .models import InterviewTurn, Principle, Secret, Usage
 from .openrouter import MentorError, chat, check_key, models
 from .prompts import (CATEGORIES, SEED_QUESTION, build, extract_messages, interview_messages,
-                      nudge_messages, review_messages)
+                      chat_messages, nudge_messages, review_messages)
 
 router = APIRouter()
 KEY_ID = "openrouter"
@@ -46,7 +46,7 @@ def _principles(db: Session) -> list[str]:
 
 
 # 기능별 출력 예산 하한. 추론형 모델은 답이 짧아도 사고에 토큰을 쓴다.
-BUDGET: dict[str, int] = {"nudge": 4000, "philosophy": 4000, "review": 6000}
+BUDGET: dict[str, int] = {"nudge": 4000, "philosophy": 4000, "review": 6000, "chat": 3000}
 
 
 def budget(db: Session, feature: str) -> int:
@@ -455,4 +455,20 @@ async def weekly_review(body: dict, user: CurrentUser = Depends(get_current_user
     week = str(body.get("week") or "")
     text = await _ask(db, review_messages(user.name, week, facts, _principles(db)), user, "review",
                       max_tokens=budget(db, "review"))
+    return {"text": text}
+
+
+# ── 상시 대화 ──
+@router.post("/chat")
+async def mentor_chat(body: dict, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """대화 기록은 서버에 남기지 않는다 — 화면이 들고 있다가 매번 보낸다."""
+    if not (cfg(db, "ai_features") or {}).get("chat"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "이 기능은 관리자가 꺼 두었습니다.")
+    if user.role not in (cfg(db, "ai_roles") or []):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "이 계정은 AI 멘토를 사용할 수 없습니다.")
+    history = [h for h in (body.get("history") or []) if isinstance(h, dict) and h.get("content")]
+    if not history:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "질문을 입력해 주세요.")
+    text = await _ask(db, chat_messages(user.name, str(body.get("screen") or ""), history, _principles(db)),
+                      user, "chat", max_tokens=budget(db, "chat"))
     return {"text": text}

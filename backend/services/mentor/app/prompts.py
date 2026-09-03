@@ -233,3 +233,24 @@ def review_messages(name: str, week: str, facts: dict, principles: list[str] | N
         {"role": "system", "content": system},
         {"role": "user", "content": f"학생: {name}\n주간: {week}\n\n" + ("\n\n".join(lines) or "(이번 주 기록 없음)")},
     ]
+
+
+# ── 상시 대화 ──
+CHAT_SYSTEM = (
+    "당신은 연구실 학생 곁에 있는 멘토입니다. 연구·업무 수행 방법을 묻는 질문에 답합니다.\n"
+    "규칙:\n"
+    "- 한국어 존댓말, 400자 이내, 불릿 위주.\n"
+    "- 방법론(어떻게 쪼갤지, 어떻게 쓸지, 무엇부터 할지)에 집중합니다.\n"
+    "- 연구 내용의 정답을 단정하지 않습니다. 확인할 방법을 제시합니다.\n"
+    "- 모르면 모른다고 하고, 지도교수께 여쭐 것을 권합니다.\n"
+    "- 지금 보고 있는 화면을 알려 주면 그 맥락에 맞춰 답합니다.\n"
+)
+
+
+def chat_messages(name: str, screen: str, history: list[dict[str, str]], principles: list[str] | None) -> list[dict[str, str]]:
+    system = CHAT_SYSTEM
+    if principles:
+        system += "\n[지도교수의 지침 — 답변의 기준]\n" + "\n".join(f"- {p}" for p in principles) + "\n"
+    if screen:
+        system += f"\n지금 보고 있는 화면: {screen}\n"
+    return [{"role": "system", "content": system}, *history[-10:]]
