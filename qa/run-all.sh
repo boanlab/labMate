@@ -56,6 +56,7 @@ run "표 정렬·컬럼 폭"              env TAIL=2 node scripts/verify-table-t
 run "화면 설정 계정 저장"          env TAIL=2 node scripts/verify-prefs.mjs
 run "알림 폴링"                    env TAIL=2 node scripts/verify-notif.mjs
 run "퇴사·삭제 구성원 이름"     env TAIL=3 node scripts/verify-member-names.mjs
+run "상시 멘토 대화"            env TAIL=3 node scripts/verify-mentor-chat.mjs
 run "지도철학 인터뷰"            env TAIL=3 node scripts/verify-philosophy.mjs
 run "멘토와 보내는 한 주"        env TAIL=10 node scripts/sc-mentor-week.mjs
 run "AI 멘토 화면"              env TAIL=3 LM_ADMIN_EMAIL="$ADM_E" LM_ADMIN_PW="$ADM_P" node scripts/verify-mentor-ui.mjs
