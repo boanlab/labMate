@@ -38,14 +38,17 @@ import { ReactNode } from "react";
 const STUDENT5 = ["prof", "phd", "master", "under", "staff"];
 // 행정(staff) 차단 모듈 — 프로젝트·전자결재·자원예약·게시판·회의록·아카이브. 위임 학생은 본인 역할로 접근.
 const NO_STAFF = ["prof", "phd", "master", "under"];
-function Protected({ children, roles }: { children: ReactNode; roles?: string[] }) {
+function Protected({ children, roles, strict }: { children: ReactNode; roles?: string[]; strict?: boolean }) {
   const { me, loading } = useAuth();
   if (loading) return <div className="center muted">불러오는 중…</div>;
   if (!me) return <Navigate to="/login" replace />;
   // 비밀번호 변경 강제: 변경 화면 외에는 접근 차단
   if (me.must_change_password) return <Navigate to="/change-password" replace />;
-  // 역할 가드 — 위임(delegated_admin)은 staff 권한도 보유한 것으로 간주
-  if (roles && !(roles.includes(me.role) || (me.delegated_admin && roles.includes("staff")))) {
+  // 역할 가드 — 위임(delegated_admin)은 staff 권한도 보유한 것으로 간주한다.
+  // 다만 strict 를 주면 위임을 인정하지 않는다(학생이 다른 학생의 수행 데이터를 보는 화면 등).
+  const byRole = roles ? roles.includes(me.role) : true;
+  const byDelegation = !strict && !!me.delegated_admin && !!roles?.includes("staff");
+  if (roles && !(byRole || byDelegation)) {
     return <Layout>
       <div className="page-head"><div><div className="crumb">접근 제한</div><h1>접근 권한 없음</h1></div></div>
       <div className="card"><div className="bd muted" data-testid="no-access">이 메뉴에 접근할 권한이 없습니다. 필요한 경우 관리자에게 문의하세요.</div></div>
@@ -88,7 +91,7 @@ function App() {
           <Route path="/booking" element={<Protected roles={NO_STAFF}><Booking /></Protected>} />
           <Route path="/members" element={<Protected><Members /></Protected>} />
           <Route path="/philosophy" element={<Protected roles={NO_STAFF}><Philosophy /></Protected>} />
-          <Route path="/coaching" element={<Protected roles={["prof", "staff", "admin"]}><Coaching /></Protected>} />
+          <Route path="/coaching" element={<Protected roles={["prof", "staff", "admin"]} strict><Coaching /></Protected>} />
           <Route path="/mypage" element={<Protected><MyPage /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
