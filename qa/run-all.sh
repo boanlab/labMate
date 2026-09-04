@@ -53,6 +53,7 @@ run "마감 알림·캘린더"             env TAIL=2 node scripts/verify-deadli
 run "자산 예약 연동"               env TAIL=2 node scripts/verify-bookable.mjs
 run "전역 검색·내 할 일"           env TAIL=2 node scripts/verify-search-todo.mjs
 run "표 정렬·컬럼 폭"              env TAIL=2 node scripts/verify-table-tools.mjs
+run "표 표시(폭 변화)"             env TAIL=4 LM_ADMIN_EMAIL="$ADM_E" LM_ADMIN_PW="$ADM_P" node scripts/verify-tables.mjs
 run "화면 설정 계정 저장"          env TAIL=2 node scripts/verify-prefs.mjs
 run "알림 폴링"                    env TAIL=2 node scripts/verify-notif.mjs
 run "퇴사·삭제 구성원 이름"     env TAIL=3 node scripts/verify-member-names.mjs

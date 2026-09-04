@@ -1,4 +1,5 @@
-import { ReactNode, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { loadPrefs, onPrefsReady, peekPref, setPref } from "../api/prefs";
 import { useColumnResize } from "./tableTools";
 import { useAutoPageSize } from "./pageTable";
 
@@ -29,8 +30,11 @@ interface Props<T> {
 
 export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색…", searchKeys, pageSize = 10, fit = false, autoHeight = false, defaultSort, defaultDir = 1, chips, empty = "데이터 없음" }: Props<T>) {
   const [q, setQ] = useState("");
-  const [sort, setSort] = useState<string | null>(defaultSort ?? null);
-  const [dir, setDir] = useState<1 | -1>(defaultDir);
+  // 정렬 기준은 계정에 남긴다 — 폭 조절과 같은 화면 설정이라 PC 를 바꿔도 유지되어야 한다.
+  const prefKey = testid ? `sort.${testid}` : "";
+  const saved = prefKey ? peekPref<{ key: string; dir: 1 | -1 }>(prefKey) : undefined;
+  const [sort, setSort] = useState<string | null>(saved?.key ?? defaultSort ?? null);
+  const [dir, setDir] = useState<1 | -1>(saved?.dir ?? defaultDir);
   const [page, setPage] = useState(0);
   const [chip, setChip] = useState<string>("전체");
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -64,10 +68,21 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
   const cur = Math.min(page, pages - 1);
   const view = filtered.slice(cur * effPageSize, cur * effPageSize + effPageSize);
 
+  useEffect(() => {
+    if (!prefKey) return;
+    loadPrefs();
+    return onPrefsReady(() => {
+      const v = peekPref<{ key: string; dir: 1 | -1 }>(prefKey);
+      setSort(v?.key ?? defaultSort ?? null);
+      setDir(v?.dir ?? defaultDir);
+    });
+  }, [prefKey]);
+
   function toggleSort(c: Col<T>) {
     if (!c.value && !c.sortable) return;
-    if (sort === c.key) setDir((d) => (d === 1 ? -1 : 1));
-    else { setSort(c.key); setDir(1); }
+    const next = sort === c.key ? { key: c.key, dir: (dir === 1 ? -1 : 1) as 1 | -1 } : { key: c.key, dir: 1 as const };
+    setSort(next.key); setDir(next.dir);
+    if (prefKey) setPref(prefKey, next);
   }
 
   return (
@@ -92,11 +107,18 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
           {fit && <colgroup>{cols.map((c) => <col key={c.key} style={c.width != null ? { width: c.width } : undefined} />)}</colgroup>}
           <thead>
             <tr>
-              {cols.map((c) => (
-                <th key={c.key} className={c.value || c.sortable ? "sortable" : ""} onClick={() => toggleSort(c)}>
-                  {c.label}{sort === c.key ? (dir === 1 ? " ▲" : " ▼") : ""}
-                </th>
-              ))}
+              {cols.map((c) => {
+                const can = !!(c.value || c.sortable), on = sort === c.key;
+                return (
+                  <th key={c.key} className={(can ? "sortable" : "") + (on ? " sorted" : "")}
+                    onClick={() => toggleSort(c)}
+                    data-sort-key={can ? c.key : undefined}
+                    aria-sort={can ? (on ? (dir === 1 ? "ascending" : "descending") : "none") : undefined}
+                    title={can ? "클릭하면 이 컬럼으로 정렬합니다" : undefined}>
+                    {c.label}{on ? (dir === 1 ? " ▲" : " ▼") : ""}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
