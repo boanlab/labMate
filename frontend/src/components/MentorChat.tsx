@@ -31,6 +31,15 @@ export function MentorChat() {
 
   useEffect(() => { endRef.current?.scrollIntoView({ block: "nearest" }); }, [msgs, busy]);
 
+  // Esc 로 닫는다 — 앱의 다른 모달과 같은 방식이어야 한다.
+  // Layout 의 전역 Esc 처리는 .modal-ovl 만 보므로 여기서 따로 받는다.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
   if (!on) return null;
   const screen = SCREEN[loc.pathname] || "";
 
