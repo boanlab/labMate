@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Members from "./pages/Members";
 import Philosophy from "./pages/Philosophy";
 import Goals from "./pages/Goals";
+import Coaching from "./pages/Coaching";
 import MyPage from "./pages/MyPage";
 import Projects from "./pages/Projects";
 import MyTasks from "./pages/MyTasks";
@@ -87,6 +88,7 @@ function App() {
           <Route path="/booking" element={<Protected roles={NO_STAFF}><Booking /></Protected>} />
           <Route path="/members" element={<Protected><Members /></Protected>} />
           <Route path="/philosophy" element={<Protected roles={NO_STAFF}><Philosophy /></Protected>} />
+          <Route path="/coaching" element={<Protected roles={["prof", "staff", "admin"]}><Coaching /></Protected>} />
           <Route path="/mypage" element={<Protected><MyPage /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -9,15 +9,28 @@
 """
 from __future__ import annotations
 
+def today_line() -> str:
+    """오늘 날짜 — 주지 않으면 모델이 지난 날짜를 '다음 마감'으로 제안한다."""
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone(timedelta(hours=9)))
+    return f"오늘은 {now:%Y-%m-%d}({'월화수목금토일'[now.weekday()]})입니다. 날짜를 제안할 때는 반드시 오늘 이후로 잡고, 남은 일수를 정확히 세십시오.\n"
+
+
 COMMON = (
     "당신은 대학 연구실의 선임 멘토입니다. 학생이 작성 중인 내용을 검토해 더 나은 형태로 다듬도록 돕습니다.\n"
     "규칙:\n"
     "- 한국어로, 존댓말로 간결하게 답합니다.\n"
     "- 잘된 점 1가지를 먼저 짚고, 고칠 점을 우선순위 순으로 최대 3가지만 제시합니다.\n"
-    "- 지적만 하지 말고 '이렇게 바꾸면 됩니다'라는 구체적인 문장이나 예시를 함께 줍니다.\n"
+    "- 지적만 하지 말고 '이렇게 바꾸면 됩니다'라는 고쳐 쓴 문장을 함께 줍니다.\n"
+    "  단, 고쳐 쓴 문장에 원문에 없는 값(수치·날짜·버전·커밋·도구명)을 채워 넣지 마세요.\n"
+    "  모르는 자리는 ___ 로 비워 두고 무엇을 채워야 하는지 괄호로 알려 줍니다.\n"
+    "  나쁜 예: \"처리 지연 12ms → 8ms\" (없는 수치를 지어냄)\n"
+    "  좋은 예: \"처리 지연 ___ms → ___ms (측정값을 넣어 주세요)\"\n"
     "- 내용이 이미 충분하면 억지로 지적하지 말고 그렇다고 말합니다.\n"
     "- 사실을 지어내지 않습니다. 주어진 내용에 없는 것은 '빠져 있습니다'라고만 합니다.\n"
-    "- 전체 답변은 400자 이내, 불릿 위주로 씁니다.\n"
+    "- 전체 답변은 공백 포함 600자 이내입니다. 잘된 점 1줄 + 고칠 점 3개까지 씁니다.\n"
+    "- 문체 문제(구어체·다짐형·이모지)는 고칠 점 3개와 별개로, 맨 끝에 '문체:' 한 줄로 모아 지적합니다.\n"
+    "- 소제목·구분선·굵은 글씨를 남발하지 않습니다. 불릿과 화살표(→)면 충분합니다.\n"
 )
 
 # 문체 — 학생 말투가 아니라 회사·연구소에서 통하는 문서 문체로 쓰게 한다.
@@ -47,7 +60,7 @@ SPECIFIC = (
     "- 주체가 빠진 문장 → 담당자 이름으로\n"
     "- 근거 없는 평가: '잘 됨·문제 없음·이슈 없음' → 무엇을 어떻게 확인한 결과인지\n"
     "- '등·관련·부분·측면' 같은 얼버무리는 말 → 실제 항목을 나열\n"
-    "원문에 없는 숫자나 날짜를 지어내지 마세요. 정보가 없으면 고친 문장을 빈칸으로 두고 "
+    "원문에 없는 숫자·날짜·버전·도구명은 예시로도 지어내지 마세요(학생이 그대로 옮겨 적습니다). 정보가 없으면 빈칸으로 두고 "
     "'여기에 무엇을 채워야 하는지'를 질문으로 남깁니다. 예: \"성능을 개선함\" → \"추론 지연을 ___ms 에서 ___ms 로 단축(어떤 지표인지 채워 주세요)\"\n"
 )
 
@@ -61,9 +74,11 @@ FEATURE_PROMPT: dict[str, str] = {
     ),
     "note": (
         "연구노트를 검토합니다. 3개월 뒤의 본인이나 후배가 이 기록만으로 재현할 수 있는지가 기준입니다.\n"
-        "1) 무엇을 했는지(설정·조건·버전·데이터)가 구체적인가.\n"
-        "2) 왜 그렇게 했는지, 결과를 어떻게 해석했는지가 있는가.\n"
-        "3) 다음에 할 일이 적혀 있는가. 없으면 이어서 할 한 줄을 제안하세요.\n"
+        "아래 세 가지를 각각 반드시 짚으세요(하나라도 빠뜨리지 마세요).\n"
+        "1) 무엇을 했는가 — 설정·조건·버전·데이터가 특정되는가.\n"
+        "2) 왜 그렇게 했고 결과를 어떻게 해석했는가 — 이 판단이 없으면 기록이 아니라 메모입니다.\n"
+        "3) 다음에 할 일이 적혀 있는가.\n"
+        "재현할 수 있는 기록인지의 관점에서 총평을 한 줄 덧붙이세요.\n"
     ),
     "task": (
         "세부업무를 검토합니다. 완료 여부를 남이 봐도 판정할 수 있어야 합니다.\n"
@@ -80,15 +95,33 @@ FEATURE_PROMPT: dict[str, str] = {
     ),
     "schedule": (
         "일정을 검토합니다. 마감에서 거꾸로 계산해 중간 지점을 잡는 것이 핵심입니다.\n"
-        "1) 마감까지 남은 기간을 보고 중간 마일스톤 2~3개를 날짜와 함께 제안하세요.\n"
+        "1) 중간 마일스톤 2~3개를 실제 날짜와 함께 제안하세요. 본문이 비어 있어도 되묻지 말고,\n"
+        "   '초안 완성 → 검토 반영 → 교정 마무리' 처럼 일반적인 단계로 먼저 제안한 뒤\n"
+        "   세부 내용은 학생이 채우도록 ___ 로 남기세요.\n"
         "2) 마지막에 몰릴 위험이 있으면 짚어 주세요.\n"
         "3) 검토·수정에 필요한 시간이 반영되었는지 확인하세요.\n"
     ),
 }
 
 
+def _with_days(context: dict) -> dict:
+    """마감까지 남은 일수를 계산해 넣는다 — 모델이 세면 하루씩 틀린다(실측)."""
+    from datetime import date, datetime
+
+    out = dict(context)
+    for key in ("마감일", "종료", "마감"):
+        raw = str(context.get(key) or "")
+        try:
+            due = datetime.strptime(raw[:10], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        out["마감까지 남은 일수"] = f"{(due - date.today()).days}일"
+        break
+    return out
+
+
 def build(feature: str, title: str, body: str, context: dict, principles: list[str] | None = None) -> list[dict[str, str]]:
-    system = COMMON + "\n" + FEATURE_PROMPT.get(feature, "작성한 내용을 검토하고 개선점을 제안하세요.\n")
+    system = COMMON + today_line() + "\n" + FEATURE_PROMPT.get(feature, "작성한 내용을 검토하고 개선점을 제안하세요.\n")
     if feature in ("meeting", "note", "task", "report", "review", "schedule"):
         system += SPECIFIC
     if feature in ("meeting", "note", "task", "report", "review"):
@@ -101,6 +134,7 @@ def build(feature: str, title: str, body: str, context: dict, principles: list[s
             + "\n위 지침과 어긋나는 부분이 있으면 그 점을 먼저 짚고, 지침을 근거로 설명하세요.\n"
         )
     parts = []
+    context = _with_days(context or {})
     if title:
         parts.append(f"[제목]\n{title}")
     if context:
@@ -189,7 +223,7 @@ NUDGE_TONE: dict[int, str] = {
 
 
 def nudge_messages(name: str, signals: list[dict], principles: list[str] | None, level: int = 1) -> list[dict[str, str]]:
-    system = NUDGE_SYSTEM + "\n" + NUDGE_TONE.get(min(level, 3), NUDGE_TONE[1]) + "\n"
+    system = NUDGE_SYSTEM + today_line() + "\n" + NUDGE_TONE.get(min(level, 3), NUDGE_TONE[1]) + "\n"
     if principles:
         system += "\n[지도교수의 지침 — 조언의 근거로 삼으세요]\n" + "\n".join(f"- {p}" for p in principles) + "\n"
     lines = []
@@ -220,7 +254,7 @@ REVIEW_SYSTEM = (
 
 
 def review_messages(name: str, week: str, facts: dict, principles: list[str] | None) -> list[dict[str, str]]:
-    system = REVIEW_SYSTEM
+    system = REVIEW_SYSTEM + today_line()
     if principles:
         system += "\n[지도교수의 지침 — 회고를 볼 때의 기준]\n" + "\n".join(f"- {p}" for p in principles) + "\n"
     lines = []
@@ -248,7 +282,7 @@ CHAT_SYSTEM = (
 
 
 def chat_messages(name: str, screen: str, history: list[dict[str, str]], principles: list[str] | None) -> list[dict[str, str]]:
-    system = CHAT_SYSTEM
+    system = CHAT_SYSTEM + today_line()
     if principles:
         system += "\n[지도교수의 지침 — 답변의 기준]\n" + "\n".join(f"- {p}" for p in principles) + "\n"
     if screen:
