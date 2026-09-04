@@ -25,7 +25,7 @@ make logs S=members-service   # 개별 서비스 로그
 | `deploy/` | nginx 게이트웨이 · postgres 초기화 |
 | `qa/` | 회귀 검증(Playwright) — `make qa` |
 
-서비스 6종(members · projects · funds · attendance · boards · resource)은 독립 DB를 사용하고 공통 JWT로 인증을 공유합니다.
+서비스 7종(members · projects · funds · attendance · boards · resource · mentor)은 독립 DB를 사용하고 공통 JWT로 인증을 공유합니다.
 
 ## 코드 규약
 
@@ -40,7 +40,7 @@ PR과 `main` push마다 GitHub Actions(`.github/workflows/ci.yml`)가 돕니다.
 
 | CI 잡 | 확인 내용 | 로컬 실행 |
 | --- | --- | --- |
-| `backend` | 린트(`backend/ruff.toml`) + 여섯 서비스 임포트 | `cd backend && ruff check .` |
+| `backend` | 린트(`backend/ruff.toml`) + 전 서비스 임포트 | `cd backend && ruff check .` |
 | `frontend` | 타입 체크 + 빌드 | `cd frontend && npm ci && npm run build` |
 | `compose` | compose 파일 보간/스키마 | `docker compose config -q` |
 | `shell` | postgres init 스크립트 | `shellcheck deploy/postgres/init/*.sh` |
@@ -49,6 +49,20 @@ PR과 `main` push마다 GitHub Actions(`.github/workflows/ci.yml`)가 돕니다.
 린트는 지금 실제 오류(문법·미정의 이름·미사용 임포트)만 막습니다. 스타일 규칙은 기존 코드 정리 후 `backend/ruff.toml`의 `select`에 추가하면 됩니다.
 
 프론트 의존성을 추가/변경하면 `npm install <pkg>`로 갱신된 `frontend/package-lock.json`을 함께 커밋합니다. CI와 이미지 빌드 모두 `npm ci`(락파일 기준)로 설치하므로, 락파일이 없거나 `package.json`과 어긋나면 실패합니다.
+
+### 새 서비스를 추가할 때
+
+서비스 이름은 여러 곳에 나열돼 있습니다. 한 곳이라도 빠지면 조용히 어긋납니다 —
+CI 는 초록인데 그 서비스를 아예 검사하지 않거나, `make up` 이 없는 이미지를 받으려 합니다.
+
+| 파일 | 위치 |
+|---|---|
+| `Makefile` | `SERVICES` · `APP_SERVICES` (헬스체크·이미지 빌드/푸시·restore·reset 이 모두 여기서 나온다) |
+| `.github/workflows/ci.yml` | 의존성 설치 · 임포트 스모크 · `SERVICES`(이미지 빌드 대상) |
+| `docker-compose.yml` | 서비스 정의 · `LABMATE_DATABASES` 에 `labmate_<service>` |
+| `deploy/nginx/gateway.conf` | `/api/<service>/` 라우팅 |
+
+추가 후 `make health` 로 새 서비스가 목록에 나오는지 확인하세요.
 
 ## 변경 절차
 
