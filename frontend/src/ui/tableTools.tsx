@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { loadPrefs, onPrefsReady, peekPref, setPref } from "../api/prefs";
 
 /* 표 공용 도구 — 컬럼 너비 조절과 머리글 클릭 정렬.
@@ -200,6 +200,11 @@ export function useTableSort(initial: SortState = null, storageKey?: string) {
     return {
       className: (extra ? extra + " " : "") + "sortable" + (on ? " sorted" : ""),
       onClick: () => toggle(key),
+      // 마우스만으로 쓸 수 있으면 안 된다 — Enter·Space 로도 같은 동작을 준다
+      onKeyDown: (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(key); }
+      },
+      tabIndex: 0,
       "aria-sort": (on ? (sort!.dir === 1 ? "ascending" : "descending") : "none") as "ascending" | "descending" | "none",
       title: "클릭하면 이 컬럼으로 정렬합니다",
       "data-sort-key": key,

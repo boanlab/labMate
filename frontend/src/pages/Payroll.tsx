@@ -209,6 +209,8 @@ export default function Payroll() {
       poolRemMap[k] = alloc - spent - pend;
     });
   }
+  // 통합 그룹 잔여>0 이면 개별 과제 초과집행을 0/100%로 표기한다(그룹이 커버)
+  const poolCovered = (p: Project) => { const k = String(p.meta?.payroll_pool || "").trim(); return k in poolRemMap && poolRemMap[k] > 0; };
   // 같은 풀 타 과제 사용액(확정+예정) — 이 과제 몫은 현재 편성으로 대체
   const otherUsed = poolProjects.reduce((a, p) => a + (p.id === pid ? 0 : stuBudget(p.id).spent + projPend(p.id)), 0);
   const remainForThis = sb.allocated - otherUsed - equalSpent - planAnnual;   // 잔여 = 재원 − 타 과제 사용 − 균등 확정집행 − 이 과제 현재 편성
@@ -252,8 +254,8 @@ export default function Payroll() {
               </tr></thead>
               <tbody>
                 {mxSort.apply(students, {
-                  name: (u) => u.name, annual: (u) => MONTHS.reduce((a, mm) => a + Number(matrix[u.id]?.[mm] ?? 0) * rateAt(u, mm) / 100, 0),
-                  ...monthAcc<User>((u, m) => Number(matrix[u.id]?.[m] ?? 0)),
+                  name: (u) => u.name, annual: (u) => MONTHS.reduce((a, mm) => a + planAmt(u, mm), 0),
+                  ...monthAcc<User>((u, m) => planAmt(u, m)),
                 }).map((u) => (
                   <tr key={u.id}>
                     <td className="col-stick-l" style={{ whiteSpace: "nowrap" }}>{u.name} <span className="pill">{grade(u)}</span></td>
@@ -398,13 +400,16 @@ export default function Payroll() {
             <tbody>
               {execSort.apply(yearProjects, {
                 code: (p) => p.code, alloc: (p) => stuBudget(p.id).allocated, spent: (p) => stuBudget(p.id).spent,
-                pend: (p) => projPend(p.id), rem: (p) => stuBudget(p.id).allocated - stuBudget(p.id).spent,
-                rate: (p) => (stuBudget(p.id).allocated ? stuBudget(p.id).spent / stuBudget(p.id).allocated : 0),
+                pend: (p) => projPend(p.id),
+                // 잔여·집행률은 화면에 찍히는 값 그대로 — 통합 그룹이 초과분을 덮는 경우까지 맞춘다
+                rem: (p) => { const b = stuBudget(p.id); const d = b.allocated - b.spent;
+                  return poolCovered(p) ? Math.max(0, d) : d; },
+                rate: (p) => { const b = stuBudget(p.id); const r = b.allocated ? b.spent / b.allocated * 100 : 0;
+                  return poolCovered(p) ? Math.min(100, r) : r; },
               }).map((p) => {
                 const b = stuBudget(p.id); const pend = projPend(p.id);
                 const r = b.allocated ? Math.round(b.spent / b.allocated * 100) : 0;
-                const pool = String(p.meta?.payroll_pool || "").trim();
-                const covered = pool in poolRemMap && poolRemMap[pool] > 0;   // 통합 그룹 잔여>0 → 개별 초과집행을 0/100%로(그룹이 커버)
+                const covered = poolCovered(p);
                 const rem = covered ? Math.max(0, b.allocated - b.spent) : b.allocated - b.spent;
                 const rate = covered ? Math.min(100, r) : r;
                 return (

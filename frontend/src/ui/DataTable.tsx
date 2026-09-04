@@ -112,6 +112,8 @@ export function DataTable<T>({ rows, cols, testid, searchPlaceholder = "검색�
                 return (
                   <th key={c.key} className={(can ? "sortable" : "") + (on ? " sorted" : "")}
                     onClick={() => toggleSort(c)}
+                    tabIndex={can ? 0 : undefined}
+                    onKeyDown={can ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort(c); } } : undefined}
                     data-sort-key={can ? c.key : undefined}
                     aria-sort={can ? (on ? (dir === 1 ? "ascending" : "descending") : "none") : undefined}
                     title={can ? "클릭하면 이 컬럼으로 정렬합니다" : undefined}>
