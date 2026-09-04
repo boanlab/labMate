@@ -113,6 +113,36 @@ def _minutes_between(start: str, end: str) -> int:
     return d if d > 0 else 0
 
 
+@router.post("/attendance/away", response_model=schemas.AttendanceOut)
+def away(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """자리비움 — 근무 세션을 멈춘다(퇴근이 아니므로 퇴근 시각은 남기지 않는다)."""
+    a = db.scalar(select(Attendance).where(Attendance.uid == user.id, Attendance.date == _today()))
+    if not a or not a.check_in:
+        raise HTTPException(400, "출근 기록이 없습니다")
+    if a.status == "퇴근":
+        raise HTTPException(409, "이미 퇴근했습니다")
+    if a.status == "자리비움":
+        raise HTTPException(409, "이미 자리비움입니다")
+    if a.session_start:                     # 지금까지 앉아 있던 시간만 실근무로 누적
+        a.work_min = (a.work_min or 0) + _minutes_between(a.session_start, _now_hm())
+        a.session_start = ""
+    a.status = "자리비움"
+    db.commit(); db.refresh(a)
+    return a
+
+
+@router.post("/attendance/back", response_model=schemas.AttendanceOut)
+def back(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """복귀 — 멈춘 근무 세션을 다시 시작한다."""
+    a = db.scalar(select(Attendance).where(Attendance.uid == user.id, Attendance.date == _today()))
+    if not a or a.status != "자리비움":
+        raise HTTPException(409, "자리비움 상태가 아닙니다")
+    a.session_start = _now_hm()
+    a.status = "업무 중"
+    db.commit(); db.refresh(a)
+    return a
+
+
 @router.post("/attendance/check-out", response_model=schemas.AttendanceOut)
 def check_out(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     a = db.scalar(select(Attendance).where(Attendance.uid == user.id, Attendance.date == _today()))

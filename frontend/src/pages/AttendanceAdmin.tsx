@@ -9,11 +9,13 @@ interface Att { id: string; uid: string; date: string; check_in: string; check_o
 
 const nowHM = () => new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
 const minsBetween = (s: string, e: string) => { if (!s || !e) return 0; const d = (+e.slice(0, 2) * 60 + +e.slice(3, 5)) - (+s.slice(0, 2) * 60 + +s.slice(3, 5)); return d > 0 ? d : 0; };
-// 근무시간 = 출근~퇴근(근무 중이면 현재까지)
-const workMin = (a: { status?: string; check_in?: string; check_out?: string }) => {
+// 근무시간 = 세션별 실근무 누적 + 지금 진행 중인 세션. 자리비움 구간은 빠진다.
+const workMin = (a: { check_in?: string; check_out?: string; work_min?: number; session_start?: string }) => {
   if (!a.check_in) return 0;
-  const end = (!a.check_out && a.status !== "퇴근") ? nowHM() : (a.check_out || "");
-  return minsBetween(a.check_in, end);
+  const acc = a.work_min || 0;
+  const live = a.session_start ? minsBetween(a.session_start, nowHM()) : 0;
+  if (acc || live) return acc + live;
+  return minsBetween(a.check_in, a.check_out || "");   // 세션 기록 이전의 옛 자료
 };
 const fmtWork = (m: number) => m ? `${Math.floor(m / 60)}시간 ${m % 60}분` : "—";
 interface Log { id: string; att_id: string; target_uid: string; by_id: string; before: any; after: any; reason: string; at?: string; }

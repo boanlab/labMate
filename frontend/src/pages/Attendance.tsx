@@ -11,11 +11,13 @@ interface Att { id: string; uid: string; date: string; check_in: string; check_o
 
 const nowHM = () => new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
 const minsBetween = (s: string, e: string) => { if (!s || !e) return 0; const d = (+e.slice(0, 2) * 60 + +e.slice(3, 5)) - (+s.slice(0, 2) * 60 + +s.slice(3, 5)); return d > 0 ? d : 0; };
-// 근무시간 = 출근~퇴근(근무 중이면 현재까지)
-const workMin = (a?: { status?: string; check_in?: string; check_out?: string }) => {
+// 근무시간 = 세션별 실근무 누적 + 지금 진행 중인 세션. 자리비움 구간은 빠진다.
+const workMin = (a?: { check_in?: string; check_out?: string; work_min?: number; session_start?: string }) => {
   if (!a?.check_in) return 0;
-  const end = (!a.check_out && a.status !== "퇴근") ? nowHM() : (a.check_out || "");
-  return minsBetween(a.check_in, end);
+  const acc = a.work_min || 0;
+  const live = a.session_start ? minsBetween(a.session_start, nowHM()) : 0;
+  if (acc || live) return acc + live;
+  return minsBetween(a.check_in, a.check_out || "");   // 세션 기록 이전의 옛 자료
 };
 const fmtWork = (m: number) => m ? `${Math.floor(m / 60)}시간 ${m % 60}분` : "—";
 interface Req { id: string; uid: string; date: string; check_in: string; check_out: string; requested_status: string; reason: string; status: string; decided_by: string; decided_at: string; decide_note: string; }
@@ -68,6 +70,8 @@ export default function Attendance() {
 
   async function checkIn() { try { await api.post("/attendance/attendance/check-in", { status: "업무 중", note: "" }); load(); } catch (e) { setErr(apiError(e)); } }
   async function checkOut() { try { await api.post("/attendance/attendance/check-out"); load(); } catch (e) { setErr(apiError(e)); } }
+  async function goAway() { try { await api.post("/attendance/attendance/away"); load(); } catch (e) { setErr(apiError(e)); } }
+  async function comeBack() { try { await api.post("/attendance/attendance/back"); load(); } catch (e) { setErr(apiError(e)); } }
 
   function openReq() {
     const a = mine.find((x) => x.date === today);
@@ -96,12 +100,21 @@ export default function Attendance() {
         <div className="bd" style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ flex: 1 }} data-testid="att-today">
             상태: <b>{todayRec?.status || "미체크"}</b> · 출근 {todayRec?.check_in || "—"} / 퇴근 {todayRec?.check_out || "—"} · 근무 <b>{fmtWork(workMin(todayRec))}</b>
+            {todayRec?.status === "자리비움" && <span className="muted small"> · 자리비움 중이라 근무시간이 늘지 않습니다</span>}
           </div>
-          {(() => { const st = todayRec?.status || "미체크"; const inWork = st !== "미체크" && st !== "퇴근"; return <>
-            {/* 지금 가능한 동작을 강조한다 — 비활성 버튼이 더 진하면 어느 쪽을 눌러야 할지 반대로 읽힌다 */}
-            <button className={"btn " + (inWork ? "ghost" : "primary")} data-testid="att-checkin" disabled={inWork} onClick={checkIn}>출근 체크</button>
-            <button className={"btn " + (inWork ? "primary" : "ghost")} data-testid="att-checkout" disabled={!inWork} onClick={checkOut}>퇴근 체크</button>
-          </>; })()}
+          {(() => {
+            const st = todayRec?.status || "미체크";
+            const away = st === "자리비움";
+            const inWork = st !== "미체크" && st !== "퇴근";
+            return <>
+              {/* 지금 가능한 동작을 강조한다 — 비활성 버튼이 더 진하면 어느 쪽을 눌러야 할지 반대로 읽힌다 */}
+              <button className={"btn " + (inWork ? "ghost" : "primary")} data-testid="att-checkin" disabled={inWork} onClick={checkIn}>출근 체크</button>
+              {away
+                ? <button className="btn primary" data-testid="att-back" onClick={comeBack}>복귀</button>
+                : <button className="btn ghost" data-testid="att-away" disabled={!inWork} onClick={goAway} title="잠시 자리를 비웁니다 — 비운 시간은 근무시간에서 빠집니다">자리비움</button>}
+              <button className={"btn " + (inWork && !away ? "primary" : "ghost")} data-testid="att-checkout" disabled={!inWork} onClick={checkOut}>퇴근 체크</button>
+            </>;
+          })()}
         </div>
       </div>
 
