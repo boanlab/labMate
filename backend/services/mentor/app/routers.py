@@ -17,8 +17,8 @@ from .crypto import decrypt, encrypt, mask
 from .masters import DEFAULTS, FEATURES
 from .models import InterviewTurn, Principle, Secret, Usage
 from .openrouter import MentorError, chat, check_key, models
-from .prompts import (CATEGORIES, SEED_QUESTION, build, extract_messages, interview_messages,
-                      chat_messages, nudge_messages, review_messages)
+from .prompts import (CATEGORIES, SEED_QUESTION, build, chat_messages, enforce_count,
+                      extract_messages, interview_messages, nudge_messages, review_messages)
 
 router = APIRouter()
 KEY_ID = "openrouter"
@@ -176,7 +176,7 @@ async def review(body: schemas.ReviewIn, user: CurrentUser = Depends(get_current
     log.cost_usd = out["cost_usd"]
     db.add(log)
     db.commit()
-    return schemas.ReviewOut(text=out["text"], model=out["model"])
+    return schemas.ReviewOut(text=enforce_count(out["text"]), model=out["model"])
 
 
 @router.get("/usage", response_model=schemas.UsageOut)

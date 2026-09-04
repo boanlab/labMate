@@ -30,7 +30,9 @@ function pastDates(t, given = "") {
     if (!mo || !d || mo > 12 || d > 31) return;
     const iso = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     // 입력에 있던 날짜를 사실로 인용한 것은 잘못이 아니다(완료일·지난 마감 등).
-    if (iso < TODAY && !given.includes(iso) && !given.includes(`${mo}/${d}`)) found.push(iso);
+    const inGiven = given.includes(iso) || given.includes(`${mo}/${d}`)
+                 || new RegExp(`${mo}\\s*월\\s*${d}\\s*일`).test(given);
+    if (iso < TODAY && !inGiven) found.push(iso);
   };
   for (const m of t.matchAll(/(\d{4})-(\d{2})-(\d{2})/g)) { if (+m[1] === y) push(+m[2], +m[3]); }
   for (const m of t.matchAll(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/g)) push(+m[1], +m[2]);
@@ -45,6 +47,14 @@ const COMMON_MUST_NOT = [
   ["추궁하지 않음", lacks("왜 안", "왜 못", "실망", "게으르", "태만")],
   ["지난 날짜를 앞으로의 일정으로 제안하지 않음", (t, given) => pastDates(t, given).length === 0],
   ["길이 제한(800자) 준수", (t) => t.length <= 800],
+  ["지적을 3개 이하로", (t) => (t.match(/^\s*(?:[*_~`]{0,2})\d+[).]/gm) || []).length <= 3],
+  // 판정과 지적 개수가 맞는가 — 판정만 형식적으로 붙이고 개수를 안 지키는 일이 있었다.
+  ["판정과 지적 개수가 일치", (t) => {
+    const v = (t.match(/판정[:：]\s*(\S+)/) || [])[1];
+    if (!v) return true;                       // 독려·회고는 판정을 쓰지 않는다
+    const n = (t.match(/^\s*(?:[*_~`]{0,2})\d+[).]/gm) || []).length;
+    return v.startsWith("충분") ? n <= 2 : v.startsWith("보통") ? n === 2 : n === 3;
+  }],
 ];
 
 const SCENARIOS = [
@@ -125,12 +135,16 @@ const SCENARIOS = [
     },
     must: [
       // 잘 쓴 글에 지적 3개를 억지로 채우면 신뢰를 잃는다. 2개 이하가 적정.
-      ["지적을 2개 이하로", (t) => (t.match(/^\s*\d[).]/gm) || []).length <= 2],
+      ["지적을 2개 이하로", (t) => (t.match(/^\s*(?:[*_~`]{0,2})\d[).]/gm) || []).length <= 2],
       ["잘된 점을 인정", has("잘된 점", "충분", "명확", "적절")],
     ],
     mustNot: [
       // 원문 수치를 인용한다면 원문 그대로여야 한다(다른 값으로 바꾸면 안 된다).
       ["원문 수치를 바꾸지 않음", lacks(/4[013-9]분/, /2[0-689]분/, /3[0-57-9]%/)],
+      // 원문에 있는 것을 없다고 하면 학생이 멘토를 믿지 않게 된다.
+      ["있는 정보를 없다고 하지 않음",
+        lacks(/시드[^\n]{0,20}(없|누락|빠|미기재|명시되지)/, /버전[^\n]{0,20}(없|누락|빠|미기재|명시되지)/,
+              /담당자[^\n]{0,20}(없|누락|빠|미지정)/)],
     ],
   },
   {
@@ -173,7 +187,7 @@ const SCENARIOS = [
       context: { 문서유형: "월간보고" },
     },
     must: [
-      ["지적을 3개 이내로 압축", (t) => (t.match(/^\s*\d[).]/gm) || []).length <= 4],
+      ["지적을 3개 이내로 압축", (t) => (t.match(/^\s*(?:[*_~`]{0,2})\d[).]/gm) || []).length <= 4],
       ["구조 문제를 지적", has("구조", "결론", "정리", "나누")],
     ],
   },
