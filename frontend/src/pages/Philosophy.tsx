@@ -167,7 +167,7 @@ export default function Philosophy() {
               </p>
               {drafts.map((p) => (
                 <div key={p.id} className="ph-draft" data-testid="ph-draft">
-                  <input defaultValue={p.text} data-testid="ph-draft-text"
+                  <input defaultValue={p.text} data-testid="ph-draft-text" aria-label="지침 초안 문구"
                     onBlur={(e) => e.target.value !== p.text && patch(p, { text: e.target.value })} style={{ width: "100%" }} />
                   {p.rationale && <div className="muted small">근거: {p.rationale}</div>}
                   <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
