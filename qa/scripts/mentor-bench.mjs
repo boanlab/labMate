@@ -1,0 +1,222 @@
+// 멘토 품질 벤치마크 — 시나리오마다 '반드시 잡아야 할 것'과 '하면 안 되는 것'을 정해 두고
+// 실제 응답이 그 기준을 몇 개 만족하는지 센다.
+//
+// 사람이 눈으로 읽어 판단하면 프롬프트를 고칠 때마다 좋아졌는지 알 수 없다.
+// 기준을 규칙으로 굳혀야 튜닝의 효과를 숫자로 볼 수 있다.
+//
+//   node scripts/mentor-bench.mjs              전체
+//   node scripts/mentor-bench.mjs task,report   일부만
+//   LM_BENCH_MODEL=anthropic/claude-sonnet-5 node scripts/mentor-bench.mjs   모델 바꿔 비교
+import fs from "node:fs";
+import path from "node:path";
+
+import { newBrowser, newPage, uiLogin, OUT_DIR } from "./lib.mjs";
+import { PERSONAS, BASE } from "./personas.mjs";
+
+const P = Object.fromEntries(PERSONAS.map((p) => [p.key, p]));
+
+/** 규칙 헬퍼 — 응답 텍스트에 대해 참/거짓을 판정한다. */
+const has = (...alts) => (t) => alts.some((a) => (a instanceof RegExp ? a.test(t) : t.includes(a)));
+const lacks = (...alts) => (t) => !alts.some((a) => (a instanceof RegExp ? a.test(t) : t.includes(a)));
+
+// 오늘(KST) — 지난 날짜를 앞으로의 마감으로 제안하는지 보는 데 쓴다.
+const TODAY = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+
+/** 응답에서 'M월 D일' / 'M/D' 꼴 날짜를 뽑아 과거인 것을 찾는다. */
+function pastDates(t, given = "") {
+  const y = Number(TODAY.slice(0, 4));
+  const found = [];
+  const push = (mo, d) => {
+    if (!mo || !d || mo > 12 || d > 31) return;
+    const iso = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    // 입력에 있던 날짜를 사실로 인용한 것은 잘못이 아니다(완료일·지난 마감 등).
+    if (iso < TODAY && !given.includes(iso) && !given.includes(`${mo}/${d}`)) found.push(iso);
+  };
+  for (const m of t.matchAll(/(\d{4})-(\d{2})-(\d{2})/g)) { if (+m[1] === y) push(+m[2], +m[3]); }
+  for (const m of t.matchAll(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/g)) push(+m[1], +m[2]);
+  for (const m of t.matchAll(/(?<![\d.])(\d{1,2})\/(\d{1,2})(?![\d/])/g)) push(+m[1], +m[2]);
+  return found;
+}
+
+// 모든 시나리오에 공통으로 적용하는 금지 규칙.
+const COMMON_MUST_NOT = [
+  ["원문에 없는 수치를 지어내지 않음", lacks(/\b\d{2,3}\s*%\s*(→|->)\s*\d{2,3}\s*%/, /\b\d+\s*ms\s*(→|->)\s*\d+\s*ms/)],
+  ["이모지를 쓰지 않음", lacks(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)],
+  ["추궁하지 않음", lacks("왜 안", "왜 못", "실망", "게으르", "태만")],
+  ["지난 날짜를 앞으로의 일정으로 제안하지 않음", (t, given) => pastDates(t, given).length === 0],
+  ["길이 제한(800자) 준수", (t) => t.length <= 800],
+];
+
+const SCENARIOS = [
+  {
+    key: "task", feature: "task", persona: "phd",
+    name: "모호한 세부업무",
+    input: { title: "논문 작업", body: "논문 관련해서 작업을 진행할 예정입니다.",
+             context: { 시작일: "2026-09-04", 마감일: "2026-11-30", 상태: "예정" } },
+    must: [
+      ["측정 가능한 제목을 제안", has(/제목/, /"[^"]*" *(→|->)/)],
+      ["기간이 길다는 점 지적", has("2주", "쪼개", "나누", "분리", "3개월")],
+      ["완료 조건을 요구", has("완료 조건", "완료 기준", "무엇이 있으면", "판정")],
+      ["고쳐 쓴 예시 제시", has(/(→|->)/)],
+    ],
+  },
+  {
+    key: "report", feature: "report", persona: "phd",
+    name: "학생 말투 보고서",
+    input: { title: "실험 관련 보고",
+             body: "이번 주에 실험을 좀 해봤는데 성능이 많이 좋아진 것 같아요. 데이터 전처리 부분도 개선했고요. 조만간 추가 실험도 진행해서 결과를 공유드리겠습니다. 관련해서 이슈는 딱히 없었습니다. 앞으로도 열심히 하겠습니다.",
+             context: { 문서유형: "일반보고" } },
+    must: [
+      ["구어체 지적", has("좋아진 것 같", "해봤", "구어", "말투", "~요")],
+      ["'많이' 등 정도 표현을 수치로", has("많이", "수치", "정량", "얼마")],
+      ["'조만간'을 날짜로", has("조만간", "날짜", "언제까지")],
+      ["'열심히 하겠습니다' 삭제 권고", has("열심히")],
+      ["빈칸으로 남김", has("___", "__", "채워")],
+    ],
+  },
+  {
+    key: "meeting", feature: "meeting", persona: "master",
+    name: "담당자·기한 없는 회의록",
+    input: { title: "9월 1주 정기회의",
+             body: "[결정사항]\n전처리 방식을 A로 가기로 함\n\n[액션아이템]\n- 실험 재현 / 담당: 미지정 / 기한: 미지정\n- 논문 초안 검토한다 / 담당: 최석사 / 기한: 미지정",
+             context: { 일자: "2026-09-01", 참석자수: 4 } },
+    must: [
+      ["담당자 누락 지적", has("담당")],
+      ["기한 누락 지적", has("기한", "마감", "날짜")],
+      ["결정 근거·대안 부재 지적", has("근거", "이유", "대안", "왜")],
+      ["'검토한다' 같은 모호한 액션 지적", has("검토", "모호", "구체")],
+    ],
+  },
+  {
+    key: "note", feature: "note", persona: "phd",
+    name: "재현 불가능한 연구노트",
+    input: { title: "실험 기록",
+             body: "오늘 실험을 돌렸다. 결과가 저번보다 나아졌다. 내일 더 해봐야겠다.",
+             context: { 태그: "eBPF" } },
+    must: [
+      ["설정·조건·버전 기록 요구", has("조건", "설정", "버전", "파라미터", "데이터")],
+      ["해석·이유 요구", has("왜", "이유", "해석", "판단", "근거", "무엇이 달라")],
+      ["다음 할 일 구체화 요구", has("다음", "구체")],
+      ["재현 가능성 언급", has("재현", "나중", "3개월", "다시")],
+    ],
+  },
+  {
+    key: "schedule", feature: "schedule", persona: "master",
+    name: "마감만 있는 일정",
+    input: { title: "학회 논문 마감",
+             body: "", context: { 구분: "마감", 시작: "2026-12-01", 종료: "2026-12-01", 오늘: "2026-09-04" } },
+    must: [
+      // 날짜가 붙은 항목이 2개 이상이면 중간 지점을 잡아 준 것으로 본다(표현은 자유).
+      // 날짜 표기는 자유(2026-10-17 / 10월 17일 / 10/17) — 형식이 아니라 개수를 본다.
+      ["중간 지점 2개 이상 제안", (t) => (t.match(/\d{4}-\d{2}-\d{2}|\d{1,2}\s*월\s*\d{1,2}\s*일|(?<![\d.])\d{1,2}\/\d{1,2}(?![\d/])/g) || []).length >= 2],
+      ["역산했음을 밝힘", has("역산", "역으로", "거꾸로", "남았", "남은")],
+      ["막판 몰림·검토시간 경고", has("몰리", "마지막", "말미", "여유", "직전", "검토", "수정")],
+    ],
+  },
+  {
+    key: "nudge", feature: "nudge", persona: "phd",
+    name: "밀린 일이 많은 상황",
+    payload: {
+      level: 1,
+      signals: [
+        { kind: "마감 지남", label: "마감이 지난 업무 12건", detail: "가장 오래된 것: eBPF 프로토타입 (98일 경과)" },
+        { kind: "주간보고", label: "주간보고 기록이 없음", detail: "전자결재 › 기안 작성 › 주간보고" },
+        { kind: "필독 공지", label: "확인하지 않은 필독 공지 1건" },
+      ],
+    },
+    must: [
+      ["우선순위 1건을 지정", has("먼저", "우선", "하나", "1건", "first")],
+      ["구체적 다음 행동", has("주간보고", "공지", "eBPF")],
+      ["부담을 낮추는 표현", has("오늘은", "여기까지", "충분", "짧게", "한 줄", "천천히", /\d+\s*분/, "만 해도", "하나씩", "먼저")],
+    ],
+    mustNot: [["나무라지 않음", lacks("지적", "반성", "문제입니다", "심각")]],
+  },
+  {
+    key: "review", feature: "review", persona: "phd",
+    name: "주간 회고 초안",
+    payload: {
+      week: "2026-W36",
+      facts: {
+        "이번 주 완료한 업무": ["전처리 파이프라인 리팩터링(2026-09-02)"],
+        "진행 중인 업무": ["eBPF 프로브 프로토타입 구현 / 마감 2026-05-29"],
+        "마감이 지난 업무": ["eBPF 프로브 프로토타입 구현 / 마감 2026-05-29"],
+        "다가오는 마감": ["DL02429 / 2026-09-06"],
+        "회의에서 맡은 일": ["실험 조건 정리 / 기한 2026-09-05"],
+      },
+    },
+    must: [
+      ["세 항목 구조", has("움직인", "막힌")],
+      ["다음 주 할 일 3가지", has("다음 주")],
+      ["없는 성과는 빈칸", has("___", "기록이 없", "채워")],
+      ["지연 사유를 물음", has("이유", "사유", "왜")],
+    ],
+  },
+];
+
+function scoreOne(text, sc) {
+  const checks = [...sc.must.map((m) => ["필수", ...m]), ...(sc.mustNot || []).map((m) => ["금지", ...m]),
+                  ...COMMON_MUST_NOT.map((m) => ["공통", ...m])];
+  const given = JSON.stringify(sc.input || sc.payload || {});
+  const results = checks.map(([kind, label, fn]) => ({ kind, label, ok: !!fn(text, given) }));
+  return { results, pass: results.filter((r) => r.ok).length, total: results.length };
+}
+
+const only = (process.argv[2] || "").split(",").filter(Boolean);
+const list = only.length ? SCENARIOS.filter((s) => only.includes(s.key)) : SCENARIOS;
+const model = process.env.LM_BENCH_MODEL || "";
+
+const b = await newBrowser();
+const sessions = new Map();
+async function tokenFor(who) {
+  if (!sessions.has(who)) {
+    const s = await newPage(b, { w: 1024, h: 768 });
+    await uiLogin(s.page, P[who].email);
+    sessions.set(who, s);
+  }
+  return sessions.get(who).page;
+}
+
+const out = [];
+for (const sc of list) {
+  const page = await tokenFor(sc.persona);
+  const url = sc.feature === "nudge" ? "/api/mentor/nudge"
+            : sc.feature === "review" ? "/api/mentor/weekly-review"
+            : "/api/mentor/review";
+  const body = sc.payload ? sc.payload : { feature: sc.feature, ...sc.input };
+  const t0 = Date.now();
+  const res = await page.evaluate(async ([u, b]) => {
+    const r = await fetch(u, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + localStorage.getItem("lm_access") },
+      body: JSON.stringify(b),
+    });
+    return { status: r.status, body: await r.text() };
+  }, [url, body]);
+  const secs = ((Date.now() - t0) / 1000).toFixed(1);
+
+  let text = "";
+  try { text = JSON.parse(res.body).text || JSON.parse(res.body).detail || ""; } catch { text = res.body; }
+  const sc2 = scoreOne(text, sc);
+  out.push({ key: sc.key, name: sc.name, secs, status: res.status, text, ...sc2 });
+
+  const pct = Math.round((sc2.pass / sc2.total) * 100);
+  console.log(`\n${"═".repeat(72)}\n■ ${sc.name} (${sc.key}) — ${sc2.pass}/${sc2.total} (${pct}%) · ${secs}초`);
+  for (const r of sc2.results) if (!r.ok) console.log(`   ✗ [${r.kind}] ${r.label}`);
+  const pd = pastDates(text, JSON.stringify(sc.input || sc.payload || {}));
+  if (pd.length) console.log(`     · 지난 날짜: ${[...new Set(pd)].join(", ")} (오늘 ${TODAY})`);
+  if (text.length > 800) console.log(`     · 길이 ${text.length}자`);
+}
+
+const tp = out.reduce((a, o) => a + o.pass, 0);
+const tt = out.reduce((a, o) => a + o.total, 0);
+console.log(`\n${"═".repeat(72)}`);
+console.log(`총점: ${tp}/${tt} (${Math.round((tp / tt) * 100)}%)${model ? ` · 모델 ${model}` : ""}`);
+for (const o of out) console.log(`  ${o.key.padEnd(9)} ${String(o.pass).padStart(2)}/${o.total}  ${o.secs}초`);
+
+fs.mkdirSync(path.join(OUT_DIR, "bench"), { recursive: true });
+const f = path.join(OUT_DIR, "bench", `bench-${model.replace(/[^\w.-]/g, "_") || "current"}.json`);
+fs.writeFileSync(f, JSON.stringify(out, null, 2));
+console.log(`\n전체 응답: ${f}`);
+
+for (const s of sessions.values()) await s.ctx.close();
+await b.close();
