@@ -25,7 +25,9 @@ make logs S=members-service   # 개별 서비스 로그
 | `deploy/` | nginx 게이트웨이 · postgres 초기화 |
 | `qa/` | 회귀 검증(Playwright) — `make qa` |
 
-서비스 7종(members · projects · funds · attendance · boards · resource · mentor)은 독립 DB를 사용하고 공통 JWT로 인증을 공유합니다.
+서비스 7종(members · projects · funds · attendance · boards · resource · mentor)은 독립 DB를 사용하고 공통 JWT로 인증을 공유합니다. 서비스 간 직접 호출은 없습니다.
+
+**알림**: 참여자 지정·전자결재 같은 이벤트는 서비스별 `notifications` 테이블에 저장하고, 상단 종이 각 서비스에서 취합합니다. 승인 대기·마감 임박처럼 상태가 바뀌면 사라져야 하는 항목은 저장하지 않고 조회 시점에 계산합니다(`derived.py`). 구독 시 Web Push(PWA)도 발송합니다 — `.env` 의 `VAPID_*` 설정 시 활성(HTTPS 필요).
 
 ## 코드 규약
 
