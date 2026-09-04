@@ -141,7 +141,7 @@ export default function Goals() {
 
                 {(mine || isMgr) && (
                   <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                    <input id={`${uid}-kr-${o.id}`} data-testid="kr-new" placeholder="결과지표 (예: 학회 투고 1편)" style={{ flex: 1, minWidth: 180 }} />
+                    <input id={`${uid}-kr-${o.id}`} data-testid="kr-new" aria-label={`${o.title} 결과지표 추가`} placeholder="결과지표 (예: 학회 투고 1편)" style={{ flex: 1, minWidth: 180 }} />
                     <button className="btn ghost sm" data-testid="kr-add" onClick={() => addKR(o)}>지표 추가</button>
                     <button className="btn ghost sm" onClick={() => delObjective(o)} style={{ color: "var(--bad-text)" }}>목표 삭제</button>
                   </div>

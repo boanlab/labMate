@@ -193,7 +193,7 @@ export default function Philosophy() {
                 ))}</ol>
               : <div className="muted">아직 없습니다. 인터뷰로 만들거나 아래에서 직접 추가하세요.</div>}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <input id={`${uid}-new`} data-testid="ph-new" placeholder="지침을 직접 추가 (예: 결론을 먼저 쓰고 근거를 뒤에 붙인다)" style={{ flex: 1 }} />
+              <input id={`${uid}-new`} data-testid="ph-new" aria-label={`${CAT_LABEL[cat]} 지침 직접 추가`} placeholder="지침을 직접 추가 (예: 결론을 먼저 쓰고 근거를 뒤에 붙인다)" style={{ flex: 1 }} />
               <button className="btn ghost" data-testid="ph-add" onClick={addManual}>추가</button>
             </div>
           </Card>
