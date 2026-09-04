@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { MentorButton } from "../ui/Mentor";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import { printDoc } from "../ui/pdf";
 import { todayKST, dateKST } from "../lib/date";
 
@@ -64,6 +65,10 @@ export default function Approvals() {
   const [addApprover, setAddApprover] = useState("");
   const [form, setForm] = useState({ type: "구매", title: "", project_id: "", approver_ids: [] as string[] });
   const [body, setBody] = useState("");
+  const inboxRef = useColumnResize("appr-inbox");
+  const mineRef = useColumnResize("appr-mine");
+  const inboxSort = useTableSort({ key: "created", dir: -1 }, "appr-inbox");
+  const mineSort = useTableSort({ key: "created", dir: -1 }, "appr-mine");
 
   const approverPool = users.filter((u) => ["prof", "staff"].includes(u.role) || u.delegated_admin || u.role === "admin");
   const uname = useDirectory("?");
@@ -279,10 +284,16 @@ export default function Approvals() {
   const vMyTurn = !!viewing && viewing.status === "진행" && vIdx >= 0 && viewing.steps[vIdx]?.uid === me?.id;
   const vUndoIdx = viewing ? viewing.steps.findIndex((s) => s.uid === me?.id && !!s.decision) : -1;
   const vCanUndo = !!viewing && vUndoIdx >= 0 && !viewing.steps.slice(vUndoIdx + 1).some((s) => !!s.decision);
+  const ACC = {
+    doc_no: (a: Appr) => a.doc_no, type: (a: Appr) => a.type, title: (a: Appr) => a.title,
+    by: (a: Appr) => uname(a.by_id), created: (a: Appr) => a.created_at, status: (a: Appr) => a.status,
+  };
+  const inSorted = inboxSort.apply(inbox, ACC);
+  const mineSorted = mineSort.apply(mine, ACC);
   const inPages = Math.max(1, Math.ceil(inbox.length / 10)), inCur = Math.min(inPage, inPages - 1);
-  const inView = inbox.slice(inCur * 10, inCur * 10 + 10);
+  const inView = inSorted.slice(inCur * 10, inCur * 10 + 10);
   const minePages = Math.max(1, Math.ceil(mine.length / 10)), mineCur = Math.min(minePage, minePages - 1);
-  const mineView = mine.slice(mineCur * 10, mineCur * 10 + 10);
+  const mineView = mineSorted.slice(mineCur * 10, mineCur * 10 + 10);
 
   // ── 목록(수신함·상신함) ──
   return (
@@ -296,8 +307,17 @@ export default function Approvals() {
       {isApprover && (
         <div className="card">
           <div className="card-h"><b>결재 수신함</b></div>
-          <table className="tbl fit" data-testid="appr-inbox">
-            <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 90 }}>기안자</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 124 }}>처리</th></tr></thead>
+          <table ref={inboxRef} className="tbl fit" data-testid="appr-inbox">
+            <thead><tr>
+              <th {...inboxSort.th("doc_no", "hide-sm")} style={{ width: 118 }}>문서번호{inboxSort.mark("doc_no")}</th>
+              <th {...inboxSort.th("type")} style={{ width: 80 }}>유형{inboxSort.mark("type")}</th>
+              <th {...inboxSort.th("title")}>제목{inboxSort.mark("title")}</th>
+              <th {...inboxSort.th("by", "hide-sm")} style={{ width: 90 }}>기안자{inboxSort.mark("by")}</th>
+              <th {...inboxSort.th("created", "hide-sm")} style={{ width: 96 }}>상신일{inboxSort.mark("created")}</th>
+              <th className="hide-sm" style={{ width: 140 }}>결재선</th>
+              <th {...inboxSort.th("status")} style={{ width: 78 }}>상태{inboxSort.mark("status")}</th>
+              <th style={{ width: 124 }}>처리</th>
+            </tr></thead>
             <tbody>
               {inView.map((a) => {
                 const idx = currentIdx(a.steps);
@@ -327,8 +347,16 @@ export default function Approvals() {
 
       <div className="card">
         <div className="card-h"><b>내 상신함</b></div>
-        <table className="tbl fit" data-testid="appr-mine">
-          <thead><tr><th className="hide-sm" style={{ width: 118 }}>문서번호</th><th style={{ width: 80 }}>유형</th><th>제목</th><th className="hide-sm" style={{ width: 96 }}>상신일</th><th className="hide-sm" style={{ width: 140 }}>결재선</th><th style={{ width: 78 }}>상태</th><th style={{ width: 224 }}>처리</th></tr></thead>
+        <table ref={mineRef} className="tbl fit" data-testid="appr-mine">
+          <thead><tr>
+            <th {...mineSort.th("doc_no", "hide-sm")} style={{ width: 118 }}>문서번호{mineSort.mark("doc_no")}</th>
+            <th {...mineSort.th("type")} style={{ width: 80 }}>유형{mineSort.mark("type")}</th>
+            <th {...mineSort.th("title")}>제목{mineSort.mark("title")}</th>
+            <th {...mineSort.th("created", "hide-sm")} style={{ width: 96 }}>상신일{mineSort.mark("created")}</th>
+            <th className="hide-sm" style={{ width: 140 }}>결재선</th>
+            <th {...mineSort.th("status")} style={{ width: 78 }}>상태{mineSort.mark("status")}</th>
+            <th style={{ width: 224 }}>처리</th>
+          </tr></thead>
           <tbody>
             {mineView.map((a) => {
               const started = a.steps.some((s) => s.decision);

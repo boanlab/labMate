@@ -5,6 +5,7 @@ import { api, apiError } from "../api/client";
 import { formSnapshot, confirmDiscard } from "../ui/kit";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig } from "../api/config";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 interface Att { id: string; uid: string; date: string; check_in: string; check_out: string; status: string; note: string; work_min?: number; session_start?: string; corrected?: boolean; }
 
@@ -49,10 +50,21 @@ export default function Attendance() {
   const [minePage, setMinePage] = useState(0);
   const [reqPage, setReqPage] = useState(0);
   useEffect(() => setMinePage(0), [from, to]);
+  const attRef = useColumnResize("att-table");
+  const reqRef = useColumnResize("att-myreqs");
+  const attSort = useTableSort(null, "att-table");
+  const reqSort = useTableSort(null, "att-myreqs");
+  const sortedShown = attSort.apply(shownMine, {
+    date: (a) => a.date, status: (a) => a.status, in: (a) => a.check_in || "",
+    out: (a) => a.check_out || "", work: (a) => workMin(a), note: (a) => a.note || "",
+  });
+  const sortedReqs = reqSort.apply(myReqs, {
+    date: (r) => r.date, req: (r) => r.requested_status, reason: (r) => r.reason, status: (r) => r.status,
+  });
   const minePages = Math.max(1, Math.ceil(shownMine.length / 10)), mineCur = Math.min(minePage, minePages - 1);
-  const mineView = shownMine.slice(mineCur * 10, mineCur * 10 + 10);
+  const mineView = sortedShown.slice(mineCur * 10, mineCur * 10 + 10);
   const reqPages = Math.max(1, Math.ceil(myReqs.length / 10)), reqCur = Math.min(reqPage, reqPages - 1);
-  const reqView = myReqs.slice(reqCur * 10, reqCur * 10 + 10);
+  const reqView = sortedReqs.slice(reqCur * 10, reqCur * 10 + 10);
 
   async function checkIn() { try { await api.post("/attendance/attendance/check-in", { status: "업무 중", note: "" }); load(); } catch (e) { setErr(apiError(e)); } }
   async function checkOut() { try { await api.post("/attendance/attendance/check-out"); load(); } catch (e) { setErr(apiError(e)); } }
@@ -106,8 +118,15 @@ export default function Attendance() {
             {(from || to) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); }}>초기화</button> : <span className="muted small">{shownMine.length}건</span>}
           </span>
         </div>
-        <table className="tbl" data-testid="att-table">
-          <thead><tr><th>일자</th><th>상태</th><th>출근</th><th>퇴근</th><th>근무</th><th>비고</th></tr></thead>
+        <table ref={attRef} className="tbl" data-testid="att-table">
+          <thead><tr>
+            <th {...attSort.th("date")}>일자{attSort.mark("date")}</th>
+            <th {...attSort.th("status")}>상태{attSort.mark("status")}</th>
+            <th {...attSort.th("in")}>출근{attSort.mark("in")}</th>
+            <th {...attSort.th("out")}>퇴근{attSort.mark("out")}</th>
+            <th {...attSort.th("work")}>근무{attSort.mark("work")}</th>
+            <th {...attSort.th("note")}>비고{attSort.mark("note")}</th>
+          </tr></thead>
           <tbody>
             {mineView.map((a) => (
               <tr key={a.id}><td>{a.date}{a.corrected && <span className="badge s-wait" style={{ marginLeft: 6 }}>보정</span>}</td><td>{a.status}</td><td>{a.check_in || "—"}</td><td>{a.check_out || "—"}</td><td className="small">{fmtWork(workMin(a))}</td><td className="muted small">{a.note}</td></tr>
@@ -120,8 +139,13 @@ export default function Attendance() {
 
       <div className="card">
         <div className="card-h"><b>내 출퇴근 정정 요청</b><span className="muted small">{myReqs.length}건</span></div>
-        <table className="tbl" data-testid="att-myreqs">
-          <thead><tr><th>일자</th><th>요청 (상태 / 출근~퇴근)</th><th>사유</th><th>처리</th></tr></thead>
+        <table ref={reqRef} className="tbl" data-testid="att-myreqs">
+          <thead><tr>
+            <th {...reqSort.th("date")}>일자{reqSort.mark("date")}</th>
+            <th {...reqSort.th("req")}>요청 (상태 / 출근~퇴근){reqSort.mark("req")}</th>
+            <th {...reqSort.th("reason")}>사유{reqSort.mark("reason")}</th>
+            <th {...reqSort.th("status")}>처리{reqSort.mark("status")}</th>
+          </tr></thead>
           <tbody>
             {reqView.map((r) => (
               <tr key={r.id}>

@@ -5,6 +5,7 @@ import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, won } from "../ui/kit";
 import { useConfig } from "../api/config";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 
 interface User { id: string; name: string; role: string; grade: string; join_date: string | null; exit_date: string | null; master_start?: string | null; phd_start?: string | null; active?: boolean; }
@@ -153,6 +154,15 @@ export default function Payroll() {
   const monthPend = (mm: string) => slips.filter((s) => s.month === `${year}-${mm}` && s.status === "예정").length;
   const pendTotal = slips.filter((s) => s.month.startsWith(`${year}-`) && s.status === "예정").length;   // 연간 미확정 총 건수
   const payStudents = students.filter((u) => MONTHS.some((mm) => payAmt(u.id, mm) > 0));
+  // 표 정렬 — 월 컬럼은 그 달 금액 기준. 고정 컬럼(col-stick)이 있어 폭 조절은 걸지 않는다.
+  const mxSort = useTableSort(null, "pay-matrix");
+  const paySort = useTableSort(null, "pay-table");
+  const execSort = useTableSort(null, "exec-table");
+  const poolSort = useTableSort(null, "pool-table");
+  const execRef = useColumnResize("exec-table");
+  const poolRef = useColumnResize("pool-table");
+  const monthAcc = <T,>(amount: (r: T, m: string) => number) =>
+    Object.fromEntries(MONTHS.map((m) => [`m${m}`, (r: T) => amount(r, m)]));
   const projPend = (projId: string) => slips.filter((s) => s.project_id === projId && s.status === "예정").reduce((a, s) => a + s.amount, 0);
   // 현재 월 다음달~연말 금액 — 지급확정이라도 미래분은 예정으로 처리
   const nowYM = todayKST().slice(0, 7);
@@ -235,9 +245,16 @@ export default function Payroll() {
           </div>
           <div className="card scroll" style={{ margin: 0, border: "none" }}>
             <table className="tbl" data-testid="pay-matrix">
-              <thead><tr><th className="col-stick-l">구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th className="col-stick-r">연 인건비</th></tr></thead>
+              <thead><tr>
+                <th {...mxSort.th("name", "col-stick-l")}>구성원{mxSort.mark("name")}</th>
+                {MONTHS.map((m) => <th key={m} {...mxSort.th(`m${m}`)} style={{ textAlign: "center" }}>{Number(m)}월{mxSort.mark(`m${m}`)}</th>)}
+                <th {...mxSort.th("annual", "col-stick-r")}>연 인건비{mxSort.mark("annual")}</th>
+              </tr></thead>
               <tbody>
-                {students.map((u) => (
+                {mxSort.apply(students, {
+                  name: (u) => u.name, annual: (u) => MONTHS.reduce((a, mm) => a + Number(matrix[u.id]?.[mm] ?? 0) * rateAt(u, mm) / 100, 0),
+                  ...monthAcc<User>((u, m) => Number(matrix[u.id]?.[m] ?? 0)),
+                }).map((u) => (
                   <tr key={u.id}>
                     <td className="col-stick-l" style={{ whiteSpace: "nowrap" }}>{u.name} <span className="pill">{grade(u)}</span></td>
                     {MONTHS.map((mm) => {
@@ -286,11 +303,17 @@ export default function Payroll() {
           <div className="card scroll" style={{ margin: 0, border: "none" }}>
             <table className="tbl" data-testid="pay-table">
               <thead>
-                <tr><th className="col-stick-l">구성원</th>{MONTHS.map((m) => <th key={m} style={{ textAlign: "center" }}>{Number(m)}월</th>)}<th className="col-stick-r">연 합계</th></tr>
+                <tr>
+                  <th {...paySort.th("name", "col-stick-l")}>구성원{paySort.mark("name")}</th>
+                  {MONTHS.map((m) => <th key={m} {...paySort.th(`m${m}`)} style={{ textAlign: "center" }}>{Number(m)}월{paySort.mark(`m${m}`)}</th>)}
+                  <th {...paySort.th("annual", "col-stick-r")}>연 합계{paySort.mark("annual")}</th>
+                </tr>
                 <tr style={{ background: "var(--soft)" }}><th className="muted small">지급확정</th>{MONTHS.map((mm) => <th key={mm} style={{ textAlign: "center" }} className="muted small">{monthPend(mm) > 0 ? `미확정 ${monthPend(mm)}` : (payMonthTotal(mm) ? "완료" : "—")}</th>)}<th></th></tr>
               </thead>
               <tbody>
-                {payStudents.map((u) => (
+                {paySort.apply(payStudents, {
+                  name: (u) => u.name, annual: (u) => payAnnual(u.id), ...monthAcc<User>((u, m) => payAmt(u.id, m)),
+                }).map((u) => (
                   <tr key={u.id}>
                     <td className="col-stick-l" style={{ whiteSpace: "nowrap" }}><a className="lnk" style={{ fontWeight: 700, cursor: "pointer" }} data-testid={`pay-open-${u.id}`} onClick={() => { setDetailYear(year); setDetail(u.id); }}>{u.name}</a> <span className="pill">{grade(u)}</span></td>
                     {MONTHS.map((mm) => { const amt = payAmt(u.id, mm); return (
@@ -323,10 +346,25 @@ export default function Payroll() {
             return (
               <div style={{ marginBottom: 12 }}>
                 <div className="muted small" style={{ marginBottom: 6 }}>통합학생인건비 그룹 — 연도 무관 누적 합산 한도(개별 과제 한도와 무관)</div>
-                <table className="tbl" style={{ minWidth: 0 }}>
-                  <thead><tr><th>통합 그룹</th><th>포함 과제</th><th>편성</th><th>집행</th><th>예정</th><th>잔여</th></tr></thead>
+                <table ref={poolRef} className="tbl" data-testid="pool-table" style={{ minWidth: 0 }}>
+                  <thead><tr>
+                    <th {...poolSort.th("group")}>통합 그룹{poolSort.mark("group")}</th>
+                    <th>포함 과제</th>
+                    <th {...poolSort.th("alloc")}>편성{poolSort.mark("alloc")}</th>
+                    <th {...poolSort.th("spent")}>집행{poolSort.mark("spent")}</th>
+                    <th {...poolSort.th("pend")}>예정{poolSort.mark("pend")}</th>
+                    <th {...poolSort.th("rem")}>잔여{poolSort.mark("rem")}</th>
+                  </tr></thead>
                   <tbody>
-                    {entries.map(([k, ps]) => {
+                    {poolSort.apply(entries, {
+                      group: ([k]) => k,
+                      alloc: ([, ps]) => ps.reduce((a, p) => a + stuBudget(p.id).allocated, 0),
+                      spent: ([, ps]) => ps.reduce((a, p) => a + stuBudget(p.id).spent - projFuturePaid(p.id), 0) + equalSpentAll,
+                      pend: ([, ps]) => ps.reduce((a, p) => a + projFutureAll(p.id), 0),
+                      rem: ([, ps]) => ps.reduce((a, p) => a + stuBudget(p.id).allocated, 0)
+                        - (ps.reduce((a, p) => a + stuBudget(p.id).spent - projFuturePaid(p.id), 0) + equalSpentAll)
+                        - ps.reduce((a, p) => a + projFutureAll(p.id), 0),
+                    }).map(([k, ps]) => {
                       const alloc = ps.reduce((a, p) => a + stuBudget(p.id).allocated, 0);   // 편성 그대로
                       const spent = ps.reduce((a, p) => a + stuBudget(p.id).spent - projFuturePaid(p.id), 0) + equalSpentAll;   // 균등 포함, 미래 지급분 제외
                       const pend = ps.reduce((a, p) => a + projFutureAll(p.id), 0);   // 현재 월 다음달~연말(지급확정 포함)
@@ -348,10 +386,21 @@ export default function Payroll() {
               </div>
             );
           })()}
-          <table className="tbl" data-testid="exec-table">
-            <thead><tr><th>과제</th><th>편성(학생인건비)</th><th>지급확정 집행</th><th>예정(미확정)</th><th>잔여</th><th>집행률</th></tr></thead>
+          <table ref={execRef} className="tbl" data-testid="exec-table">
+            <thead><tr>
+              <th {...execSort.th("code")}>과제{execSort.mark("code")}</th>
+              <th {...execSort.th("alloc")}>편성(학생인건비){execSort.mark("alloc")}</th>
+              <th {...execSort.th("spent")}>지급확정 집행{execSort.mark("spent")}</th>
+              <th {...execSort.th("pend")}>예정(미확정){execSort.mark("pend")}</th>
+              <th {...execSort.th("rem")}>잔여{execSort.mark("rem")}</th>
+              <th {...execSort.th("rate")}>집행률{execSort.mark("rate")}</th>
+            </tr></thead>
             <tbody>
-              {yearProjects.map((p) => {
+              {execSort.apply(yearProjects, {
+                code: (p) => p.code, alloc: (p) => stuBudget(p.id).allocated, spent: (p) => stuBudget(p.id).spent,
+                pend: (p) => projPend(p.id), rem: (p) => stuBudget(p.id).allocated - stuBudget(p.id).spent,
+                rate: (p) => (stuBudget(p.id).allocated ? stuBudget(p.id).spent / stuBudget(p.id).allocated : 0),
+              }).map((p) => {
                 const b = stuBudget(p.id); const pend = projPend(p.id);
                 const r = b.allocated ? Math.round(b.spent / b.allocated * 100) : 0;
                 const pool = String(p.meta?.payroll_pool || "").trim();

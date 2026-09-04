@@ -14,6 +14,7 @@ let pass = 0, fail = 0;
 const chk = (ok, l, d) => { ok ? pass++ : fail++; console.log(`${ok ? "✅" : "❌"} ${l}${d ? "  — " + d : ""}`); };
 
 // 표가 있는 화면과, 그 표를 볼 수 있는 페르소나
+const HAS_ADMIN = !!process.env.LM_ADMIN_EMAIL;   // 없으면 관리자 전용 화면은 건너뛴다
 const PAGES = [
   { p: "/notices", who: "prof", label: "공지사항" },
   { p: "/board", who: "phd", label: "게시판" },
@@ -32,7 +33,7 @@ const PAGES = [
   { p: "/assets", who: "prof", label: "자산" },
   { p: "/coaching", who: "prof", label: "지도 현황" },
   { p: "/audit", who: "admin", label: "감사로그" },
-];
+].filter((p) => p.who !== "admin" || HAS_ADMIN);
 
 const WIDTHS = [360, 768, 1280, 1920];
 
@@ -123,8 +124,11 @@ for (const w of WIDTHS) {
     await page.goto(BASE + path); await settle(page, 1200);
     const th = page.locator(`th[data-sort-key="${col}"]`);
     if (!(await th.count())) { chk(false, `${path} 정렬 가능한 머리글`); continue; }
-    const before = Math.round((await th.boundingBox()).width);
-    const bx = await th.boundingBox();
+    let bx = await th.boundingBox();
+    await page.mouse.dblclick(bx.x + bx.width - 3, bx.y + bx.height / 2);   // 저장된 폭 초기화
+    await settle(page, 600);
+    bx = await th.boundingBox();
+    const before = Math.round(bx.width);
     await page.mouse.move(bx.x + bx.width - 3, bx.y + bx.height / 2);
     await page.mouse.down();
     await page.mouse.move(bx.x + bx.width - 3 - 90, bx.y + bx.height / 2, { steps: 8 });
@@ -133,6 +137,43 @@ for (const w of WIDTHS) {
     const after = Math.round((await th.boundingBox()).width);
     chk(Math.abs((before - after) - 90) <= 4, `${path} 컬럼 폭 끌어서 조절`, `${before} → ${after}`);
   }
+}
+
+// 머리글을 눌렀을 때 실제로 순서가 바뀌는가 — 붙여 놓고 기준이 잘못 걸리면 조용히 아무 일도 안 한다
+{
+  const page = await pageFor("prof", 1440, 950);
+  const bad = [];
+  let tested = 0;
+  for (const pg of PAGES) {
+    await page.goto(BASE + pg.p, { waitUntil: "domcontentloaded" });
+    await settle(page, 900);
+    if (await page.locator('[data-testid="no-access"]').count()) continue;
+    const ths = await page.locator("table:visible th[data-sort-key]").elementHandles();
+    for (const th of ths.slice(0, 6)) {
+      if (!(await th.isVisible().catch(() => false))) continue;
+      const key = await th.getAttribute("data-sort-key");
+      // 이 컬럼의 값이 모두 같으면 정렬해도 순서가 그대로다 — 판정에서 제외한다
+      const snap = () => th.evaluate((el) => {
+        const tbl = el.closest("table"), idx = [...el.parentElement.children].indexOf(el);
+        const rows = [...tbl.querySelectorAll("tbody tr")];
+        return {
+          order: rows.map((r) => r.innerText.replace(/\s+/g, " ").slice(0, 40)).join("|"),
+          vals: rows.map((r) => (r.children[idx]?.innerText || "").trim()),
+        };
+      });
+      await th.click({ position: { x: 6, y: 6 } }).catch(() => {}); await settle(page, 400);
+      const a = await snap();
+      await th.click({ position: { x: 6, y: 6 } }).catch(() => {}); await settle(page, 400);
+      const d = await snap();
+      const varied = new Set(a.vals).size > 1;
+      if (a.vals.length > 1 && varied) {
+        tested++;
+        if (a.order === d.order) bad.push(`${pg.label} · ${key}`);
+      }
+    }
+  }
+  chk(bad.length === 0 && tested >= 20, "머리글 정렬이 실제로 동작",
+      bad.length ? `순서 안 바뀜: ${bad.slice(0, 6).join(" | ")}` : `검사한 컬럼 ${tested}개`);
 }
 
 // 폭 조절·정렬이 빠진 표를 찾아 알려 준다(있으면 안 되는 것은 아니지만 일관성 문제)
