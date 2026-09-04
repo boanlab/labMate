@@ -16,6 +16,10 @@ const chk = (ok, l, d) => { ok ? pass++ : fail++; console.log(`${ok ? "✅" : "�
 // 표가 있는 화면과, 그 표를 볼 수 있는 페르소나
 const HAS_ADMIN = !!process.env.LM_ADMIN_EMAIL;   // 없으면 관리자 전용 화면은 건너뛴다
 const PAGES = [
+  { p: "/", who: "prof", label: "대시보드" },
+  { p: "/projects", who: "prof", label: "프로젝트" },
+  { p: "/mypage", who: "phd", label: "마이페이지" },
+  { p: "/infra", who: "prof", label: "인프라" },
   { p: "/notices", who: "prof", label: "공지사항" },
   { p: "/board", who: "phd", label: "게시판" },
   { p: "/meetings", who: "prof", label: "회의록" },
@@ -33,6 +37,7 @@ const PAGES = [
   { p: "/assets", who: "prof", label: "자산" },
   { p: "/coaching", who: "prof", label: "지도 현황" },
   { p: "/audit", who: "admin", label: "감사로그" },
+  { p: "/admin", who: "admin", label: "관리자" },
 ].filter((p) => p.who !== "admin" || HAS_ADMIN);
 
 const WIDTHS = [360, 768, 1280, 1920];
@@ -174,6 +179,25 @@ for (const w of WIDTHS) {
   }
   chk(bad.length === 0 && tested >= 20, "머리글 정렬이 실제로 동작",
       bad.length ? `순서 안 바뀜: ${bad.slice(0, 6).join(" | ")}` : `검사한 컬럼 ${tested}개`);
+}
+
+// 키보드만으로도 정렬할 수 있는가 — 머리글이 클릭 전용이면 키보드 사용자는 정렬을 못 쓴다
+{
+  const page = await pageFor("phd", 1440, 950);
+  const bad = [];
+  for (const [path, col] of [["/board", "title"], ["/tasks", "title"], ["/attendance", "date"]]) {
+    await page.goto(BASE + path, { waitUntil: "domcontentloaded" });
+    await settle(page, 1000);
+    const th = page.locator(`th[data-sort-key="${col}"]`).first();
+    if (!(await th.count())) { bad.push(`${path} 머리글 없음`); continue; }
+    const before = await th.getAttribute("aria-sort");
+    await th.focus();
+    if (!(await th.evaluate((el) => el === document.activeElement))) { bad.push(`${path} 머리글에 초점이 가지 않음`); continue; }
+    await page.keyboard.press("Enter");
+    await settle(page, 500);
+    if ((await th.getAttribute("aria-sort")) === before) bad.push(`${path} Enter 로 정렬되지 않음`);
+  }
+  chk(bad.length === 0, "키보드로 정렬", bad.join(" | "));
 }
 
 // 폭 조절·정렬이 빠진 표를 찾아 알려 준다(있으면 안 되는 것은 아니지만 일관성 문제)
