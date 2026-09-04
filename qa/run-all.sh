@@ -47,15 +47,23 @@ run "업무 길잡이·편의"             env TAIL=3 node scripts/verify-guides
 run "로딩 표시(느린 회선)"         env TAIL=2 node scripts/verify-loading.mjs
 run "페이징 경계(대량)"            env TAIL=2 node scripts/verify-paging.mjs
 run "학생인건비 편성"              env TAIL=2 node scripts/verify-payroll.mjs
+run "자리비움"                     env TAIL=4 node scripts/verify-away.mjs
 run "연구노트 검색·태그"           env TAIL=2 node scripts/verify-notes.mjs
 run "연구비 집행 결재"             env TAIL=2 LM_ADMIN_EMAIL="$ADM_E" LM_ADMIN_PW="$ADM_P" node scripts/verify-expense-approval.mjs
 run "마감 알림·캘린더"             env TAIL=2 node scripts/verify-deadlines.mjs
 run "자산 예약 연동"               env TAIL=2 node scripts/verify-bookable.mjs
 run "전역 검색·내 할 일"           env TAIL=2 node scripts/verify-search-todo.mjs
 run "표 정렬·컬럼 폭"              env TAIL=2 node scripts/verify-table-tools.mjs
+run "표 표시(폭 변화)"             env TAIL=4 LM_ADMIN_EMAIL="$ADM_E" LM_ADMIN_PW="$ADM_P" node scripts/verify-tables.mjs
 run "화면 설정 계정 저장"          env TAIL=2 node scripts/verify-prefs.mjs
 run "알림 폴링"                    env TAIL=2 node scripts/verify-notif.mjs
 run "퇴사·삭제 구성원 이름"     env TAIL=3 node scripts/verify-member-names.mjs
+run "멘토 응답 품질"            env TAIL=4 node scripts/mentor-bench.mjs
+run "멘토 중단 시 동작"          env TAIL=3 node scripts/verify-mentor-degraded.mjs
+run "상시 멘토 대화"            env TAIL=3 node scripts/verify-mentor-chat.mjs
+run "지도철학 인터뷰"            env TAIL=3 node scripts/verify-philosophy.mjs
+run "멘토와 보내는 한 주"        env TAIL=10 node scripts/sc-mentor-week.mjs
+run "AI 멘토 화면"              env TAIL=3 LM_ADMIN_EMAIL="$ADM_E" LM_ADMIN_PW="$ADM_P" node scripts/verify-mentor-ui.mjs
 run "첨부 보안"                    env TAIL=3 node scripts/verify-upload-security.mjs
 run "동시 편집(낙관적 잠금)"       node scripts/concurrency.mjs
 

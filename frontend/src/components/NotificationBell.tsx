@@ -24,6 +24,8 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   // 파생 리마인더를 종에서 닫은 기록도 계정에 둔다 — 노트북에서 닫은 것이 데스크톱에서 되살아나지 않도록
   const [read, setRead] = usePref<string[]>("notif_read", []);
+  // 딥워크 시간에는 데스크톱 알림을 띄우지 않는다(종 배지는 그대로 — 놓치면 안 되므로).
+  const [deep] = usePref<{ on: boolean; from: string; to: string }>("deep_work", { on: false, from: "", to: "" });
   // 읽음 판정 — 저장 알림은 서버 read_at, 파생 리마인더는 계정 설정(임시로 닫아 둘 수 있게).
   const isRead = (i: Noti) => (i.derived ? read.includes(i.id) : !!i.read);
   const unread = items.filter((i) => !isRead(i));
@@ -69,7 +71,7 @@ export function NotificationBell() {
     try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); } catch { /* */ }
     const fresh = out.filter((o) => !seen.includes(o.id) && !(o.svc && o.read));
     // 서버 푸시(SW)가 활성이면 OS 알림은 그쪽에서 처리 → 폴링 중복 알림 억제
-    if (fresh.length && !pushActive() && "Notification" in window && Notification.permission === "granted") {
+    if (fresh.length && !inDeepWork() && !pushActive() && "Notification" in window && Notification.permission === "granted") {
       const n = fresh[0];
       try { new Notification("LabMate 알림", { body: n.title + " · " + n.sub + (fresh.length > 1 ? ` 외 ${fresh.length - 1}건` : ""), tag: "labmate" }); } catch { /* */ }
     }
@@ -88,6 +90,13 @@ export function NotificationBell() {
     return () => { clearInterval(t); window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVis); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id]);
+
+  /** 지금이 딥워크 시간인지 — 자정을 넘기는 설정도 처리한다. */
+  function inDeepWork(): boolean {
+    if (!deep?.on || !deep.from || !deep.to) return false;
+    const now = new Date().toTimeString().slice(0, 5);
+    return deep.from <= deep.to ? now >= deep.from && now < deep.to : now >= deep.from || now < deep.to;
+  }
 
   function go(n: Noti) { setOpen(false); nav(n.link); }
 

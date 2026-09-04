@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from labmate_common.db import Base
@@ -119,3 +119,34 @@ class ArchivePage(OrgScoped, SoftDelete, Base):
     updated_by: Mapped[str] = mapped_column(String(32), default="")              # 마지막 수정자
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Objective(OrgScoped, SoftDelete, Base):
+    """학기 단위 목표(OKR).
+
+    큰 목표 하나보다 작게 쪼갠 여러 개가 완료율이 높다는 것이 알려져 있어,
+    Objective 아래에 측정 가능한 Key Result 를 두고 세부업무를 KR 에 잇는다.
+    """
+
+    __tablename__ = "objectives"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(String(32), index=True)      # 목표 주인(학생)
+    period: Mapped[str] = mapped_column(String(20), index=True)        # 예: 2026-1학기
+    title: Mapped[str] = mapped_column(String(200))
+    note: Mapped[str] = mapped_column(Text, default="")
+    order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class KeyResult(OrgScoped, SoftDelete, Base):
+    """측정 가능한 결과. 목표값·현재값으로 달성률을 계산한다."""
+
+    __tablename__ = "key_results"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    objective_id: Mapped[str] = mapped_column(ForeignKey("objectives.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    unit: Mapped[str] = mapped_column(String(20), default="건")        # 건·편·%·회 등
+    target: Mapped[float] = mapped_column(Float, default=1)
+    current: Mapped[float] = mapped_column(Float, default=0)
+    order: Mapped[int] = mapped_column(Integer, default=0)

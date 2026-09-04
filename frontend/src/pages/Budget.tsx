@@ -4,6 +4,7 @@ import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, Chips, won, statusClass, Req, wonKo } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import { useConfig, names } from "../api/config";
 
 
@@ -64,6 +65,11 @@ export default function BudgetPage() {
   const pctOf = (a: number, s: number) => (a ? Math.round((s / a) * 100) : 0);
   const allocOf = (pid: string, category: string) => rowsOf(pid).find((b) => b.category === category) || { id: "", allocated: 0, spent: 0 };
 
+  const sumRef = useColumnResize("bg-summary");
+  const detRef = useColumnResize("bg-detail");
+  const sumSort = useTableSort(null, "bg-summary");
+  const detSort = useTableSort(null, "bg-detail");
+
   function startEdit() {
     const m: Record<string, number> = {}; STD.forEach((c) => { m[c] = allocOf(sel, c).allocated; });
     setAlloc(m); setReason(""); setEditing(true); setErr("");
@@ -92,10 +98,23 @@ export default function BudgetPage() {
           onChange={(t) => { setFilter(t); setEditing(false); const vis = projects.filter((p) => t === "전체" || stat(p) === t); if (!vis.some((p) => p.id === sel)) setSel(vis[0]?.id || ""); }}
           items={FILTERS.map((t) => ({ key: t, count: t === "전체" ? projects.length : projects.filter((p) => stat(p) === t).length }))} />
       } testid="budget-summary">
-        <table className="tbl fit">
-          <thead><tr><th className="hide-sm" style={{ width: 116 }}>관리코드</th><th>과제명</th><th style={{ width: 78 }}>상태</th><th className="hide-sm" style={{ width: 100 }}>총 편성</th><th className="hide-sm" style={{ width: 100 }}>총 집행</th><th style={{ width: 100 }}>잔액</th><th className="hide-sm" style={{ width: 72 }}>집행률</th></tr></thead>
+        <table ref={sumRef} className="tbl fit">
+          <thead><tr>
+            <th {...sumSort.th("code", "hide-sm")} style={{ width: 116 }}>관리코드{sumSort.mark("code")}</th>
+            <th {...sumSort.th("name")}>과제명{sumSort.mark("name")}</th>
+            <th {...sumSort.th("status")} style={{ width: 78 }}>상태{sumSort.mark("status")}</th>
+            <th {...sumSort.th("alloc", "hide-sm")} style={{ width: 100 }}>총 편성{sumSort.mark("alloc")}</th>
+            <th {...sumSort.th("spent", "hide-sm")} style={{ width: 100 }}>총 집행{sumSort.mark("spent")}</th>
+            <th {...sumSort.th("left")} style={{ width: 100 }}>잔액{sumSort.mark("left")}</th>
+            <th {...sumSort.th("pct", "hide-sm")} style={{ width: 72 }}>집행률{sumSort.mark("pct")}</th>
+          </tr></thead>
           <tbody>
-            {visProjects.map((p) => { const t = totOf(p.id); const r = pctOf(t.allocated, t.spent); const st = stat(p); return (
+            {sumSort.apply(visProjects, {
+              code: (p) => p.code, name: (p) => p.name, status: (p) => stat(p),
+              alloc: (p) => totOf(p.id).allocated, spent: (p) => totOf(p.id).spent,
+              left: (p) => totOf(p.id).allocated - totOf(p.id).spent,
+              pct: (p) => pctOf(totOf(p.id).allocated, totOf(p.id).spent),
+            }).map((p) => { const t = totOf(p.id); const r = pctOf(t.allocated, t.spent); const st = stat(p); return (
               <tr key={p.id} data-testid={`bg-row-${p.code}`} onClick={() => { setSel(p.id); setEditing(false); }} style={{ cursor: "pointer", background: sel === p.id ? "var(--bsoft)" : undefined }}>
                 <td className="hide-sm"><b>{p.code}</b></td><td className="muted" title={p.name}>{p.name}</td>
                 <td><span className={statusClass(st)}>{st}</span></td>
@@ -121,10 +140,22 @@ export default function BudgetPage() {
             ? <span style={{ display: "flex", gap: 6 }}><button className="btn primary sm" data-testid="bg-save" onClick={saveEdit}>저장</button><button className="btn ghost sm" onClick={() => setEditing(false)}>취소</button></span>
             : <button className="btn primary sm" data-testid="bg-edit" onClick={startEdit}>예산 편성</button>)
         }>
-          <table className="tbl" data-testid="bg-detail-table">
-            <thead><tr><th>비목</th><th style={{ width: 180 }}>편성</th><th>집행</th><th>잔액</th><th style={{ width: 120 }}>집행률</th></tr></thead>
+          <table ref={detRef} className="tbl" data-testid="bg-detail-table">
+            <thead><tr>
+              <th {...detSort.th("cat")}>비목{detSort.mark("cat")}</th>
+              <th {...detSort.th("alloc")} style={{ width: 180 }}>편성{detSort.mark("alloc")}</th>
+              <th {...detSort.th("spent")}>집행{detSort.mark("spent")}</th>
+              <th {...detSort.th("left")}>잔액{detSort.mark("left")}</th>
+              <th {...detSort.th("pct")} style={{ width: 120 }}>집행률{detSort.mark("pct")}</th>
+            </tr></thead>
             <tbody>
-              {STD.map((c) => {
+              {detSort.apply([...STD], {
+                cat: (c) => c,
+                alloc: (c) => (editing ? (allocated[c] || 0) : allocOf(sel, c).allocated),
+                spent: (c) => (c === "간접비" ? (editing ? (allocated[c] || 0) : allocOf(sel, c).allocated) : allocOf(sel, c).spent),
+                left: (c) => { const a = editing ? (allocated[c] || 0) : allocOf(sel, c).allocated; return a - (c === "간접비" ? a : allocOf(sel, c).spent); },
+                pct: (c) => { const a = editing ? (allocated[c] || 0) : allocOf(sel, c).allocated; return pctOf(a, c === "간접비" ? a : allocOf(sel, c).spent); },
+              }).map((c) => {
                 const b = allocOf(sel, c); const a = editing ? (allocated[c] || 0) : b.allocated; const sp = c === "간접비" ? a : b.spent; const r = pctOf(a, sp);
                 return (
                   <tr key={c}>

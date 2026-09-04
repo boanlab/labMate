@@ -12,7 +12,7 @@ import zipfile
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from labmate_common.config import settings
@@ -22,7 +22,7 @@ from labmate_common.deps import CurrentUser, get_current_user
 from labmate_common.notifications import notify
 
 from . import schemas
-from .models import ArchivePage, Milestone, NotePage, Project, Publication, Task
+from .models import ArchivePage, KeyResult, Milestone, NotePage, Objective, Project, Publication, Task
 
 router = APIRouter()
 
@@ -510,3 +510,106 @@ def export_archive(user: CurrentUser = Depends(get_current_user), db: Session = 
         raise HTTPException(403, "권한이 없습니다")
     buf = _docs_zip(list(db.scalars(select(ArchivePage).order_by(ArchivePage.sort))), with_files=True)
     return StreamingResponse(buf, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=labmate-archive.zip"})
+
+
+# ── 목표(OKR) ──
+# 학생은 자기 목표만, 교수·행정은 연구실 전체를 본다(지도에 쓸 기반 데이터).
+def _okr_visible(user: CurrentUser, owner_id: str) -> bool:
+    return _can_manage(user) or owner_id == user.id
+
+
+@router.get("/objectives", response_model=list[schemas.ObjectiveOut])
+def list_objectives(period: str = "", owner_id: str = "",
+                    user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    stmt = select(Objective).order_by(Objective.period.desc(), Objective.order)
+    if period:
+        stmt = stmt.where(Objective.period == period)
+    if not _can_manage(user):
+        stmt = stmt.where(Objective.owner_id == user.id)      # 학생은 자기 것만
+    elif owner_id:
+        stmt = stmt.where(Objective.owner_id == owner_id)
+    objs = list(db.scalars(stmt))
+    krs: dict[str, list] = {}
+    if objs:
+        for k in db.scalars(select(KeyResult).where(KeyResult.objective_id.in_([o.id for o in objs])).order_by(KeyResult.order)):
+            krs.setdefault(k.objective_id, []).append(k)
+    return [schemas.ObjectiveOut(
+        id=o.id, owner_id=o.owner_id, period=o.period, title=o.title, note=o.note, order=o.order,
+        key_results=[schemas.KeyResultOut.model_validate(k) for k in krs.get(o.id, [])],
+    ) for o in objs]
+
+
+@router.post("/objectives", response_model=schemas.ObjectiveOut, status_code=201)
+def create_objective(body: schemas.ObjectiveIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    owner = body.owner_id or user.id
+    if owner != user.id and not _can_manage(user):
+        raise HTTPException(403, "다른 사람의 목표는 만들 수 없습니다")
+    n = db.scalar(select(func.count(Objective.id)).where(Objective.owner_id == owner, Objective.period == body.period)) or 0
+    o = Objective(owner_id=owner, period=body.period, title=body.title, note=body.note, order=n)
+    db.add(o); db.commit(); db.refresh(o)
+    return schemas.ObjectiveOut(id=o.id, owner_id=o.owner_id, period=o.period, title=o.title, note=o.note, order=o.order)
+
+
+@router.patch("/objectives/{oid}", response_model=schemas.ObjectiveOut)
+def update_objective(oid: str, body: dict, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    o = db.get(Objective, oid)
+    if not o:
+        raise HTTPException(404, "목표를 찾을 수 없습니다")
+    if not _okr_visible(user, o.owner_id):
+        raise HTTPException(403, "권한이 없습니다")
+    for k in ("title", "note", "period", "order"):
+        if k in body:
+            setattr(o, k, body[k])
+    db.commit(); db.refresh(o)
+    return schemas.ObjectiveOut(id=o.id, owner_id=o.owner_id, period=o.period, title=o.title, note=o.note, order=o.order)
+
+
+@router.delete("/objectives/{oid}", status_code=204)
+def delete_objective(oid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    o = db.get(Objective, oid)
+    if not o:
+        return
+    if not _okr_visible(user, o.owner_id):
+        raise HTTPException(403, "권한이 없습니다")
+    for k in db.scalars(select(KeyResult).where(KeyResult.objective_id == oid)):
+        db.delete(k)
+    db.delete(o); db.commit()
+
+
+@router.post("/objectives/{oid}/key-results", response_model=schemas.KeyResultOut, status_code=201)
+def add_kr(oid: str, body: schemas.KeyResultIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    o = db.get(Objective, oid)
+    if not o:
+        raise HTTPException(404, "목표를 찾을 수 없습니다")
+    if not _okr_visible(user, o.owner_id):
+        raise HTTPException(403, "권한이 없습니다")
+    n = db.scalar(select(func.count(KeyResult.id)).where(KeyResult.objective_id == oid)) or 0
+    k = KeyResult(objective_id=oid, **body.model_dump(exclude={"order"}), order=n)
+    db.add(k); db.commit(); db.refresh(k)
+    return k
+
+
+@router.patch("/key-results/{kid}", response_model=schemas.KeyResultOut)
+def update_kr(kid: str, body: dict, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    k = db.get(KeyResult, kid)
+    if not k:
+        raise HTTPException(404, "결과지표를 찾을 수 없습니다")
+    o = db.get(Objective, k.objective_id)
+    if not o or not _okr_visible(user, o.owner_id):
+        raise HTTPException(403, "권한이 없습니다")
+    for f in ("title", "unit", "target", "current", "order"):
+        if f in body:
+            setattr(k, f, body[f])
+    db.commit(); db.refresh(k)
+    return k
+
+
+@router.delete("/key-results/{kid}", status_code=204)
+def delete_kr(kid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    k = db.get(KeyResult, kid)
+    if not k:
+        return
+    o = db.get(Objective, k.objective_id)
+    if not o or not _okr_visible(user, o.owner_id):
+        raise HTTPException(403, "권한이 없습니다")
+    db.delete(k); db.commit()

@@ -2,6 +2,7 @@ import { useEffect, useState, useId } from "react";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card } from "../ui/kit";
+import { usePref } from "../api/prefs";
 
 const ROLE_KO: Record<string, string> = { prof: "지도교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리자" };
 
@@ -16,6 +17,9 @@ export default function MyPage() {
   const [pw, setPw] = useState({ current_password: "", new_password: "", confirm: "" });
   const [pwMsg, setPwMsg] = useState("");
   const up = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+  // 딥워크 — 매일 같은 시각에 방해받지 않는 시간을 확보하는 방식이 대학원생에게 가장
+  // 현실적이라 알려져 있다. 그 시간대에는 알림을 띄우지 않는다.
+  const [deep, setDeep] = usePref<{ on: boolean; from: string; to: string }>("deep_work", { on: false, from: "09:00", to: "11:00" });
 
   async function load() { try { setP((await api.get("/members/me")).data); } catch (e) { setErr(apiError(e)); } }
   useEffect(() => { load(); }, []);
@@ -98,6 +102,25 @@ export default function MyPage() {
           {pwMsg && <div className={pwMsg.includes("✓") ? "io" : "form-err"} style={{ marginTop: 8 }}>{pwMsg}</div>}
           <div style={{ marginTop: 12 }}><button className="btn primary" data-testid="mp-pw-submit">비밀번호 변경</button></div>
         </form>
+      </Card>
+
+      <Card title="딥워크 시간" testid="mp-deep">
+        <p className="muted small" style={{ marginTop: 0 }}>
+          매일 같은 시각에 방해받지 않는 시간을 정해 두면 연구가 밀리지 않습니다.
+          이 시간에는 <b>알림을 띄우지 않고</b> 캘린더에 블록으로 표시합니다.
+        </p>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+            <input type="checkbox" data-testid="mp-deep-on" checked={deep.on} onChange={(e) => setDeep({ ...deep, on: e.target.checked })} />
+            사용
+          </label>
+          <label htmlFor={`${uid}-df`} className="muted small">시작</label>
+          <input id={`${uid}-df`} type="time" data-testid="mp-deep-from" value={deep.from} disabled={!deep.on}
+            onChange={(e) => setDeep({ ...deep, from: e.target.value })} style={{ width: 120 }} />
+          <label htmlFor={`${uid}-dt`} className="muted small">종료</label>
+          <input id={`${uid}-dt`} type="time" data-testid="mp-deep-to" value={deep.to} disabled={!deep.on}
+            onChange={(e) => setDeep({ ...deep, to: e.target.value })} style={{ width: 120 }} />
+        </div>
       </Card>
     </div>
   );

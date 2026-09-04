@@ -7,6 +7,9 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Kpi, Card, statusClass } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
+import { MentorNudge, collectSignals } from "../components/MentorNudge";
+import { WeeklyReview, collectWeekFacts } from "../components/WeeklyReview";
 import { sortMembers } from "./Members";
 
 
@@ -132,6 +135,8 @@ export default function Dashboard() {
     return { ta, tg, tot, counts };
   };
   const dday = (end: string | null) => end ? Math.ceil((+new Date(end) - Date.now()) / 86400000) : null;
+  const pfRef = useColumnResize("dash-portfolio");
+  const pfSort = useTableSort(null, "dash-portfolio");
 
   // 결재 — 내 차례인 문서
   const myTurn = inbox.filter((a) => a.status === "진행" && a.steps[currentIdx(a.steps)]?.uid === me?.id);
@@ -153,6 +158,7 @@ export default function Dashboard() {
   const myOpenTasks = allTasks.filter((t) => t.assignee_id === me?.id && t.status !== "완료");
   const myUnackNotices = notices.filter((n: any) => n.required && !(n.acked_user_ids || []).includes(me?.id || ""));
   const todoCount = myActions.length + myPendingAppr.length + myOpenTasks.length + myUnackNotices.length;
+
   const today0 = todayKST();
   const todayEvents = events.filter((e: any) => e.date === today0).sort((a: any, b: any) => (a.time || "").localeCompare(b.time || ""));
   const futureEvents = events.filter((e: any) => e.date > today0).sort((a: any, b: any) => a.date.localeCompare(b.date)).slice(0, 4);
@@ -164,6 +170,17 @@ export default function Dashboard() {
   const taskCount: Record<string, number> = {}; myTasks.forEach((t) => { taskCount[t.status] = (taskCount[t.status] || 0) + 1; });
   const overdueTasks = myTasks.filter((t) => t.status !== "완료" && t.due && t.due < today0);
   const openTasks = myTasks.filter((t) => t.status !== "완료").sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+
+  // 멘토가 짚어 줄 '밀린 일' — 이미 불러 둔 데이터에서 뽑는다(추가 요청 없음).
+  const lastReport = myAppr
+    .filter((a: any) => /주간/.test(a.type || "") && a.created_at)
+    .map((a: any) => String(a.created_at).slice(0, 10))
+    .sort().pop() || "";
+  const weekFacts = collectWeekFacts({ tasks: myTasks, actions: myActions, meetings: myMeetings });
+  const nudgeSignals = collectSignals({
+    tasks: myTasks, actions: myActions, unackNotices: myUnackNotices.length,
+    pendingAppr: myPendingAppr.length, lastReportAt: lastReport,
+  });
   // 프로젝트 현황: 본인이 담당자(PM) 또는 참여연구원인 진행중 프로젝트만
   const openActs = activities.filter((p) => liveStatus(p.start, p.end) !== "완료" && (seesAll || p.pm_id === me?.id || (p.members || []).includes(me?.id || "")));
   const unackNotices = notices.filter((n) => (!(n.target_user_ids || []).length || (n.target_user_ids || []).includes(me?.id || "")) && !(n.acked_user_ids || []).includes(me?.id || "")).length;
@@ -202,7 +219,7 @@ export default function Dashboard() {
             </table>
           </Card>
           <Card title="최근 감사 로그" extra={<button className="btn ghost sm" onClick={() => nav("/audit")}>전체 보기</button>}>
-            <table className="tbl">
+            <table className="tbl" data-preview="최근 15건">
               <thead><tr><th>시각</th><th>행위자</th><th>행위</th><th>대상</th><th>서비스</th></tr></thead>
               <tbody>
                 {audit.slice(0, 15).map((a, i) => (
@@ -310,6 +327,15 @@ export default function Dashboard() {
             </>
           ) : <div className="muted small">예정된 일정 없음</div>}
         </div>
+        {/* 밀린 일이 있으면 맨 위에서 멘토가 먼저 짚는다(없으면 렌더되지 않는다) */}
+        {!isMgr && !!nudgeSignals.length && (
+          <div style={{ gridColumn: "span 6" }}><MentorNudge signals={nudgeSignals} /></div>
+        )}
+
+        {!isMgr && (
+          <div style={{ gridColumn: "span 6" }}><WeeklyReview facts={weekFacts} /></div>
+        )}
+
         {isMgr ? (
           <div className="dash-rs" style={{ gridColumn: "span 6" }}>
             <Card title="연구원 현황" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/members")}>구성원 →</a>} testid="dash-members">
@@ -373,10 +399,20 @@ export default function Dashboard() {
 
       <Card title="과제 포트폴리오" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/grants")}>과제관리 →</a>}>
         <div className="card scroll" style={{ margin: 0, border: "none" }}>
-          <table className="tbl fit" data-testid="dash-portfolio" style={{ width: "100%" }}>
-            <thead><tr><th>과제</th><th className="hide-sm" style={{ width: 84 }}>기관</th>{canBudget && <th className="hide-sm" style={{ width: 158 }}>예산 집행률</th>}<th style={{ width: 132 }}>성과</th><th style={{ width: 78 }}>기한</th></tr></thead>
+          <table ref={pfRef} className="tbl fit" data-testid="dash-portfolio" style={{ width: "100%" }}>
+            <thead><tr>
+              <th {...pfSort.th("name")}>과제{pfSort.mark("name")}</th>
+              <th {...pfSort.th("agency", "hide-sm")} style={{ width: 84 }}>기관{pfSort.mark("agency")}</th>
+              {canBudget && <th {...pfSort.th("exec", "hide-sm")} style={{ width: 158 }}>예산 집행률{pfSort.mark("exec")}</th>}
+              <th {...pfSort.th("ach")} style={{ width: 132 }}>성과{pfSort.mark("ach")}</th>
+              <th {...pfSort.th("dday")} style={{ width: 78 }}>기한{pfSort.mark("dday")}</th>
+            </tr></thead>
             <tbody>
-              {ps.map((p) => {
+              {pfSort.apply(ps, {
+                name: (p) => p.code, agency: (p) => p.agency || "",
+                exec: (p) => budgetOf(p.id), ach: (p) => achievedOf(p).tot,
+                dday: (p) => dday(grantEnd(p)) ?? 99999,
+              }).map((p) => {
                 const ex = budgetOf(p.id); const ach = achievedOf(p); const dd = dday(grantEnd(p));
                 return (
                   <tr key={p.id}>
@@ -409,7 +445,7 @@ export default function Dashboard() {
       {isMgr && (
         <div className="grid g2">
           <Card title="프로젝트 현황" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/projects")}>프로젝트 →</a>} testid="dash-activities">
-            <table className="tbl" style={{ tableLayout: "fixed", width: "100%", minWidth: 0 }}>
+            <table className="tbl" data-preview="상위 6건" style={{ tableLayout: "fixed", width: "100%", minWidth: 0 }}>
               <thead><tr><th>명칭</th><th style={{ width: 74 }}>분류</th><th style={{ width: 80 }}>상태</th></tr></thead>
               <tbody>
                 {openActs.slice(0, 6).map((p) => (
@@ -431,7 +467,7 @@ export default function Dashboard() {
               <span className="small"><b style={{ color: "var(--ok-text)" }}>●</b> 완료 <b>{taskCount["완료"] || 0}</b></span>
               {overdueTasks.length > 0 && <span className="small"><b style={{ color: "var(--bad-text)" }}>●</b> 지연 <b>{overdueTasks.length}</b></span>}
             </div>
-            <table className="tbl" style={{ tableLayout: "fixed", width: "100%", minWidth: 0 }}>
+            <table className="tbl" data-preview="상위 6건" style={{ tableLayout: "fixed", width: "100%", minWidth: 0 }}>
               <thead><tr><th style={{ width: 84 }}>과제</th><th>업무</th><th style={{ width: 96 }}>마감</th></tr></thead>
               <tbody>
                 {openTasks.slice(0, 6).map((t) => {

@@ -9,6 +9,7 @@ import { NotificationBell } from "./NotificationBell";
 import { InstallButton } from "./InstallButton";
 import { TopProgress } from "./TopProgress";
 import { GlobalSearch } from "./GlobalSearch";
+import { MentorChat } from "./MentorChat";
 
 const ROLE_LABEL: Record<string, string> = {
   prof: "지도교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리자",
@@ -30,6 +31,7 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/grants", label: "연구과제", icon: "award", roles: ["prof", "phd", "master", "under", "staff"] },
     { to: "/projects", label: "프로젝트", icon: "folder", roles: NO_STAFF },
     { to: "/tasks", label: "세부업무", icon: "clipboard", roles: ["prof", "phd", "master", "under", "staff"] },
+    { to: "/goals", label: "목표", icon: "award", roles: NO_STAFF },
     { to: "/notes", label: "연구노트", icon: "book", roles: NO_STAFF },
     { to: "/approvals", label: "전자결재", icon: "doc", roles: NO_STAFF },
     { to: "/booking", label: "자원예약", icon: "pin", roles: NO_STAFF },
@@ -51,6 +53,8 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/att-admin", label: "근태 관리", icon: "clock", roles: ["prof"] },
   ] },
   { title: "연구실", items: [
+    { to: "/philosophy", label: "지도철학", icon: "book", roles: NO_STAFF },
+    { to: "/coaching", label: "지도 현황", icon: "users", roles: ["prof", "staff"] },
     { to: "/publications", label: "실적", icon: "award", roles: ALL },
     { to: "/library", label: "교육", icon: "book", roles: NO_STAFF },
     { to: "/archive", label: "아카이브", icon: "folder", roles: ALL },
@@ -128,6 +132,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       {/* 키보드 사용자가 사이드바 메뉴 전체를 건너뛰고 본문으로 바로 가도록(WCAG 2.4.1 Bypass Blocks) */}
       <a className="skip-link" href="#main" data-testid="skip-link">본문으로 건너뛰기</a>
       <TopProgress />
+      <MentorChat />
       <header className="appbar">
         <div className="appbar-l">
           <button className="hamburger" data-testid="hamburger" aria-label="메뉴 접기/펼치기" title="메뉴 접기/펼치기" onClick={toggleSidebar}>☰</button>

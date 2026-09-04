@@ -5,8 +5,8 @@ COMPOSE       := docker compose
 GATEWAY_PORT  := $(shell grep -E '^GATEWAY_PORT=' .env 2>/dev/null | cut -d= -f2)
 GATEWAY_PORT  := $(or $(GATEWAY_PORT),8080)
 BASE          := http://localhost:$(GATEWAY_PORT)
-SERVICES      := members projects funds attendance boards resource
-APP_SERVICES  := members-service projects-service funds-service attendance-service boards-service resource-service
+SERVICES      := members projects funds attendance boards resource mentor
+APP_SERVICES  := members-service projects-service funds-service attendance-service boards-service resource-service mentor-service
 TS            := $(shell date +%Y%m%d-%H%M%S)
 
 # 컨테이너 레지스트리 (이미지: $(ORG)/labmate-<service>:$(VERSION))
@@ -108,7 +108,7 @@ logs: ## 전체 로그 follow (S=서비스명 지정 가능: make logs S=members
 	$(COMPOSE) logs -f --tail=100 $(S)
 
 .PHONY: health
-health: ## 6개 서비스 헬스체크
+health: ## 서비스 헬스체크
 	@for s in $(SERVICES); do \
 	  code=$$(curl -s -o /dev/null -w '%{http_code}' $(BASE)/api/$$s/health); \
 	  echo "  $$s: $$code"; \
@@ -133,7 +133,7 @@ restore: ## 백업 복구(DB+첨부): make restore FILE=data/backups/labmate_<�
 	@echo "→ 앱 서비스 정지"
 	@$(COMPOSE) stop $(APP_SERVICES) >/dev/null 2>&1 || true
 	@echo "→ 기존 DB 드롭"
-	@for db in labmate_members labmate_projects labmate_funds labmate_attendance labmate_boards labmate_resource; do \
+	@for db in $(addprefix labmate_,$(SERVICES)); do \
 	  $(COMPOSE) exec -T postgres psql -U labmate -d postgres -c "DROP DATABASE IF EXISTS $$db WITH (FORCE);" >/dev/null 2>&1 || \
 	  $(COMPOSE) exec -T postgres psql -U labmate -d postgres -c "DROP DATABASE IF EXISTS $$db;" >/dev/null 2>&1 || true; \
 	done
@@ -148,7 +148,7 @@ restore: ## 백업 복구(DB+첨부): make restore FILE=data/backups/labmate_<�
 .PHONY: reset
 reset: ## ⚠ 모든 데이터 삭제 후 관리자만 재시드(백업 먼저 권장)
 	@printf "⚠ 모든 서비스 데이터를 삭제합니다. 계속하려면 'yes' 입력: " && read ans && [ "$$ans" = "yes" ]
-	@for db in labmate_members labmate_projects labmate_funds labmate_attendance labmate_boards labmate_resource; do \
+	@for db in $(addprefix labmate_,$(SERVICES)); do \
 	  tbls=$$($(COMPOSE) exec -T postgres psql -U labmate -d $$db -tA -c \
 	    "SELECT string_agg(format('%I',tablename),',') FROM pg_tables WHERE schemaname='public'"); \
 	  [ -n "$$tbls" ] && $(COMPOSE) exec -T postgres psql -U labmate -d $$db -c \

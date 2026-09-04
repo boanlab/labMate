@@ -8,6 +8,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Chips, Req, formSnapshot, confirmDiscard, statusClass, ATTACH_ACCEPT } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
 import HtmlEditor from "../ui/HtmlEditorLazy";
+import { MentorButton } from "../ui/Mentor";
 import { todayKST } from "../lib/date";
 
 interface TFile { name: string; url: string; }
@@ -165,9 +166,14 @@ export default function MyTasks() {
                   ))}
                 </div>
               )}
-              <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+              <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
                 <button className="btn primary" data-testid="mtf-submit">저장</button>
                 <button type="button" className="btn ghost" onClick={() => setForm(null)}>취소</button>
+                <MentorButton feature="task" collect={() => ({
+                  title: form.title,
+                  body: body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+                  context: { 시작일: form.start, 마감일: form.due, 상태: form.status },
+                })} />
               </div>
             </div>
           </form>

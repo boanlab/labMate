@@ -10,6 +10,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
 import HtmlEditor from "../ui/HtmlEditorLazy";
+import { MentorButton } from "../ui/Mentor";
 
 interface Action { id?: string; title: string; assignee_id: string; due: string; done: boolean; task_id?: string; }
 interface Meeting { id: string; date: string; title: string; by_id: string; decisions: string; actions: Action[]; attendees: string[]; project_id?: string; updated_by?: string; created_at?: string; updated_at?: string; }
@@ -158,9 +159,16 @@ export default function Meetings() {
           ))}
           {!form.actions.length && <div className="muted small">액션아이템 없음 — “누가 언제까지 무엇을” 추가</div>}
         </Card>
-        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+        <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
           <button className="btn primary" data-testid="meeting-add-submit" onClick={save}>저장</button>
           <button className="btn ghost" onClick={() => setEditing(null)}>취소</button>
+          <MentorButton feature="meeting" collect={() => ({
+            title: form.title,
+            body: `[결정사항]\n${dec}\n\n[액션아이템]\n` + (form.actions.length
+              ? form.actions.map((a) => `- ${a.title || "(제목 없음)"} / 담당: ${uname(a.assignee_id) || "미지정"} / 기한: ${a.due || "미지정"}`).join("\n")
+              : "(없음)"),
+            context: { 일자: form.date, 참석자수: form.attendees.length },
+          })} />
         </div>
       </div>
     );

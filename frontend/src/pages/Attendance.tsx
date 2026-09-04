@@ -5,16 +5,19 @@ import { api, apiError } from "../api/client";
 import { formSnapshot, confirmDiscard } from "../ui/kit";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig } from "../api/config";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 interface Att { id: string; uid: string; date: string; check_in: string; check_out: string; status: string; note: string; work_min?: number; session_start?: string; corrected?: boolean; }
 
 const nowHM = () => new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
 const minsBetween = (s: string, e: string) => { if (!s || !e) return 0; const d = (+e.slice(0, 2) * 60 + +e.slice(3, 5)) - (+s.slice(0, 2) * 60 + +s.slice(3, 5)); return d > 0 ? d : 0; };
-// 근무시간 = 출근~퇴근(근무 중이면 현재까지)
-const workMin = (a?: { status?: string; check_in?: string; check_out?: string }) => {
+// 근무시간 = 세션별 실근무 누적 + 지금 진행 중인 세션. 자리비움 구간은 빠진다.
+const workMin = (a?: { check_in?: string; check_out?: string; work_min?: number; session_start?: string }) => {
   if (!a?.check_in) return 0;
-  const end = (!a.check_out && a.status !== "퇴근") ? nowHM() : (a.check_out || "");
-  return minsBetween(a.check_in, end);
+  const acc = a.work_min || 0;
+  const live = a.session_start ? minsBetween(a.session_start, nowHM()) : 0;
+  if (acc || live) return acc + live;
+  return minsBetween(a.check_in, a.check_out || "");   // 세션 기록 이전의 옛 자료
 };
 const fmtWork = (m: number) => m ? `${Math.floor(m / 60)}시간 ${m % 60}분` : "—";
 interface Req { id: string; uid: string; date: string; check_in: string; check_out: string; requested_status: string; reason: string; status: string; decided_by: string; decided_at: string; decide_note: string; }
@@ -49,13 +52,26 @@ export default function Attendance() {
   const [minePage, setMinePage] = useState(0);
   const [reqPage, setReqPage] = useState(0);
   useEffect(() => setMinePage(0), [from, to]);
+  const attRef = useColumnResize("att-table");
+  const reqRef = useColumnResize("att-myreqs");
+  const attSort = useTableSort(null, "att-table");
+  const reqSort = useTableSort(null, "att-myreqs");
+  const sortedShown = attSort.apply(shownMine, {
+    date: (a) => a.date, status: (a) => a.status, in: (a) => a.check_in || "",
+    out: (a) => a.check_out || "", work: (a) => workMin(a), note: (a) => a.note || "",
+  });
+  const sortedReqs = reqSort.apply(myReqs, {
+    date: (r) => r.date, req: (r) => r.requested_status, reason: (r) => r.reason, status: (r) => r.status,
+  });
   const minePages = Math.max(1, Math.ceil(shownMine.length / 10)), mineCur = Math.min(minePage, minePages - 1);
-  const mineView = shownMine.slice(mineCur * 10, mineCur * 10 + 10);
+  const mineView = sortedShown.slice(mineCur * 10, mineCur * 10 + 10);
   const reqPages = Math.max(1, Math.ceil(myReqs.length / 10)), reqCur = Math.min(reqPage, reqPages - 1);
-  const reqView = myReqs.slice(reqCur * 10, reqCur * 10 + 10);
+  const reqView = sortedReqs.slice(reqCur * 10, reqCur * 10 + 10);
 
   async function checkIn() { try { await api.post("/attendance/attendance/check-in", { status: "업무 중", note: "" }); load(); } catch (e) { setErr(apiError(e)); } }
   async function checkOut() { try { await api.post("/attendance/attendance/check-out"); load(); } catch (e) { setErr(apiError(e)); } }
+  async function goAway() { try { await api.post("/attendance/attendance/away"); load(); } catch (e) { setErr(apiError(e)); } }
+  async function comeBack() { try { await api.post("/attendance/attendance/back"); load(); } catch (e) { setErr(apiError(e)); } }
 
   function openReq() {
     const a = mine.find((x) => x.date === today);
@@ -84,12 +100,21 @@ export default function Attendance() {
         <div className="bd" style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ flex: 1 }} data-testid="att-today">
             상태: <b>{todayRec?.status || "미체크"}</b> · 출근 {todayRec?.check_in || "—"} / 퇴근 {todayRec?.check_out || "—"} · 근무 <b>{fmtWork(workMin(todayRec))}</b>
+            {todayRec?.status === "자리비움" && <span className="muted small"> · 자리비움 중이라 근무시간이 늘지 않습니다</span>}
           </div>
-          {(() => { const st = todayRec?.status || "미체크"; const inWork = st !== "미체크" && st !== "퇴근"; return <>
-            {/* 지금 가능한 동작을 강조한다 — 비활성 버튼이 더 진하면 어느 쪽을 눌러야 할지 반대로 읽힌다 */}
-            <button className={"btn " + (inWork ? "ghost" : "primary")} data-testid="att-checkin" disabled={inWork} onClick={checkIn}>출근 체크</button>
-            <button className={"btn " + (inWork ? "primary" : "ghost")} data-testid="att-checkout" disabled={!inWork} onClick={checkOut}>퇴근 체크</button>
-          </>; })()}
+          {(() => {
+            const st = todayRec?.status || "미체크";
+            const away = st === "자리비움";
+            const inWork = st !== "미체크" && st !== "퇴근";
+            return <>
+              {/* 지금 가능한 동작을 강조한다 — 비활성 버튼이 더 진하면 어느 쪽을 눌러야 할지 반대로 읽힌다 */}
+              <button className={"btn " + (inWork ? "ghost" : "primary")} data-testid="att-checkin" disabled={inWork} onClick={checkIn}>출근 체크</button>
+              {away
+                ? <button className="btn primary" data-testid="att-back" onClick={comeBack}>복귀</button>
+                : <button className="btn ghost" data-testid="att-away" disabled={!inWork} onClick={goAway} title="잠시 자리를 비웁니다 — 비운 시간은 근무시간에서 빠집니다">자리비움</button>}
+              <button className={"btn " + (inWork && !away ? "primary" : "ghost")} data-testid="att-checkout" disabled={!inWork} onClick={checkOut}>퇴근 체크</button>
+            </>;
+          })()}
         </div>
       </div>
 
@@ -106,8 +131,15 @@ export default function Attendance() {
             {(from || to) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); }}>초기화</button> : <span className="muted small">{shownMine.length}건</span>}
           </span>
         </div>
-        <table className="tbl" data-testid="att-table">
-          <thead><tr><th>일자</th><th>상태</th><th>출근</th><th>퇴근</th><th>근무</th><th>비고</th></tr></thead>
+        <table ref={attRef} className="tbl" data-testid="att-table">
+          <thead><tr>
+            <th {...attSort.th("date")}>일자{attSort.mark("date")}</th>
+            <th {...attSort.th("status")}>상태{attSort.mark("status")}</th>
+            <th {...attSort.th("in")}>출근{attSort.mark("in")}</th>
+            <th {...attSort.th("out")}>퇴근{attSort.mark("out")}</th>
+            <th {...attSort.th("work")}>근무{attSort.mark("work")}</th>
+            <th {...attSort.th("note")}>비고{attSort.mark("note")}</th>
+          </tr></thead>
           <tbody>
             {mineView.map((a) => (
               <tr key={a.id}><td>{a.date}{a.corrected && <span className="badge s-wait" style={{ marginLeft: 6 }}>보정</span>}</td><td>{a.status}</td><td>{a.check_in || "—"}</td><td>{a.check_out || "—"}</td><td className="small">{fmtWork(workMin(a))}</td><td className="muted small">{a.note}</td></tr>
@@ -120,8 +152,13 @@ export default function Attendance() {
 
       <div className="card">
         <div className="card-h"><b>내 출퇴근 정정 요청</b><span className="muted small">{myReqs.length}건</span></div>
-        <table className="tbl" data-testid="att-myreqs">
-          <thead><tr><th>일자</th><th>요청 (상태 / 출근~퇴근)</th><th>사유</th><th>처리</th></tr></thead>
+        <table ref={reqRef} className="tbl" data-testid="att-myreqs">
+          <thead><tr>
+            <th {...reqSort.th("date")}>일자{reqSort.mark("date")}</th>
+            <th {...reqSort.th("req")}>요청 (상태 / 출근~퇴근){reqSort.mark("req")}</th>
+            <th {...reqSort.th("reason")}>사유{reqSort.mark("reason")}</th>
+            <th {...reqSort.th("status")}>처리{reqSort.mark("status")}</th>
+          </tr></thead>
           <tbody>
             {reqView.map((r) => (
               <tr key={r.id}>

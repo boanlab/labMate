@@ -3,16 +3,19 @@ import { useDirectory } from "../api/directory";
 import { api, apiError } from "../api/client";
 import { dateKST } from "../lib/date";
 import { useAuth } from "../auth/AuthContext";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 interface Att { id: string; uid: string; date: string; check_in: string; check_out: string; status: string; note: string; work_min?: number; session_start?: string; corrected?: boolean; }
 
 const nowHM = () => new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
 const minsBetween = (s: string, e: string) => { if (!s || !e) return 0; const d = (+e.slice(0, 2) * 60 + +e.slice(3, 5)) - (+s.slice(0, 2) * 60 + +s.slice(3, 5)); return d > 0 ? d : 0; };
-// 근무시간 = 출근~퇴근(근무 중이면 현재까지)
-const workMin = (a: { status?: string; check_in?: string; check_out?: string }) => {
+// 근무시간 = 세션별 실근무 누적 + 지금 진행 중인 세션. 자리비움 구간은 빠진다.
+const workMin = (a: { check_in?: string; check_out?: string; work_min?: number; session_start?: string }) => {
   if (!a.check_in) return 0;
-  const end = (!a.check_out && a.status !== "퇴근") ? nowHM() : (a.check_out || "");
-  return minsBetween(a.check_in, end);
+  const acc = a.work_min || 0;
+  const live = a.session_start ? minsBetween(a.session_start, nowHM()) : 0;
+  if (acc || live) return acc + live;
+  return minsBetween(a.check_in, a.check_out || "");   // 세션 기록 이전의 옛 자료
 };
 const fmtWork = (m: number) => m ? `${Math.floor(m / 60)}시간 ${m % 60}분` : "—";
 interface Log { id: string; att_id: string; target_uid: string; by_id: string; before: any; after: any; reason: string; at?: string; }
@@ -85,6 +88,28 @@ export default function AttendanceAdmin() {
   const reqHist = reqs.filter((r) => r.status !== "대기")
     .filter((r) => !reqQ.trim() || `${uname(r.uid)} ${r.reason || ""} ${r.date}`.toLowerCase().includes(reqQ.trim().toLowerCase()));
   const reqMax = Math.max(0, Math.ceil(reqHist.length / 3) - 1), reqPg = Math.min(reqPage, reqMax);
+  const pendRef = useColumnResize("aa-pending");
+  const histRef = useColumnResize("aa-req-history");
+  const attRef = useColumnResize("aa-table");
+  const logRef = useColumnResize("aa-logs");
+  const pendSort = useTableSort(null, "aa-pending");
+  const histSort = useTableSort(null, "aa-req-history");
+  const attSort = useTableSort(null, "aa-table");
+  const logSort = useTableSort(null, "aa-logs");
+  const REQ_ACC = {
+    who: (r: Req) => uname(r.uid), date: (r: Req) => r.date,
+    req: (r: Req) => r.requested_status, reason: (r: Req) => r.reason, status: (r: Req) => r.status,
+  };
+  const pendView = pendSort.apply(pendingReqs, REQ_ACC);
+  const histView = histSort.apply(reqHist, REQ_ACC);
+  const attView = attSort.apply(shownAtts, {
+    date: (a) => a.date, who: (a) => uname(a.uid), status: (a) => a.status,
+    in: (a) => a.check_in || "", out: (a) => a.check_out || "", work: (a) => workMin(a), note: (a) => a.note || "",
+  });
+  const logView = logSort.apply(sortedLogs, {
+    at: (l) => logDate(l), target: (l) => uname(l.target_uid), by: (l) => uname(l.by_id),
+    chg: (l) => `${l.after?.status || ""} ${l.after?.check_in || ""}`, reason: (l) => l.reason,
+  });
   const attMax = Math.max(0, Math.ceil(shownAtts.length / PAGE) - 1), attPg = Math.min(attPage, attMax);
   const logMax = Math.max(0, Math.ceil(sortedLogs.length / 3) - 1), logPg = Math.min(logPage, logMax);
 
@@ -104,10 +129,16 @@ export default function AttendanceAdmin() {
 
       <div className="card">
         <div className="card-h"><b>출퇴근 시간 정정 요청</b>{pendingReqs.length > 0 ? <span className="badge s-wait">{pendingReqs.length} 대기</span> : <span className="muted small">대기 중인 요청 없음</span>}</div>
-        <table className="tbl" data-testid="aa-pending">
-          <thead><tr><th>신청자</th><th>일자</th><th>요청 (상태 / 출근~퇴근)</th><th>사유</th><th>처리</th></tr></thead>
+        <table ref={pendRef} className="tbl" data-testid="aa-pending">
+          <thead><tr>
+            <th {...pendSort.th("who")}>신청자{pendSort.mark("who")}</th>
+            <th {...pendSort.th("date")}>일자{pendSort.mark("date")}</th>
+            <th {...pendSort.th("req")}>요청 (상태 / 출근~퇴근){pendSort.mark("req")}</th>
+            <th {...pendSort.th("reason")}>사유{pendSort.mark("reason")}</th>
+            <th>처리</th>
+          </tr></thead>
           <tbody>
-            {pendingReqs.map((r) => (
+            {pendView.map((r) => (
               <tr key={r.id}>
                 <td><b>{uname(r.uid)}</b></td>
                 <td>{r.date}</td>
@@ -127,10 +158,16 @@ export default function AttendanceAdmin() {
       {reqHist.length > 0 && (
         <div className="card">
           <div className="card-h" style={{ display: "flex", alignItems: "center", gap: 8 }}><b>정정 요청 처리 이력</b><input className="tsearch" data-testid="req-search" placeholder="신청자·사유·일자 검색" value={reqQ} onChange={(e) => setReqQ(e.target.value)} style={{ maxWidth: 220, marginLeft: "auto" }} /><span className="muted small">{reqHist.length}건</span></div>
-          <table className="tbl" data-testid="aa-req-history">
-            <thead><tr><th>신청자</th><th>일자</th><th>요청 (상태 / 출근~퇴근)</th><th>사유</th><th>결과</th></tr></thead>
+          <table ref={histRef} className="tbl" data-testid="aa-req-history">
+            <thead><tr>
+              <th {...histSort.th("who")}>신청자{histSort.mark("who")}</th>
+              <th {...histSort.th("date")}>일자{histSort.mark("date")}</th>
+              <th {...histSort.th("req")}>요청 (상태 / 출근~퇴근){histSort.mark("req")}</th>
+              <th {...histSort.th("reason")}>사유{histSort.mark("reason")}</th>
+              <th {...histSort.th("status")}>결과{histSort.mark("status")}</th>
+            </tr></thead>
             <tbody>
-              {reqHist.slice(reqPg * 3, reqPg * 3 + 3).map((r) => (
+              {histView.slice(reqPg * 3, reqPg * 3 + 3).map((r) => (
                 <tr key={r.id}>
                   <td>{uname(r.uid)}</td>
                   <td>{r.date}</td>
@@ -159,10 +196,18 @@ export default function AttendanceAdmin() {
             {(from || to || uid) ? <button type="button" className="btn ghost sm" onClick={() => { setFrom(""); setTo(""); setUid(""); }}>초기화</button> : <span className="muted small">{atts.length}건</span>}
           </span>
         </div>
-        <table className="tbl" data-testid="aa-table">
-          <thead><tr><th>일자</th><th>구성원</th><th>상태</th><th>출근</th><th>퇴근</th><th>근무</th><th>비고</th></tr></thead>
+        <table ref={attRef} className="tbl" data-testid="aa-table">
+          <thead><tr>
+            <th {...attSort.th("date")}>일자{attSort.mark("date")}</th>
+            <th {...attSort.th("who")}>구성원{attSort.mark("who")}</th>
+            <th {...attSort.th("status")}>상태{attSort.mark("status")}</th>
+            <th {...attSort.th("in")}>출근{attSort.mark("in")}</th>
+            <th {...attSort.th("out")}>퇴근{attSort.mark("out")}</th>
+            <th {...attSort.th("work")}>근무{attSort.mark("work")}</th>
+            <th {...attSort.th("note")}>비고{attSort.mark("note")}</th>
+          </tr></thead>
           <tbody>
-            {shownAtts.slice(attPg * PAGE, attPg * PAGE + PAGE).map((a) => (
+            {attView.slice(attPg * PAGE, attPg * PAGE + PAGE).map((a) => (
               <tr key={a.id}>
                 <td>{a.date}{a.corrected && <span className="badge s-wait" style={{ marginLeft: 6 }}>보정</span>}</td>
                 <td><b>{uname(a.uid)}</b></td>
@@ -179,10 +224,16 @@ export default function AttendanceAdmin() {
 
       <div className="card">
         <div className="card-h" style={{ display: "flex", alignItems: "center", gap: 8 }}><b>출퇴근 시간 보정 이력</b><input className="tsearch" data-testid="log-search" aria-label="보정 이력 검색" placeholder="대상·보정자·사유 검색" value={logQ} onChange={(e) => setLogQ(e.target.value)} style={{ maxWidth: 220, marginLeft: "auto" }} /><span className="muted small">{sortedLogs.length}건</span></div>
-        <table className="tbl" data-testid="aa-logs">
-          <thead><tr><th>보정일</th><th>대상</th><th>보정자</th><th>변경 전 → 후</th><th>사유</th></tr></thead>
+        <table ref={logRef} className="tbl" data-testid="aa-logs">
+          <thead><tr>
+            <th {...logSort.th("at")}>보정일{logSort.mark("at")}</th>
+            <th {...logSort.th("target")}>대상{logSort.mark("target")}</th>
+            <th {...logSort.th("by")}>보정자{logSort.mark("by")}</th>
+            <th {...logSort.th("chg")}>변경 전 → 후{logSort.mark("chg")}</th>
+            <th {...logSort.th("reason")}>사유{logSort.mark("reason")}</th>
+          </tr></thead>
           <tbody>
-            {sortedLogs.slice(logPg * 3, logPg * 3 + 3).map((l) => (
+            {logView.slice(logPg * 3, logPg * 3 + 3).map((l) => (
               <tr key={l.id}>
                 <td className="small muted">{logDate(l) || "—"}</td>
                 <td>{uname(l.target_uid)}</td><td>{uname(l.by_id)}</td>

@@ -3,6 +3,7 @@ import { api, apiError } from "../api/client";
 import { todayKST } from "../lib/date";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, ATTACH_ACCEPT } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import { DataTable, Col } from "../ui/DataTable";
 import { confirmDialog } from "../ui/dialog";
 import { useConfig, names } from "../api/config";
@@ -169,6 +170,8 @@ export default function Publications() {
   const recentYears = Array.from({ length: 5 }, (_, i) => String(thisYear - 4 + i));
   const countOf = (k: string, y: string) => items.filter((u) => seriesOf(u) === k && yearOf(u) === y).length;
 
+  const yearRef = useColumnResize("pub-yeartable");
+  const yearSort = useTableSort(null, "pub-yeartable");
   const cols: Col<Pub>[] = [
     { key: "kind", label: "종류", value: (u) => seriesOf(u), render: (u) => <span className="badge s-info">{seriesOf(u)}</span>, nowrap: true },
     { key: "title", label: "제목", value: (u) => u.title, render: (u) => <a className="lnk" style={{ fontWeight: 700, cursor: "pointer", whiteSpace: "normal", overflowWrap: "anywhere" }} title={u.title} data-testid={`pub-open-${u.id}`} onClick={() => setDetail(u)}>{u.title}</a> },
@@ -295,10 +298,17 @@ export default function Publications() {
 
 
       <Card title="최근 5년 실적 현황" testid="pub-yeartable">
-        <table className="tbl" style={{ minWidth: 0 }}>
-          <thead><tr><th>성과지표</th>{recentYears.map((y) => <th key={y} style={{ textAlign: "center" }}>{y}</th>)}<th style={{ textAlign: "center" }}>합계</th></tr></thead>
+        <table ref={yearRef} className="tbl" data-testid="pub-yeartable-t" style={{ minWidth: 0 }}>
+          <thead><tr>
+            <th {...yearSort.th("kind")}>성과지표{yearSort.mark("kind")}</th>
+            {recentYears.map((y) => <th key={y} {...yearSort.th(`y${y}`)} style={{ textAlign: "center" }}>{y}{yearSort.mark(`y${y}`)}</th>)}
+            <th {...yearSort.th("sum")} style={{ textAlign: "center" }}>합계{yearSort.mark("sum")}</th>
+          </tr></thead>
           <tbody>
-            {KINDS.map((k) => {
+            {yearSort.apply([...KINDS], {
+              kind: (k) => k, sum: (k) => recentYears.reduce((a, y) => a + countOf(k, y), 0),
+              ...Object.fromEntries(recentYears.map((y) => [`y${y}`, (k: string) => countOf(k, y)])),
+            }).map((k) => {
               const counts = recentYears.map((y) => countOf(k, y));
               const sum = counts.reduce((a, b) => a + b, 0);
               return (
