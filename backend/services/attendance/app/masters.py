@@ -14,5 +14,5 @@ DEFAULTS: dict[str, Any] = {
     # 연 부여 연차 기본 일수
     "annual_leave_default": 15,
     # 근태 상태 코드
-    "attendance_states": ["업무중", "출장", "휴가", "퇴근", "미체크"],
+    "attendance_states": ["업무중", "자리비움", "출장", "휴가", "퇴근", "미체크"],
 }

@@ -47,6 +47,7 @@ run "업무 길잡이·편의"             env TAIL=3 node scripts/verify-guides
 run "로딩 표시(느린 회선)"         env TAIL=2 node scripts/verify-loading.mjs
 run "페이징 경계(대량)"            env TAIL=2 node scripts/verify-paging.mjs
 run "학생인건비 편성"              env TAIL=2 node scripts/verify-payroll.mjs
+run "자리비움"                     env TAIL=4 node scripts/verify-away.mjs
 run "연구노트 검색·태그"           env TAIL=2 node scripts/verify-notes.mjs
 run "연구비 집행 결재"             env TAIL=2 LM_ADMIN_EMAIL="$ADM_E" LM_ADMIN_PW="$ADM_P" node scripts/verify-expense-approval.mjs
 run "마감 알림·캘린더"             env TAIL=2 node scripts/verify-deadlines.mjs
