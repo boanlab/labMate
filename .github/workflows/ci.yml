@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           pip install ./backend/libs/common
-          for s in members projects funds attendance boards resource; do
+          for s in members projects funds attendance boards resource mentor; do
             pip install -r "backend/services/$s/requirements.txt"
           done
           # 린터 버전은 고정한다 — 새 규칙이 들어와서 CI 가 혼자 빨개지는 일이 없도록.
@@ -48,12 +48,12 @@ jobs:
         run: ruff check .
 
       - name: Import smoke
-        # 아직 테스트가 없으므로, 여섯 서비스가 임포트되는지가 최소 안전망이다.
+        # 아직 테스트가 없으므로, 일곱 서비스가 임포트되는지가 최소 안전망이다.
         # 문법 오류·깨진 임포트·라우터 등록 실패를 잡는다. DB 연결은 lifespan
         # 에서만 일어나므로 임포트만으로는 postgres/redis 가 필요 없다.
         run: |
           set -euo pipefail
-          for s in members projects funds attendance boards resource; do
+          for s in members projects funds attendance boards resource mentor; do
             (cd "backend/services/$s" && python -c "import app.main")
             echo "  $s ok"
           done
@@ -133,7 +133,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          SERVICES="members projects funds attendance boards resource"
+          SERVICES="members projects funds attendance boards resource mentor"
           ALL="$SERVICES frontend"
           selected=""
 
@@ -151,7 +151,7 @@ jobs:
             echo "변경된 파일:"
             while IFS= read -r f; do echo "  $f"; done <<< "$changed"
 
-            # 공통 라이브러리는 여섯 서비스 이미지에 모두 들어가고,
+            # 공통 라이브러리는 일곱 서비스 이미지에 모두 들어가고,
             # 이 워크플로 자체가 바뀌면 판정 로직을 믿을 수 없다 → 전체 빌드.
             if echo "$changed" | grep -qE '^(backend/libs/|\.github/workflows/ci\.yml$)'; then
               echo "공통 라이브러리/워크플로 변경 — 전체 이미지 빌드"
