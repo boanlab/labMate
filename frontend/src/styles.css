@@ -190,6 +190,7 @@ body.dark .kpi.k-red { background: #2c1816; border-color: #4f2e2a; } body.dark .
 
 /* 테이블: 카드 안 가로 스크롤 */
 .card.scroll { overflow-x: auto; }
+.scroll { overflow-x: auto; }        /* 카드 안에 따로 두는 스크롤 래퍼 */
 .tbl { width: 100%; border-collapse: collapse; min-width: 480px; }
 .tbl th, .tbl td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line2); font-size: 13.5px; white-space: nowrap; }
 .tbl td { line-height: 1.55; }
@@ -320,7 +321,11 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 
 /* 반응형 오버플로우 보정(전역) */
 /* 표 포함 카드만 가로 스크롤 — 페이지 전체 밀림 방지 */
+/* 넓은 표는 카드 안에서 가로 스크롤한다(페이지 전체가 밀리지 않도록).
+   표가 .bd(카드 본문) 안에 있으면 .bd 가 먼저 넘치므로 스크롤을 .bd 에 건다.
+   .bd 에 패딩이 있어 스크롤바가 안쪽에 생기는데, 이는 카드 경계를 넘지 않아 문제 없다. */
 .card:has(table) { overflow-x: auto; }
+.bd:has(> table), .bd:has(> .scroll > table) { overflow-x: auto; }
 /* 팝업·모달 본문: 긴 값(이메일·URL·코드) 강제 줄바꿈 */
 .modal .tbl { min-width: 0; }
 .modal .tbl td, .metatbl td { white-space: normal; overflow-wrap: anywhere; }
