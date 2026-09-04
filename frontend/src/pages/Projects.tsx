@@ -12,6 +12,7 @@ import { Gauge, HBars } from "../ui/Charts";
 import { useConfig, names } from "../api/config";
 import { FIXED_KINDS, seriesOf } from "../lib/pubClass";
 import HtmlEditor from "../ui/HtmlEditorLazy";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 
 interface TFile { name: string; url: string; }
 
@@ -355,13 +356,21 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
   const shown = items
     .filter((p) => filter === "전체" || liveStatus(p) === filter)
     .filter((p) => !ql || `${p.code} ${p.name} ${p.agency} ${p.program} ${uname(p.lead_id)} ${uname(p.pm_id)}`.toLowerCase().includes(ql));
+  const tableRef = useColumnResize(`project-${kind}`);
+  const sort = useTableSort(null, `project-${kind}`);
+  const sorted = sort.apply(shown, {
+    code: (p) => p.code, name: (p) => p.name,
+    agency: (p) => p.agency || "", program: (p) => p.program || "",
+    category: (p) => p.category || "", pm: (p) => uname(p.pm_id),
+    period: (p) => p.start || "", status: (p) => liveStatus(p),
+  });
   const listRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [q, filter]);
   const pageSize = useAutoPageSize(listRef, shown.length);
   const pages = Math.max(1, Math.ceil(shown.length / pageSize));
   const cur = Math.min(page, pages - 1);
-  const view = shown.slice(cur * pageSize, cur * pageSize + pageSize);
+  const view = sorted.slice(cur * pageSize, cur * pageSize + pageSize);
   // 담당자·구성원 후보 — 기간 내 재직자. 수정 시 기존 담당자는 후보에서 빠져도 유지
   const memberOpts = users.filter((u) => u.role !== "admin" && memberInProjectPeriod(u, ...formPeriod(form, isGrant)));
   const pmOpts = (form.pm_id && !memberOpts.some((u) => u.id === form.pm_id) && users.find((u) => u.id === form.pm_id))
@@ -672,10 +681,22 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
         <input className="tsearch" data-testid="proj-search" aria-label="연구과제·프로젝트 검색" placeholder={`${LABEL} 검색 (코드·명칭·기관·담당자)`} value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: "auto", maxWidth: 280 }} />
       </div>
       <div className="card scroll" ref={listRef}>
-        <table className="tbl fit" data-testid="project-table">
-          {isGrant
-            ? <thead><tr><th style={{ width: 116 }}>관리코드</th><th>과제명</th><th className="hide-sm" style={{ width: 92 }}>전담기관</th><th className="hide-sm" style={{ width: 190 }}>사업명</th><th className="hide-sm" style={{ width: 140 }}>기간</th><th style={{ width: 78 }}>상태</th></tr></thead>
-            : <thead><tr><th style={{ width: 116 }}>관리코드</th><th>명칭</th><th className="hide-sm" style={{ width: 92 }}>분류</th><th className="hide-sm" style={{ width: 96 }}>담당자</th><th className="hide-sm" style={{ width: 140 }}>기간</th><th style={{ width: 78 }}>상태</th></tr></thead>}
+        <table ref={tableRef} className="tbl fit" data-testid="project-table">
+          <thead><tr>
+            <th {...sort.th("code")} style={{ width: 116 }}>관리코드{sort.mark("code")}</th>
+            <th {...sort.th("name")}>{isGrant ? "과제명" : "명칭"}{sort.mark("name")}</th>
+            {isGrant
+              ? <>
+                  <th {...sort.th("agency", "hide-sm")} style={{ width: 92 }}>전담기관{sort.mark("agency")}</th>
+                  <th {...sort.th("program", "hide-sm")} style={{ width: 190 }}>사업명{sort.mark("program")}</th>
+                </>
+              : <>
+                  <th {...sort.th("category", "hide-sm")} style={{ width: 92 }}>분류{sort.mark("category")}</th>
+                  <th {...sort.th("pm", "hide-sm")} style={{ width: 96 }}>담당자{sort.mark("pm")}</th>
+                </>}
+            <th {...sort.th("period", "hide-sm")} style={{ width: 140 }}>기간{sort.mark("period")}</th>
+            <th {...sort.th("status")} style={{ width: 78 }}>상태{sort.mark("status")}</th>
+          </tr></thead>
           <tbody>
             {view.map((p) => (
               <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => openDetail(p)}>

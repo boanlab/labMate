@@ -103,6 +103,8 @@ export default function Notices() {
 
   const audience = (n: Notice) => (n.target_user_ids && n.target_user_ids.length) ? n.target_user_ids : members.map((u) => u.id);
   const ackInfo = (n: Notice) => { const aud = audience(n); return { acked: aud.filter((id) => n.acked_user_ids.includes(id)).length, total: aud.length }; };
+  const canEdit = (n: Notice) => isMgr || n.by_id === me?.id;
+  const mustAck = (n: Notice) => !!me && audience(n).includes(me.id);
   const filtered = items.filter((n) => !q.trim() || `${n.title} ${stripHtml(n.body || "")}`.toLowerCase().includes(q.trim().toLowerCase()));
   const shown = sort.apply(filtered, {
     title: (n) => n.title,
@@ -119,8 +121,6 @@ export default function Notices() {
   const pages = Math.max(1, Math.ceil(shown.length / pageSize));
   const cur = Math.min(page, pages - 1);
   const view = shown.slice(cur * pageSize, cur * pageSize + pageSize);
-  const canEdit = (n: Notice) => isMgr || n.by_id === me?.id;
-  const mustAck = (n: Notice) => !!me && audience(n).includes(me.id);
 
   // ===== 공지 보기 페이지 =====
   if (open) {

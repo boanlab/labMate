@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Kpi, Card, statusClass } from "../ui/kit";
+import { useColumnResize, useTableSort } from "../ui/tableTools";
 import { MentorNudge, collectSignals } from "../components/MentorNudge";
 import { WeeklyReview, collectWeekFacts } from "../components/WeeklyReview";
 import { sortMembers } from "./Members";
@@ -134,6 +135,8 @@ export default function Dashboard() {
     return { ta, tg, tot, counts };
   };
   const dday = (end: string | null) => end ? Math.ceil((+new Date(end) - Date.now()) / 86400000) : null;
+  const pfRef = useColumnResize("dash-portfolio");
+  const pfSort = useTableSort(null, "dash-portfolio");
 
   // 결재 — 내 차례인 문서
   const myTurn = inbox.filter((a) => a.status === "진행" && a.steps[currentIdx(a.steps)]?.uid === me?.id);
@@ -216,7 +219,7 @@ export default function Dashboard() {
             </table>
           </Card>
           <Card title="최근 감사 로그" extra={<button className="btn ghost sm" onClick={() => nav("/audit")}>전체 보기</button>}>
-            <table className="tbl">
+            <table className="tbl" data-preview="최근 15건">
               <thead><tr><th>시각</th><th>행위자</th><th>행위</th><th>대상</th><th>서비스</th></tr></thead>
               <tbody>
                 {audit.slice(0, 15).map((a, i) => (
@@ -396,10 +399,20 @@ export default function Dashboard() {
 
       <Card title="과제 포트폴리오" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/grants")}>과제관리 →</a>}>
         <div className="card scroll" style={{ margin: 0, border: "none" }}>
-          <table className="tbl fit" data-testid="dash-portfolio" style={{ width: "100%" }}>
-            <thead><tr><th>과제</th><th className="hide-sm" style={{ width: 84 }}>기관</th>{canBudget && <th className="hide-sm" style={{ width: 158 }}>예산 집행률</th>}<th style={{ width: 132 }}>성과</th><th style={{ width: 78 }}>기한</th></tr></thead>
+          <table ref={pfRef} className="tbl fit" data-testid="dash-portfolio" style={{ width: "100%" }}>
+            <thead><tr>
+              <th {...pfSort.th("name")}>과제{pfSort.mark("name")}</th>
+              <th {...pfSort.th("agency", "hide-sm")} style={{ width: 84 }}>기관{pfSort.mark("agency")}</th>
+              {canBudget && <th {...pfSort.th("exec", "hide-sm")} style={{ width: 158 }}>예산 집행률{pfSort.mark("exec")}</th>}
+              <th {...pfSort.th("ach")} style={{ width: 132 }}>성과{pfSort.mark("ach")}</th>
+              <th {...pfSort.th("dday")} style={{ width: 78 }}>기한{pfSort.mark("dday")}</th>
+            </tr></thead>
             <tbody>
-              {ps.map((p) => {
+              {pfSort.apply(ps, {
+                name: (p) => p.code, agency: (p) => p.agency || "",
+                exec: (p) => budgetOf(p.id), ach: (p) => achievedOf(p).tot,
+                dday: (p) => dday(grantEnd(p)) ?? 99999,
+              }).map((p) => {
                 const ex = budgetOf(p.id); const ach = achievedOf(p); const dd = dday(grantEnd(p));
                 return (
                   <tr key={p.id}>
@@ -432,7 +445,7 @@ export default function Dashboard() {
       {isMgr && (
         <div className="grid g2">
           <Card title="프로젝트 현황" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/projects")}>프로젝트 →</a>} testid="dash-activities">
-            <table className="tbl" style={{ tableLayout: "fixed", width: "100%", minWidth: 0 }}>
+            <table className="tbl" data-preview="상위 6건" style={{ tableLayout: "fixed", width: "100%", minWidth: 0 }}>
               <thead><tr><th>명칭</th><th style={{ width: 74 }}>분류</th><th style={{ width: 80 }}>상태</th></tr></thead>
               <tbody>
                 {openActs.slice(0, 6).map((p) => (
@@ -454,7 +467,7 @@ export default function Dashboard() {
               <span className="small"><b style={{ color: "var(--ok-text)" }}>●</b> 완료 <b>{taskCount["완료"] || 0}</b></span>
               {overdueTasks.length > 0 && <span className="small"><b style={{ color: "var(--bad-text)" }}>●</b> 지연 <b>{overdueTasks.length}</b></span>}
             </div>
-            <table className="tbl" style={{ tableLayout: "fixed", width: "100%", minWidth: 0 }}>
+            <table className="tbl" data-preview="상위 6건" style={{ tableLayout: "fixed", width: "100%", minWidth: 0 }}>
               <thead><tr><th style={{ width: 84 }}>과제</th><th>업무</th><th style={{ width: 96 }}>마감</th></tr></thead>
               <tbody>
                 {openTasks.slice(0, 6).map((t) => {
