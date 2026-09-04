@@ -3,9 +3,10 @@
 [![CI](https://github.com/boanlab/labmate/actions/workflows/ci.yml/badge.svg)](https://github.com/boanlab/labmate/actions/workflows/ci.yml)
 
 연구실 그룹웨어 — 구성원·연구과제·연구비·근태·소통·자원을 한곳에서 관리하는 마이크로서비스 기반 웹 애플리케이션.
+학생이 실무에 나가기 전 업무 습관을 익히도록 돕는 AI 멘토를 함께 둡니다(선택 기능, 기본 꺼짐).
 
 - **프론트엔드**: React + Vite (TypeScript)
-- **백엔드**: FastAPI 마이크로서비스 6종 (Python 3.12)
+- **백엔드**: FastAPI 마이크로서비스 7종 (Python 3.12)
 - **데이터베이스**: PostgreSQL 16 (서비스별 DB로 격리) + Redis
 - **게이트웨이**: nginx (`/api/<service>/*` 라우팅 + 프론트 서빙)
 - **구동**: Docker Compose
@@ -70,7 +71,7 @@ make help      # 전체 명령 목록
 | `make restart` | 전체 재시작 |
 | `make ps` | 컨테이너 상태 |
 | `make logs` | 로그 follow (`make logs S=members-service` 로 개별) |
-| `make health` | 6개 서비스 헬스체크 |
+| `make health` | 전체 서비스 헬스체크 |
 | `make seed` | 관리자 계정 시드(멱등) |
 | `make qa` | 회귀 검증 실행(실제 브라우저) — 스택이 떠 있어야 함 |
 | `make qa-seed` | 회귀 검증용 페르소나 계정 생성(최초 1회) |
@@ -107,6 +108,7 @@ make help      # 전체 명령 목록
 | **attendance** | `/api/attendance` | 출퇴근·휴가·근태정정 |
 | **boards** | `/api/boards` | 공지·게시판·회의록·전자결재 |
 | **resource** | `/api/resource` | 자산·인프라(장비/랙)·예약·교육 |
+| **mentor** | `/api/mentor` | AI 멘토 — 글 점검·주간 회고·상시 대화·지도철학·능동 감독 |
 
 각 서비스는 독립 PostgreSQL DB(`labmate_<service>`)를 사용하고, 서비스 간 직접 호출 없이 공통 JWT로만 인증을 공유합니다.
 
@@ -126,11 +128,54 @@ frontend/src/
   ui/                          # 표·폼·다이얼로그 등 공통 요소  ·  api/  서버 통신·설정  ·  lib/  순수 유틸
 deploy/nginx/gateway.conf      # API 게이트웨이 라우팅
 deploy/postgres/init/          # 서비스별 DB 생성 스크립트
-qa/                            # 회귀 검증(Playwright) — CI 에서 매 PR 마다 실행
+qa/                            # 회귀 검증(Playwright) — 로컬 스택에 대고 손으로 실행(CI 아님)
 docker-compose.yml             # 운영 구성
 docker-compose.override.yml    # 개발 오버라이드(소스 마운트 + --reload)
 data/                          # postgres 데이터 · 업로드 파일(영속)
 ```
+
+---
+
+## AI 멘토 (선택)
+
+학생이 회의록·연구노트·세부업무·목표를 쓰는 자리에서 바로 봐 주고, 밀린 일을 먼저 짚어 주는 기능입니다.
+**모든 기능은 기본으로 꺼져 있고**, 관리자가 OpenRouter 키를 넣고 하나씩 켜야 동작합니다. 키가 없으면
+멘토 버튼과 카드는 화면에 나타나지 않으며 나머지 기능은 그대로 씁니다.
+
+### 켜는 방법
+
+1. [openrouter.ai](https://openrouter.ai) 에서 API 키 발급
+2. 관리자 화면 › 환경설정 › **AI 설정** 에 키 입력 — `.env` 나 파일에 두지 않습니다
+3. 같은 화면에서 쓸 기능을 켜고, 모델과 월 상한을 정합니다
+
+### 무엇을 하나
+
+| 기능 | 내용 |
+|---|---|
+| 글 점검 | 연구노트·회의록·업무·목표를 쓰는 자리에서 판정과 고칠 점을 준다 |
+| 주간 회고 | 한 주 활동을 모아 회고 초안을 만든다 |
+| 학기 목표(OKR) | 무엇이 얼마나 되면 달성인지 숫자로 적게 하고 달성률을 보여 준다 |
+| 상시 대화 | 지금 보고 있는 화면을 함께 보며 답한다 |
+| 지도철학 | AI 가 지도교수와 대화하며 연구·교육·실무 철학을 모으고, 승인한 지침이 학생 지도의 근거가 된다 |
+| 능동 감독 | 주간보고가 밀리거나 마감이 지났는데 갱신이 없으면 멘토가 먼저 짚는다 |
+| 지도 현황 | 교수가 누구를 먼저 챙겨야 하는지 한 화면에서 본다 |
+
+### 비용
+
+기본 모델은 `anthropic/claude-haiku-4.5`, 월 상한은 **$5** 입니다(관리자 화면에서 변경). 상한에 닿으면
+호출을 멈추고 "이번 달 AI 사용 한도를 다 썼습니다"라고 안내합니다. 다른 기능에는 영향이 없습니다.
+사용량은 관리자 화면에서 기능별로 볼 수 있습니다.
+
+### 키 취급
+
+| 항목 | 처리 |
+|---|---|
+| 저장 | `JWT_SECRET` 에서 파생한 키로 암호화(Fernet)해 `mentor_secrets` 에 보관 |
+| 조회 | 평문은 어떤 API 로도 나가지 않는다. 화면에는 앞 8자·뒤 4자만(`sk-or-v1••••••cdef`) |
+| 권한 | 등록·변경·삭제 모두 관리자만 |
+| 백업 | 관리자 화면 백업(ZIP)에는 mentor 서비스가 **들어가지 않는다** — 키가 백업 파일로 새지 않도록 백업 라우터 자체를 붙이지 않았다. CLI `make backup` 은 `pg_dumpall` 이라 암호화된 상태로 포함되며, 같은 `JWT_SECRET` 없이는 풀 수 없다 |
+
+모델이 내부적으로 거치는 추론 과정은 학생에게 보여 주지 않습니다 — 최종 답변만 화면에 올립니다.
 
 ---
 
@@ -144,7 +189,7 @@ data/                          # postgres 데이터 · 업로드 파일(영속)
 | 첨부 다운로드 | 로그인 필수 — gateway 가 `auth_request` 로 httpOnly 쿠키를 확인. 무인증으로 열리는 경로 없음 |
 | 첨부 응답 | `nosniff` · `Content-Security-Policy: default-src 'none'; sandbox` · 이미지·PDF 외에는 `Content-Disposition: attachment` |
 | 권한 | 역할(prof/phd/master/under/staff/admin) + 위임 관리자·인프라 담당 플래그 |
-| 감사 로그 | 서비스별 `audit_logs` 기록, 관리자 화면에서 6개 서비스 집계 조회 |
+| 감사 로그 | 서비스별 `audit_logs` 기록, 관리자 화면에서 전 서비스 집계 조회 |
 
 첨부는 앱과 같은 출처(`/uploads/...`)에서 서빙되므로 업로드(형식 제한)와 다운로드(인증·응답 헤더) 양쪽에서 막습니다. 로그인 화면 로고는 파일이 아니라 설정값(data URI)으로 보관해 무인증 경로를 만들지 않습니다.
 
@@ -155,6 +200,7 @@ data/                          # postgres 데이터 · 업로드 파일(영속)
 ## 검증
 
 실제 브라우저(Playwright/Chromium)로 5개 페르소나의 업무 흐름·접근성·레이아웃·보안을 확인합니다.
+스위트 34개, 검증 항목 640개 규모입니다(AI 멘토 응답 품질 벤치마크 포함 — 켜져 있을 때만 의미가 있습니다).
 전제 데이터(과제·공지·근태 등)가 쌓인 로컬 스택에서 손으로 돌리는 것을 전제로 하며, CI 에는
 물려 있지 않습니다 — 빈 DB 에서는 상당수 검증이 전제 데이터 부재로 실패합니다.
 
@@ -177,7 +223,8 @@ make restore FILE=data/backups/labmate_<시각>.tar.gz   # 복구(현재 DB·첨
 ```
 
 - `restore`는 앱 서비스 정지 → DB 재적재 → 첨부파일 복원 → 재기동 순으로 진행합니다(되돌릴 수 없음).
-- 관리자 화면(환경설정 › 데이터 백업)은 **DB 데이터 + 첨부파일**을 ZIP(`data.json` + `uploads/`)으로 백업·복구합니다. CLI `make backup`(tar.gz)과 동일 범위이며, 구 `.json` 백업 파일도 복구 가능합니다(DB만).
+- 관리자 화면(환경설정 › 데이터 백업)은 **DB 데이터 + 첨부파일**을 ZIP(`data.json` + `uploads/`)으로 백업·복구합니다. 구 `.json` 백업 파일도 복구 가능합니다(DB만).
+- 두 방식의 범위가 한 곳에서 다릅니다: **mentor 서비스는 관리자 화면 백업에 들어가지 않습니다**(OpenRouter 키가 백업 파일로 새지 않도록). CLI `make backup` 은 `pg_dumpall` 이라 포함되며, 키는 암호화된 상태입니다.
 
 ---
 
