@@ -213,6 +213,7 @@ for (const w of WIDTHS) {
       document.querySelectorAll("table").forEach((t) => {
         const head = t.querySelectorAll("thead th").length;
         if (head < 3 || !t.querySelectorAll("tbody tr").length) return;   // 표다운 표만
+        if (t.dataset.preview) return;                                    // 요약 위젯은 전체 목록이 아니다
         out.push({ head, sortable: t.querySelectorAll("th[data-sort-key]").length });
       });
       return out;
@@ -220,6 +221,19 @@ for (const w of WIDTHS) {
     r.filter((t) => t.sortable === 0).forEach(() => missing.push(pg.label));
   }
   console.log(`\n정렬·폭조절 미적용 표: ${missing.length ? [...new Set(missing)].join(", ") : "없음"}`);
+}
+
+// 이 검사는 머리글을 눌러 정렬을 바꾼다. 그 값이 계정에 남으면 뒤이어 도는
+// 다른 검증이 다른 순서를 보게 되므로, 끝나기 전에 원래대로 돌려놓는다.
+for (const s of sessions.values()) {
+  await s.page.evaluate(async () => {
+    const H = { "Content-Type": "application/json", Authorization: "Bearer " + localStorage.getItem("lm_access") };
+    const cur = await (await fetch("/api/members/prefs", { headers: H })).json();
+    for (const k of Object.keys(cur || {})) {
+      if (!k.startsWith("sort.") && !k.startsWith("colw.")) continue;
+      await fetch(`/api/members/prefs/${encodeURIComponent(k)}`, { method: "PUT", headers: H, body: JSON.stringify({ value: null }) });
+    }
+  }).catch(() => {});
 }
 
 for (const s of sessions.values()) await s.ctx.close();

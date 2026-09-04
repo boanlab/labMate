@@ -218,6 +218,10 @@ export function useTableSort(initial: SortState = null, storageKey?: string) {
     if (!sort) return rows;
     const get = accessors[sort.key];
     if (!get) return rows;
+    // 계정에 남은 정렬 기준이 이 화면과 맞지 않아 기준값을 못 구하는 일이 있다.
+    // 그때 화면 전체가 죽는 것보다 정렬만 포기하는 편이 낫다.
+    if (!rows.length) return rows;
+    try { get(rows[0]); } catch { return rows; }
     return [...rows].sort((a, b) => {
       const x = get(a), y = get(b);
       if (x == null && y == null) return 0;
