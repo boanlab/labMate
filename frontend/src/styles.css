@@ -256,6 +256,25 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 
 /* ── 캘린더 월 그리드 ── */
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+/* 주간 보기 — 시간 격자. 왼쪽에 시각, 오른쪽에 요일 7칸.
+   시간이 없는 일정은 격자 어디에도 놓을 수 없어 '하루 종일' 줄에 따로 모은다. */
+.wk { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.wk-row { display: grid; grid-template-columns: 72px repeat(7, minmax(0, 1fr)); }
+.wk-head { border-bottom: 1px solid var(--line); background: var(--soft); }
+.wk-dow { padding: 8px 6px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--sub); cursor: pointer; border-left: 1px solid var(--line2); }
+.wk-dow.today { color: var(--brand); background: var(--bsoft); }
+.wk-allday { border-bottom: 1px solid var(--line); min-height: 34px; }
+.wk-allday .wk-gut { font-size: 11px; color: var(--sub); padding: 7px 8px; text-align: right; }
+.wk-allday .wk-col { padding: 5px 4px; display: flex; flex-direction: column; gap: 3px; }
+.wk-col { border-left: 1px solid var(--line2); cursor: pointer; }
+.wk-body { position: relative; }
+.wk-body .wk-gut { position: relative; }
+.wk-hour { height: var(--wk-h); font-size: 11px; color: var(--sub); text-align: right; padding: 0 8px; transform: translateY(-6px); }
+/* 시간 눈금 — 요소를 늘어놓는 대신 배경으로 그린다(칸마다 DOM 을 만들 이유가 없다) */
+.wk-day { position: relative; background-image: repeating-linear-gradient(to bottom, var(--line2) 0 1px, transparent 1px var(--wk-h)); }
+.wk-day.today { background-color: var(--bsoft); }
+.wk-ev { position: absolute; overflow: hidden; text-overflow: ellipsis; padding: 2px 6px; line-height: 1.35; }
+
 .cal .dow { font-size: 12px; color: var(--sub); font-weight: 700; text-align: center; padding: 4px 0 8px; }
 .cal .day { min-height: 78px; border: 1px solid var(--line); border-radius: 10px; padding: 7px 8px; background: var(--panel); display: flex; flex-direction: column; gap: 3px; overflow: hidden; cursor: pointer; }
 .cal .day.off { background: var(--soft); border-color: transparent; cursor: default; }

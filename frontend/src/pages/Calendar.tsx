@@ -38,6 +38,36 @@ function monthDays(year: number, month: number) {
   return days;
 }
 
+const HOUR_PX = 44;                       // 시간 한 칸 높이
+/** "09:30" → 570분. "10:00~11:00" 처럼 범위로 오는 것(자원예약)도 받는다. */
+function minsOf(t?: string): number | null {
+  const m = /^(\d{2}):(\d{2})/.exec(t || "");
+  return m ? +m[1] * 60 + +m[2] : null;
+}
+function spanOf(t?: string): [number, number] | null {
+  const from = minsOf(t);
+  if (from === null) return null;
+  const to = minsOf((t || "").split("~")[1]);
+  return [from, to !== null && to > from ? to : from + 60];   // 끝 시각이 없으면 한 시간짜리로 본다
+}
+/** 겹치는 일정을 옆으로 나눠 놓는다 — 겹치면 뒤엣것이 앞엣것을 덮어 안 보인다. */
+function lanesOf<T extends { s: number; e: number }>(list: T[]): (T & { lane: number; lanes: number })[] {
+  const sorted = [...list].sort((a, b) => a.s - b.s || a.e - b.e);
+  const ends: number[] = [];
+  const put = sorted.map((x) => {
+    let lane = ends.findIndex((end) => end <= x.s);
+    if (lane < 0) { lane = ends.length; ends.push(x.e); } else { ends[lane] = x.e; }
+    return { ...x, lane, lanes: 1 };
+  });
+  return put.map((x) => ({ ...x, lanes: ends.length }));
+}
+
+/** 기준일이 속한 주(일~토) 7일. 달력 격자와 요일 순서를 맞춘다. */
+function weekDays(ref: Date) {
+  const start = new Date(ref); start.setDate(ref.getDate() - ref.getDay());
+  return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
+}
+
 export default function Calendar() {
   const uid = useId();   // 라벨-입력 연결용 고유 접두사
   const { me } = useAuth();
@@ -52,6 +82,7 @@ export default function Calendar() {
   const [users, setUsers] = useState<any[]>([]);
   const [err, setErr] = useState("");
   const [ref, setRef] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [view, setView] = usePref<"month" | "week">("cal_view", "month");
   const [hidden, setHidden] = useState<Record<string, boolean>>({});
   const [dayModal, setDayModal] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -162,7 +193,21 @@ export default function Calendar() {
   visible.forEach((e) => { (byDate[e.date] = byDate[e.date] || []).push(e); });
 
   const y = ref.getFullYear(), m = ref.getMonth();
-  const days = monthDays(y, m);
+  const week = view === "week";
+  // 주간 보기는 그 주 7일만, 월간은 6주 격자. 주간에서는 달을 넘나들어도 모두 '이 기간'이다.
+  const days = week ? weekDays(ref) : monthDays(y, m);
+  const inRange = (d: Date) => week || d.getMonth() === m;
+  const step = (n: number) => setRef(week
+    ? new Date(ref.getFullYear(), ref.getMonth(), ref.getDate() + n * 7)
+    : new Date(y, m + n, 1));
+  // 시간 격자 범위 — 그 주 일정이 든 시간대를 감싸되 기본은 8~20시.
+  const weekSpans = week ? days.flatMap((d) => (byDate[ymd(d)] || []).map((e) => spanOf(e.time)).filter(Boolean) as [number, number][]) : [];
+  const fromH = Math.max(0, Math.min(8, ...weekSpans.map(([a]) => Math.floor(a / 60))));
+  const toH = Math.min(24, Math.max(20, ...weekSpans.map(([, b]) => Math.ceil(b / 60))));
+  const hours = Array.from({ length: toH - fromH }, (_, i) => fromH + i);
+  const heading = week
+    ? `${ymd(days[0]).replace(/-/g, ".")} ~ ${ymd(days[6]).replace(/-/g, ".")}`
+    : `${y}년 ${m + 1}월`;
   const todayStr = ymd(today);
 
   return (
@@ -213,29 +258,80 @@ export default function Calendar() {
       )}
 
       <div className="callayout">
-        <Card title={`${y}년 ${m + 1}월`} extra={
-          <span style={{ display: "flex", gap: 6 }}>
-            <button className="btn ghost sm" data-testid="cal-prev" onClick={() => setRef(new Date(y, m - 1, 1))}>◀</button>
-            <button className="btn ghost sm" onClick={() => setRef(new Date(today.getFullYear(), today.getMonth(), 1))}>오늘</button>
-            <button className="btn ghost sm" data-testid="cal-next" onClick={() => setRef(new Date(y, m + 1, 1))}>▶</button>
+        <Card title={heading} extra={
+          <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <span style={{ display: "flex", gap: 4, marginRight: 4 }}>
+              <button className={"btn sm " + (week ? "ghost" : "primary")} data-testid="cal-view-month" onClick={() => setView("month")}>월간</button>
+              <button className={"btn sm " + (week ? "primary" : "ghost")} data-testid="cal-view-week" onClick={() => setView("week")}>주간</button>
+            </span>
+            <button className="btn ghost sm" data-testid="cal-prev" onClick={() => step(-1)}>◀</button>
+            <button className="btn ghost sm" onClick={() => setRef(week ? new Date(today) : new Date(today.getFullYear(), today.getMonth(), 1))}>오늘</button>
+            <button className="btn ghost sm" data-testid="cal-next" onClick={() => step(1)}>▶</button>
           </span>
         }>
+          {week ? (
+            <div className="wk" data-testid="cal-week" style={{ ["--wk-h" as any]: `${HOUR_PX}px` }}>
+              <div className="wk-row wk-head">
+                <div className="wk-gut" />
+                {days.map((d, i) => (
+                  <div key={i} className={"wk-dow" + (ymd(d) === todayStr ? " today" : "")}
+                    onClick={() => setDayModal(ymd(d))}>{d.getDate()}일 ({["일", "월", "화", "수", "목", "금", "토"][d.getDay()]})</div>
+                ))}
+              </div>
+              {/* 시간이 없는 일정(연차·마감 등)은 위에 따로 모은다 — 격자 어디에도 놓을 수 없다 */}
+              <div className="wk-row wk-allday">
+                <div className="wk-gut">하루 종일</div>
+                {days.map((d, i) => (
+                  <div key={i} className="wk-col" onClick={() => setDayModal(ymd(d))}>
+                    {(byDate[ymd(d)] || []).filter((e) => !spanOf(e.time)).map((e) => (
+                      <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={evLabel(e)}>{e.title}</span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <div className="wk-row wk-body" style={{ height: hours.length * HOUR_PX }}>
+                <div className="wk-gut">
+                  {hours.map((h) => <div key={h} className="wk-hour">{h === 12 ? "정오" : h < 12 ? `오전 ${h}시` : `오후 ${h - 12}시`}</div>)}
+                </div>
+                {days.map((d, i) => {
+                  const ds = ymd(d);
+                  // lanesOf 는 s(시작)·e(끝) 분으로 겹침을 본다. 일정 자체는 ev 로 들고 다닌다.
+                  const timed = (byDate[ds] || []).flatMap((it) => { const sp = spanOf(it.time); return sp ? [{ ev: it, s: sp[0], e: sp[1] }] : []; });
+                  return (
+                    <div key={i} className={"wk-col wk-day" + (ds === todayStr ? " today" : "")} onClick={() => setDayModal(ds)}>
+                      {lanesOf(timed).map((x) => (
+                        <span key={x.ev.id} className="ev wk-ev" title={evLabel(x.ev)}
+                          style={{ background: TCOL[x.ev.type] || "#5a6478",
+                            top: (x.s - fromH * 60) / 60 * HOUR_PX,
+                            height: Math.max(20, (x.e - x.s) / 60 * HOUR_PX - 2),
+                            left: `calc(${(x.lane / x.lanes) * 100}% + 2px)`, width: `calc(${100 / x.lanes}% - 4px)` }}>
+                          {x.ev.time?.slice(0, 5)} {x.ev.title}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
           <div className="cal" data-testid="cal-grid">
             {["일", "월", "화", "수", "목", "금", "토"].map((d) => <div className="dow" key={d}>{d}</div>)}
             {days.map((d, i) => {
-              const ds = ymd(d); const inMonth = d.getMonth() === m; const evs = byDate[ds] || [];
+              const ds = ymd(d); const inMonth = inRange(d); const evs = byDate[ds] || [];
+              const cap = week ? evs.length : 4;      // 주간은 칸이 넓어 다 보여 준다
               return (
                 <div key={i} className={"day" + (!inMonth ? " off" : "") + (ds === todayStr ? " today" : "")} onClick={() => inMonth && setDayModal(ds)}>
                   <div className="dn">{d.getDate()}</div>
                   {deep?.on && inMonth && d.getDay() !== 0 && d.getDay() !== 6 && (
                     <span className="ev deep" title={`딥워크 ${deep.from}~${deep.to}`}>🎧 {deep.from}~{deep.to}</span>
                   )}
-                  {evs.slice(0, 4).map((e) => <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={evLabel(e)}>{e.recurring ? "🔁 " : ""}{evLabel(e)}</span>)}
-                  {evs.length > 4 && <span className="more">+{evs.length - 4}건</span>}
+                  {evs.slice(0, cap).map((e) => <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={evLabel(e)}>{e.recurring ? "🔁 " : ""}{evLabel(e)}</span>)}
+                  {evs.length > cap && <span className="more">+{evs.length - cap}건</span>}
                 </div>
               );
             })}
           </div>
+          )}
         </Card>
 
         {/* 제목 없이 토글만 — 무엇을 켜고 끄는지는 항목 이름으로 충분하다 */}
