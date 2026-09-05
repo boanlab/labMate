@@ -15,7 +15,9 @@ from labmate_common.notifications import Derived
 from .models import Project, Task
 
 KST = timezone(timedelta(hours=9))
-MANAGER = ("prof", "staff", "admin")
+# 과제 종료 알림을 받을 사람. 관리자는 /grants 화면에 들어갈 수 없어(App.tsx 의 라우트 권한)
+# 알림을 줘도 열지 못하고 지우지도 못한다. 근태 서비스의 HR_ADMIN 과 같은 기준으로 뺀다.
+MANAGER = ("prof", "staff")
 NOTICE_DAYS = 60            # 이 일수 안으로 들어온 과제만 알린다
 TASK_DUE_DAYS = 7           # 마감이 이 일수 안으로 들어온 내 업무를 알린다
 
