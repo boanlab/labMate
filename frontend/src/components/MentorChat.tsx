@@ -13,8 +13,8 @@ const SCREEN: Record<string, string> = {
   "/tasks": "세부업무", "/goals": "목표(OKR)", "/notes": "연구노트", "/approvals": "전자결재",
   "/booking": "자원예약", "/notices": "공지사항", "/board": "게시판", "/meetings": "회의록",
   "/budget": "예산", "/payroll": "학생인건비", "/expenses": "연구비집행", "/attendance": "출퇴근",
-  "/leave": "휴가", "/members": "구성원", "/publications": "실적", "/library": "교육",
-  "/archive": "아카이브", "/philosophy": "지도철학", "/mypage": "마이페이지",
+  "/leave": "휴가", "/members": "구성원", "/publications": "실적", "/daily": "업무일지",
+  "/archive": "아카이브", "/philosophy": "지도 철학", "/mypage": "마이페이지",
 };
 
 type Msg = { role: "user" | "assistant"; content: string };

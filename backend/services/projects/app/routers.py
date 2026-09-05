@@ -1,7 +1,7 @@
 """연구 도메인 라우터 — 프로젝트/세부업무/마일스톤/실적 CRUD."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import io
 import os
@@ -22,7 +22,8 @@ from labmate_common.deps import CurrentUser, get_current_user
 from labmate_common.notifications import notify
 
 from . import schemas
-from .models import ArchivePage, KeyResult, Milestone, NotePage, Objective, Project, Publication, Task
+from .models import (ArchivePage, DailyLog, KeyResult, Milestone, NotePage, Objective, Project,
+                     Publication, Task)
 
 router = APIRouter()
 
@@ -613,3 +614,53 @@ def delete_kr(kid: str, user: CurrentUser = Depends(get_current_user), db: Sessi
     if not o or not _okr_visible(user, o.owner_id):
         raise HTTPException(403, "권한이 없습니다")
     db.delete(k); db.commit()
+
+
+# ── 개인 업무일지 ──
+# 남에게 보이지 않는 기록이다. 모든 질의에 uid 조건을 걸고, 남의 줄은 404 로 막는다
+# (403 으로 답하면 그 날짜에 남의 기록이 있다는 사실이 새어 나간다).
+def _my_log(db: Session, lid: str, user: CurrentUser) -> DailyLog:
+    row = db.get(DailyLog, lid)
+    if not row or row.uid != user.id:
+        raise HTTPException(404, "일지 없음")
+    return row
+
+
+@router.get("/dailylogs", response_model=list[schemas.DailyLogOut])
+def list_daily(start: date | None = None, end: date | None = None,
+               user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """기간(포함) 안의 내 일지. 기간을 주지 않으면 오늘 하루만."""
+    q = select(DailyLog).where(DailyLog.uid == user.id)
+    if start:
+        q = q.where(DailyLog.date >= start)
+    if end:
+        q = q.where(DailyLog.date <= end)
+    if not start and not end:
+        q = q.where(DailyLog.date == date.today())
+    return list(db.scalars(q.order_by(DailyLog.date, DailyLog.order, DailyLog.created_at)))
+
+
+@router.post("/dailylogs", response_model=schemas.DailyLogOut, status_code=201)
+def create_daily(body: schemas.DailyLogIn, user: CurrentUser = Depends(get_current_user),
+                 db: Session = Depends(get_db)):
+    if not body.title.strip():
+        raise HTTPException(400, "할 일을 입력하세요")
+    row = DailyLog(uid=user.id, **body.model_dump())
+    db.add(row); db.commit(); db.refresh(row)
+    return row
+
+
+@router.patch("/dailylogs/{lid}", response_model=schemas.DailyLogOut)
+def update_daily(lid: str, body: schemas.DailyLogPatch, user: CurrentUser = Depends(get_current_user),
+                 db: Session = Depends(get_db)):
+    row = _my_log(db, lid, user)
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(row, k, v)
+    db.commit(); db.refresh(row)
+    return row
+
+
+@router.delete("/dailylogs/{lid}", status_code=204)
+def delete_daily(lid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    row = _my_log(db, lid, user)
+    db.delete(row); db.commit()

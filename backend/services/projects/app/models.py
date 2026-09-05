@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from datetime import date as _date          # 컬럼명이 date 인 모델에서 타입을 가리지 않게
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -122,7 +123,7 @@ class ArchivePage(OrgScoped, SoftDelete, Base):
 
 
 class Objective(OrgScoped, SoftDelete, Base):
-    """학기 단위 목표(OKR).
+    """분기 단위 목표(OKR).
 
     큰 목표 하나보다 작게 쪼갠 여러 개가 완료율이 높다는 것이 알려져 있어,
     Objective 아래에 측정 가능한 Key Result 를 두고 세부업무를 KR 에 잇는다.
@@ -131,7 +132,7 @@ class Objective(OrgScoped, SoftDelete, Base):
     __tablename__ = "objectives"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     owner_id: Mapped[str] = mapped_column(String(32), index=True)      # 목표 주인(학생)
-    period: Mapped[str] = mapped_column(String(20), index=True)        # 예: 2026-1학기
+    period: Mapped[str] = mapped_column(String(20), index=True)        # 예: 2026-1분기
     title: Mapped[str] = mapped_column(String(200))
     note: Mapped[str] = mapped_column(Text, default="")
     order: Mapped[int] = mapped_column(Integer, default=0)
@@ -150,3 +151,21 @@ class KeyResult(OrgScoped, SoftDelete, Base):
     target: Mapped[float] = mapped_column(Float, default=1)
     current: Mapped[float] = mapped_column(Float, default=0)
     order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class DailyLog(OrgScoped, SoftDelete, Base):
+    """개인 업무일지 — 하루치 '할 일'과 '한 일'.
+
+    남에게 보이지 않는다. 모든 조회는 uid 로 잠근다(라우터에서 강제).
+    세부업무(Task)와 달리 과제에 매이지 않아도 되고, 하루 단위로만 존재한다.
+    """
+    __tablename__ = "daily_logs"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    uid: Mapped[str] = mapped_column(String(32), index=True)              # 쓴 사람 — 본인만 본다
+    date: Mapped[_date] = mapped_column(Date, index=True)
+    title: Mapped[str] = mapped_column(String(300))
+    project_id: Mapped[str] = mapped_column(String(32), default="")       # 선택 — 보고서를 과제별로 묶는 데 쓴다
+    done: Mapped[bool] = mapped_column(Boolean, default=False)
+    note: Mapped[str] = mapped_column(Text, default="")                   # 수행 내용·결과
+    order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
