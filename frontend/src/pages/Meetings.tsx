@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useId } from "react";
 import { useDirectory } from "../api/directory";
 import { richHtml } from "../ui/richHtml";
+import { htmlToPlain, plainToHtml } from "../ui/html";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST } from "../lib/date";
 import { api, apiError } from "../api/client";
@@ -10,7 +11,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, AuthorMeta, Req } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
 import HtmlEditor from "../ui/HtmlEditorLazy";
-import { MentorButton } from "../ui/Mentor";
+import { MentorButton, useMentorEnabled } from "../ui/Mentor";
 
 interface Action { id?: string; title: string; assignee_id: string; due: string; done: boolean; task_id?: string; }
 interface Meeting { id: string; date: string; title: string; by_id: string; decisions: string; actions: Action[]; attendees: string[]; project_id?: string; updated_by?: string; created_at?: string; updated_at?: string; }
@@ -36,6 +37,8 @@ export default function Meetings() {
   const [activities, setActivities] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [err, setErr] = useState("");
+  const mentorOn = useMentorEnabled("meeting");
+  const [extracting, setExtracting] = useState(false);
   const [editing, setEditing] = useState<null | { id?: string }>(null);
   const [open, setOpen] = useState<Meeting | null>(null);
   const [baseAt, setBaseAt] = useState<string | null>(null);   // 편집 시작 시점(낙관적 잠금)
@@ -84,6 +87,32 @@ export default function Meetings() {
   }
   function toggleAttendee(uid: string) {
     setForm((f) => ({ ...f, attendees: f.attendees.includes(uid) ? f.attendees.filter((x) => x !== uid) : [...f.attendees, uid] }));
+  }
+  /** 회의록에서 액션아이템 초안을 뽑아 목록 끝에 붙인다. 저장 전에 사람이 손볼 수 있게 채워만 준다. */
+  async function extractActions() {
+    const body = htmlToPlain(dec);
+    if (!body) return setErr("결정사항을 먼저 작성하세요");
+    setExtracting(true); setErr("");
+    try {
+      const { data } = await api.post<{ items: { title: string; assignee: string; due: string }[]; detail: string }>(
+        "/mentor/meeting/actions",
+        { title: form.title, body, date: form.date, attendees: form.attendees.map((id) => uname(id)).filter(Boolean) },
+      );
+      if (!data.items.length) return setErr(data.detail || "회의록에서 할 일을 찾지 못했습니다.");
+      const add: Action[] = data.items.map((it) => ({
+        title: it.title,
+        // 이름 → 계정. 동명이인이나 명단 밖 이름은 비워 두고 사람이 고르게 한다.
+        assignee_id: users.find((u) => u.name === it.assignee)?.id || "",
+        due: it.due,
+        done: false,
+      }));
+      setForm((f) => ({ ...f, actions: [...f.actions, ...add] }));
+    } catch (e) { setErr(apiError(e)); } finally { setExtracting(false); }
+  }
+  /** 개선안을 결정사항에 넣는다. 덮어쓰는 일이라 한 번 묻고, 편집기 되돌리기(Ctrl+Z)로도 복구된다. */
+  async function applyRevision(text: string) {
+    if (!await confirmDialog("결정사항을 개선안으로 바꿉니다. 지금 내용은 사라집니다. 계속할까요?", { title: "개선안 반영" })) return;
+    setDec(plainToHtml(text));
   }
   function addAction() { setForm((f) => ({ ...f, actions: [...f.actions, { title: "", assignee_id: "", due: "", done: false }] })); }
   function setAction(i: number, patch: Partial<Action>) { setForm((f) => ({ ...f, actions: f.actions.map((a, j) => j === i ? { ...a, ...patch } : a) })); }
@@ -139,14 +168,26 @@ export default function Meetings() {
             </div>
           </div>
           <label>참석자</label>
-          <div className="fchips" data-testid="mt-attendees" style={{ marginBottom: 10 }}>
-            {users.filter((u) => u.role !== "admin" && u.active !== false).map((u) => <button type="button" key={u.id} className={"chip" + (form.attendees.includes(u.id) ? " on" : "")} onClick={() => toggleAttendee(u.id)}>{u.name}</button>)}
+          <div className="field-head">
+            <div className="fchips" data-testid="mt-attendees">
+              {users.filter((u) => u.role !== "admin" && u.active !== false).map((u) => <button type="button" key={u.id} className={"chip" + (form.attendees.includes(u.id) ? " on" : "")} onClick={() => toggleAttendee(u.id)}>{u.name}</button>)}
+            </div>
+            <MentorButton feature="meeting" collect={() => ({
+              title: form.title,
+              body: `[결정사항]\n${dec}\n\n[액션아이템]\n` + (form.actions.length
+                ? form.actions.map((a) => `- ${a.title || "(제목 없음)"} / 담당: ${uname(a.assignee_id) || "미지정"} / 기한: ${a.due || "미지정"}`).join("\n")
+                : "(없음)"),
+              context: { 일자: form.date, 참석자수: form.attendees.length },
+            })} onApply={applyRevision} />
           </div>
           <label>결정사항<Req/></label>
           <HtmlEditor value={dec} onChange={setDec} testid="mt-decisions" minHeight={120} />
-          <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>액션아이템
+          <div className="field-head">
+            <label>액션아이템</label>
+            {mentorOn && <button type="button" className="btn ghost sm" data-testid="mt-action-extract" disabled={extracting} onClick={extractActions}>
+              {extracting ? "뽑는 중…" : "✨ 회의록에서 뽑기"}</button>}
             <button type="button" className="btn ghost sm" data-testid="mt-action-add" onClick={addAction}>+ 추가</button>
-          </label>
+          </div>
           {form.actions.map((a, i) => (
             <div key={i} data-testid={`mt-action-${i}`} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
               <input placeholder="할 일" value={a.title} onChange={(e) => setAction(i, { title: e.target.value })} style={{ flex: 1, margin: 0, minWidth: 0 }} />
@@ -162,13 +203,6 @@ export default function Meetings() {
         <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
           <button className="btn primary" data-testid="meeting-add-submit" onClick={save}>저장</button>
           <button className="btn ghost" onClick={() => setEditing(null)}>취소</button>
-          <MentorButton feature="meeting" collect={() => ({
-            title: form.title,
-            body: `[결정사항]\n${dec}\n\n[액션아이템]\n` + (form.actions.length
-              ? form.actions.map((a) => `- ${a.title || "(제목 없음)"} / 담당: ${uname(a.assignee_id) || "미지정"} / 기한: ${a.due || "미지정"}`).join("\n")
-              : "(없음)"),
-            context: { 일자: form.date, 참석자수: form.attendees.length },
-          })} />
         </div>
       </div>
     );

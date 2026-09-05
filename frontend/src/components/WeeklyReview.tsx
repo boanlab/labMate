@@ -78,7 +78,6 @@ export function WeeklyReview({ facts }: { facts: Record<string, unknown> }) {
             <button className="btn primary sm" data-testid="wr-save" disabled={!text.trim()} onClick={save}>저장</button>
             <button className="btn ghost sm" onClick={() => { setOpen(false); setText(saved?.[week] || ""); }}>취소</button>
           </div>
-          <div className="muted small" style={{ marginTop: 6 }}>초안은 제안일 뿐입니다 — 사실과 다르면 고쳐 주세요.</div>
         </>
       )}
     </Card>
@@ -88,7 +87,10 @@ export function WeeklyReview({ facts }: { facts: Record<string, unknown> }) {
 /** 대시보드 데이터에서 이번 주 사실을 뽑는다. */
 export function collectWeekFacts(input: { tasks: any[]; actions: any[]; meetings: any[] }): Record<string, unknown> {
   const today = todayKST();
-  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  // toISOString 은 UTC 로 바꿔 한국 시간 기준으로 하루 앞당겨진다 — 옆줄의 todayKST 와 기준이 어긋나므로
+  // 지역 시간 그대로 조립한다(7일 전 = 오늘 포함 최근 8일이 아니라 정확히 7일 전).
+  const wa = new Date(); wa.setDate(wa.getDate() - 7);
+  const weekAgo = `${wa.getFullYear()}-${String(wa.getMonth() + 1).padStart(2, "0")}-${String(wa.getDate()).padStart(2, "0")}`;
   const done = input.tasks.filter((t) => t.status === "완료" && t.done_date && t.done_date >= weekAgo);
   const doing = input.tasks.filter((t) => t.status === "진행 중");
   const overdue = input.tasks.filter((t) => t.status !== "완료" && t.due && t.due < today);

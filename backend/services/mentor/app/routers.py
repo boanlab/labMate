@@ -1,6 +1,7 @@
 """AI 멘토 라우터 — 키 관리(관리자)와 점검 요청(구성원)."""
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,8 +18,9 @@ from .crypto import decrypt, encrypt, mask
 from .masters import DEFAULTS, FEATURES
 from .models import InterviewTurn, Principle, Secret, Usage
 from .openrouter import MentorError, chat, check_key, models
-from .prompts import (CATEGORIES, SEED_QUESTION, build, chat_messages, enforce_count,
-                      extract_messages, interview_messages, nudge_messages, review_messages)
+from .prompts import (CATEGORIES, SEED_QUESTION, action_messages, build, chat_messages,
+                      enforce_count, extract_messages, interview_messages, nudge_messages,
+                      review_messages, revise_messages)
 
 router = APIRouter()
 KEY_ID = "openrouter"
@@ -179,6 +181,32 @@ async def review(body: schemas.ReviewIn, user: CurrentUser = Depends(get_current
     return schemas.ReviewOut(text=enforce_count(out["text"]), model=out["model"])
 
 
+@router.post("/revise", response_model=schemas.ReviseOut)
+async def revise(body: schemas.ReviseIn, user: CurrentUser = Depends(get_current_user),
+                 db: Session = Depends(get_db)):
+    """점검에서 나온 지적을 반영해 고쳐 쓴 본문을 돌려준다. 저장은 하지 않는다 —
+    바꿔 넣을지는 쓴 사람이 정한다."""
+    if body.feature not in FEATURES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "알 수 없는 점검 유형입니다")
+    if user.role not in (cfg(db, "ai_roles") or []):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "이 계정은 AI 멘토를 사용할 수 없습니다.")
+    if not (cfg(db, "ai_features") or {}).get(body.feature):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "이 기능은 관리자가 꺼 두었습니다.")
+    if not body.body.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "고쳐 쓸 내용이 비어 있습니다.")
+
+    # 고쳐 쓴 글은 원문만큼 길어진다 — 점검(지적 몇 줄)보다 넉넉히 준다.
+    room = max(3000, int(cfg(db, "ai_max_output_tokens") or 2000))
+    text = await _ask(db, revise_messages(body.feature, body.title, body.body, body.review, body.context),
+                      user, body.feature, max_tokens=room)
+    # 모델이 습관적으로 붙이는 코드펜스는 걷어낸다 — 그대로 본문에 들어가면 안 된다.
+    t = text.strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z]*\n?", "", t)
+        t = re.sub(r"\n?```$", "", t).strip()
+    return schemas.ReviseOut(text=t)
+
+
 @router.get("/usage", response_model=schemas.UsageOut)
 def usage(_: CurrentUser = Depends(require_roles("admin")), db: Session = Depends(get_db)):
     first = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -219,6 +247,66 @@ def _parse_principles(raw: str) -> list[dict]:
         if isinstance(g, dict) and str(g.get("text", "")).strip():
             out.append(g)
     return out
+
+
+def _parse_actions(raw: str) -> list[dict]:
+    """응답에서 액션아이템 목록을 꺼낸다. 상한에 걸려 배열이 안 닫히면 완성된 객체만 건진다."""
+    import json
+    import re
+
+    def ok(g) -> bool:
+        return isinstance(g, dict) and str(g.get("title", "")).strip()
+
+    start, end = raw.find("["), raw.rfind("]")
+    if start >= 0 and end > start:
+        try:
+            got = json.loads(raw[start:end + 1])
+            if isinstance(got, list):
+                return [g for g in got if ok(g)]
+        except (ValueError, json.JSONDecodeError):
+            pass
+    return [g for m in re.finditer(r"\{[^{}]*\}", raw[max(start, 0):])
+            for g in [_loads_or_none(m.group())] if ok(g)]
+
+
+def _loads_or_none(t: str):
+    import json
+    try:
+        return json.loads(t)
+    except (ValueError, json.JSONDecodeError):
+        return None
+
+
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+@router.post("/meeting/actions", response_model=schemas.ActionsOut)
+async def meeting_actions(body: schemas.ActionsIn, user: CurrentUser = Depends(get_current_user),
+                          db: Session = Depends(get_db)):
+    """회의록에서 액션아이템 초안을 뽑는다. 저장하지 않는다 — 화면에서 사람이 손보고 저장한다."""
+    if user.role not in (cfg(db, "ai_roles") or []):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "이 계정은 AI 멘토를 사용할 수 없습니다.")
+    if not (cfg(db, "ai_features") or {}).get("meeting"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "이 기능은 관리자가 꺼 두었습니다.")
+    if not body.body.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "회의 내용이 비어 있습니다.")
+
+    raw = await _ask(db, action_messages(body.title, body.body, body.attendees, body.date),
+                     user, "meeting", max_tokens=budget(db, "meeting"))
+    names = {a.strip() for a in body.attendees if a.strip()}
+    items: list[schemas.ActionItemOut] = []
+    for it in _parse_actions(raw)[:12]:
+        due = str(it.get("due", "")).strip()
+        who = str(it.get("assignee", "")).strip()
+        items.append(schemas.ActionItemOut(
+            title=str(it.get("title", "")).strip()[:200],
+            # 명단에 없는 이름은 지어낸 것으로 보고 비운다 — 엉뚱한 사람에게 일이 붙는 것보다 낫다
+            assignee=who if who in names else "",
+            due=due if DATE_RE.match(due) else "",
+        ))
+    if not items:
+        return schemas.ActionsOut(detail="회의록에서 할 일을 찾지 못했습니다. 내용을 조금 더 적은 뒤 다시 시도해 주세요.")
+    return schemas.ActionsOut(items=items)
 
 
 def _require_prof(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:

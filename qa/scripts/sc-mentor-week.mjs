@@ -23,7 +23,7 @@ async function waitMentor(page, feature, ms = 90000) {
 {
   const { ctx, page } = await newPage(b, { w: 1440, h: 950 });
   await uiLogin(page, P.prof.email);
-  await R.run("지도철학 — 지침 직접 추가", async () => {
+  await R.run("지도 철학 — 지침 직접 추가", async () => {
     await page.goto(BASE + "/philosophy"); await settle(page, 1500);
     await page.locator('[data-testid="ph-cat-practice"]').click(); await settle(page, 900);
     const before = await page.locator('.ph-list li').count();
@@ -51,7 +51,7 @@ async function waitMentor(page, feature, ms = 90000) {
     return "승인된 지침만 열람";
   });
 
-  await R.run("학기 목표와 결과지표 등록", async () => {
+  await R.run("분기 목표와 결과지표 등록", async () => {
     await page.goto(BASE + "/goals"); await settle(page, 1500);
     if (!(await page.locator('[data-testid="okr-item"]').count())) {
       await page.locator('[data-testid="goal-add-open"]').click(); await settle(page, 500);

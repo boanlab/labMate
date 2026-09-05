@@ -6,8 +6,9 @@ import { todayKST, dateKST } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { useDetailParam } from "../lib/useDetailParam";
 import { confirmDialog } from "../ui/dialog";
+import { MentorButton } from "../ui/Mentor";
 import { useAuth } from "../auth/AuthContext";
-import { stripHtml } from "../ui/html";
+import { htmlToPlain, plainToHtml, stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard, ATTACH_ACCEPT } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
@@ -51,6 +52,11 @@ export default function Notices() {
     setBaseAt(null);
     const f = { ...emptyForm, by_id: me?.id || "" };
     setEditId(""); setForm(f); setAdding(true); setBody(""); setSnap(formSnapshot({ form: f, body: "" }));
+  }
+  /** 개선안을 본문에 넣는다. 덮어쓰는 일이라 한 번 묻는다(편집기 Ctrl+Z 로도 되돌아간다). */
+  async function applyRevision(text: string) {
+    if (!await confirmDialog("내용을 개선안으로 바꿉니다. 지금 내용은 사라집니다. 계속할까요?", { title: "개선안 반영" })) return;
+    setBody(plainToHtml(text));
   }
   function closeForm() { setAdding(false); setEditId(""); setForm(emptyForm); setBody(""); setSnap(""); }
   // 상단 토글 버튼 — 작성 중이면 확인 후 닫는다
@@ -213,7 +219,15 @@ export default function Notices() {
                 {members.map((u) => <button type="button" key={u.id} className={"chip" + (form.target_user_ids.includes(u.id) ? " on" : "")} onClick={() => toggleTarget(u.id)}>{u.name}</button>)}
               </div>
             )}
-            <label>내용<Req/></label><HtmlEditor value={body} onChange={setBody} testid="n-body" minHeight={200} />
+            <div className="field-head">
+              <label>내용<Req/></label>
+              <MentorButton feature="post" collect={() => ({
+                title: form.title,
+                body: htmlToPlain(body),
+                context: { 필독: form.required ? "예" : "아니오", 확인기한: form.due || "없음", 대상: form.targetMode === "all" ? "전원" : `${form.target_user_ids.length}명 지정` },
+              })} onApply={applyRevision} />
+            </div>
+            <HtmlEditor value={body} onChange={setBody} testid="n-body" minHeight={200} />
             <label htmlFor={`${uid}-3`}>링크(선택)</label>
             <input id={`${uid}-3`} data-testid="n-link" type="url" placeholder="https://…" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
             <label htmlFor={`${uid}-4`}>첨부파일(선택)</label>

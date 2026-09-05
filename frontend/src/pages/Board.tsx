@@ -4,10 +4,11 @@ import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { api, apiError } from "../api/client";
 import { useDetailParam } from "../lib/useDetailParam";
 import { confirmDialog } from "../ui/dialog";
+import { MentorButton } from "../ui/Mentor";
 import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, AuthorMeta, Req, formSnapshot, confirmDiscard, ATTACH_ACCEPT } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
-import { stripHtml } from "../ui/html";
+import { htmlToPlain, plainToHtml, stripHtml } from "../ui/html";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { richHtml } from "../ui/richHtml";
 import { dateKST } from "../lib/date";
@@ -67,6 +68,11 @@ export default function Board() {
     setForm({ cat: p.cat, title: p.title, link: p.link || "", min_role: p.min_role || "", files: p.files || [] });
     setEditId(p.id); setAdding(true); setOpen(null);
     setBody(p.body || ""); setBaseAt(p.updated_at || null);
+  }
+  /** 개선안을 본문에 넣는다. 덮어쓰는 일이라 한 번 묻는다(편집기 Ctrl+Z 로도 되돌아간다). */
+  async function applyRevision(text: string) {
+    if (!await confirmDialog("본문을 개선안으로 바꿉니다. 지금 내용은 사라집니다. 계속할까요?", { title: "개선안 반영" })) return;
+    setBody(plainToHtml(text));
   }
   function closeForm() { setAdding(false); setEditId(""); setForm({ cat: "정보공유", title: "", link: "", min_role: "", files: [] }); setBody(""); setSnap(""); }
   async function uploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -227,7 +233,17 @@ export default function Board() {
             <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-1`}>제목<Req/></label><input id={`${uid}-1`} data-testid="b-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div><label htmlFor={`${uid}-2`}>분류</label><select id={`${uid}-2`} data-testid="b-cat" value={form.cat} onChange={(e) => setForm({ ...form, cat: e.target.value })}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></div>
             <div><label htmlFor={`${uid}-3`}>공개 범위</label><select id={`${uid}-3`} data-testid="b-minrole" value={form.min_role} onChange={(e) => setForm({ ...form, min_role: e.target.value })}>{MIN_ROLE_OPTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-            <div style={{ gridColumn: "1 / -1" }}><label>본문</label><HtmlEditor value={body} onChange={setBody} testid="b-body" minHeight={200} /></div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div className="field-head">
+                <label>본문</label>
+                <MentorButton feature="post" collect={() => ({
+                  title: form.title,
+                  body: htmlToPlain(body),
+                  context: { 분류: form.cat, 공개범위: form.min_role || "전체" },
+                })} onApply={applyRevision} />
+              </div>
+              <HtmlEditor value={body} onChange={setBody} testid="b-body" minHeight={200} />
+            </div>
             <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-4`}>링크(선택)</label><input id={`${uid}-4`} data-testid="b-link" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></div>
             <div style={{ gridColumn: "1 / -1" }}>
               <label htmlFor={`${uid}-5`}>첨부파일(선택)</label>
