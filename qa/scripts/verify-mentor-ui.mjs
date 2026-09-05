@@ -12,7 +12,7 @@ const chk = (ok, l, d) => { ok ? pass++ : fail++; console.log(`${ok ? "✅" : "�
 
 const NEW_ROUTES = [
   { p: "/goals", label: "목표", allow: ["prof", "phd", "master", "under", "deleg"] },
-  { p: "/philosophy", label: "지도철학", allow: ["prof", "phd", "master", "under", "deleg"] },
+  { p: "/philosophy", label: "지도 철학", allow: ["prof", "phd", "master", "under", "deleg"] },
   { p: "/coaching", label: "지도 현황", allow: ["prof"] },
 ];
 

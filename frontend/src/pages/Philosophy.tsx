@@ -1,4 +1,4 @@
-// 지도철학 — AI 가 지도교수와 대화하며 연구·교육·실무 철학을 끌어내고,
+// 지도 철학 — AI 가 지도교수와 대화하며 연구·교육·실무 철학을 끌어내고,
 // 교수가 승인한 지침만 학생 멘토링의 기준이 된다.
 //
 // 학생은 승인된 지침을 읽기만 한다(무엇을 기준으로 지도받는지 알아야 하므로).
@@ -90,7 +90,7 @@ export default function Philosophy() {
 
   return (
     <div>
-      <PageHeader crumb="연구실 › 지도철학" title="지도철학" />
+      <PageHeader crumb="연구실 › 지도 철학" title="지도 철학" />
       {err && <div className="form-err" data-testid="ph-err">{err}</div>}
       {msg && <div className="io" data-testid="ph-msg">{msg}</div>}
 
