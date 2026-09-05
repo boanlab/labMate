@@ -61,6 +61,7 @@ run "퇴사·삭제 구성원 이름"     env TAIL=3 node scripts/verify-member-
 run "멘토 응답 품질"            env TAIL=4 node scripts/mentor-bench.mjs
 run "멘토 중단 시 동작"          env TAIL=3 node scripts/verify-mentor-degraded.mjs
 run "상시 멘토 대화"            env TAIL=3 node scripts/verify-mentor-chat.mjs
+run "업무일지·보고서 초안"        env TAIL=3 node scripts/verify-daily.mjs
 run "지도 철학 인터뷰"            env TAIL=3 node scripts/verify-philosophy.mjs
 run "멘토와 보내는 한 주"        env TAIL=10 node scripts/sc-mentor-week.mjs
 run "AI 멘토 화면"              env TAIL=3 LM_ADMIN_EMAIL="$ADM_E" LM_ADMIN_PW="$ADM_P" node scripts/verify-mentor-ui.mjs

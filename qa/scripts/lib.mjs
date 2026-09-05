@@ -14,6 +14,7 @@ export const ROUTES = [
   { p: "/grants",       label: "연구과제" },
   { p: "/projects",     label: "프로젝트" },
   { p: "/tasks",        label: "세부업무" },
+  { p: "/daily",        label: "업무일지" },
   { p: "/goals",        label: "목표" },
   { p: "/notes",        label: "연구노트" },
   { p: "/approvals",    label: "전자결재" },
