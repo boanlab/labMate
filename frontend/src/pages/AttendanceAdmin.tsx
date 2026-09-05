@@ -8,7 +8,8 @@ import { useColumnResize, useTableSort } from "../ui/tableTools";
 interface Att { id: string; uid: string; date: string; check_in: string; check_out: string; status: string; note: string; work_min?: number; session_start?: string; corrected?: boolean; }
 
 const nowHM = () => new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
-const minsBetween = (s: string, e: string) => { if (!s || !e) return 0; const d = (+e.slice(0, 2) * 60 + +e.slice(3, 5)) - (+s.slice(0, 2) * 60 + +s.slice(3, 5)); return d > 0 ? d : 0; };
+// 끝이 시작보다 앞서면 자정을 넘긴 것으로 본다(23:00~01:00 = 120분).
+const minsBetween = (s: string, e: string) => { if (!s || !e) return 0; const d = (+e.slice(0, 2) * 60 + +e.slice(3, 5)) - (+s.slice(0, 2) * 60 + +s.slice(3, 5)); return d < 0 ? d + 1440 : d; };
 // 근무시간 = 세션별 실근무 누적 + 지금 진행 중인 세션. 자리비움 구간은 빠진다.
 const workMin = (a: { check_in?: string; check_out?: string; work_min?: number; session_start?: string }) => {
   if (!a.check_in) return 0;
@@ -53,7 +54,7 @@ export default function AttendanceAdmin() {
   useEffect(() => setReqPage(0), [reqQ]);
   useEffect(() => setLogPage(0), [logQ]);
 
-  const members = users.filter((u) => u.role !== "admin");
+  const members = users.filter((u) => !["admin", "prof"].includes(u.role));   // 근태 기록 대상만
   const uname = useDirectory();
   const pendingReqs = reqs.filter((r) => r.status === "대기");
 
@@ -155,7 +156,7 @@ export default function AttendanceAdmin() {
         </table>
       </div>
 
-      {reqHist.length > 0 && (
+      {reqHist.length > 0 && (<>
         <div className="card">
           <div className="card-h" style={{ display: "flex", alignItems: "center", gap: 8 }}><b>정정 요청 처리 이력</b><input className="tsearch" data-testid="req-search" placeholder="신청자·사유·일자 검색" value={reqQ} onChange={(e) => setReqQ(e.target.value)} style={{ maxWidth: 220, marginLeft: "auto" }} /><span className="muted small">{reqHist.length}건</span></div>
           <table ref={histRef} className="tbl" data-testid="aa-req-history">
@@ -178,9 +179,9 @@ export default function AttendanceAdmin() {
               ))}
             </tbody>
           </table>
-          <Pager page={reqPg} max={reqMax} set={setReqPage} />
         </div>
-      )}
+        <Pager page={reqPg} max={reqMax} set={setReqPage} />
+      </>)}
 
       <div className="card">
         <div className="card-h" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -219,8 +220,8 @@ export default function AttendanceAdmin() {
             {!shownAtts.length && <tr><td colSpan={7} className="muted">근태 기록 없음</td></tr>}
           </tbody>
         </table>
-        <Pager page={attPg} max={attMax} set={setAttPage} />
       </div>
+      <Pager page={attPg} max={attMax} set={setAttPage} />
 
       <div className="card">
         <div className="card-h" style={{ display: "flex", alignItems: "center", gap: 8 }}><b>출퇴근 시간 보정 이력</b><input className="tsearch" data-testid="log-search" aria-label="보정 이력 검색" placeholder="대상·보정자·사유 검색" value={logQ} onChange={(e) => setLogQ(e.target.value)} style={{ maxWidth: 220, marginLeft: "auto" }} /><span className="muted small">{sortedLogs.length}건</span></div>
@@ -244,8 +245,8 @@ export default function AttendanceAdmin() {
             {!sortedLogs.length && <tr><td colSpan={5} className="muted">보정 이력 없음</td></tr>}
           </tbody>
         </table>
-        <Pager page={logPg} max={logMax} set={setLogPage} />
       </div>
+      <Pager page={logPg} max={logMax} set={setLogPage} />
     </div>
   );
 }

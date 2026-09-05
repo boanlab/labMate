@@ -1,6 +1,6 @@
 import { useEffect, useState, useId } from "react";
 import { Pager } from "../ui/pageTable";
-import { todayKST } from "../lib/date";
+import { todayKST, workdayKST, WORKDAY_START_HOUR } from "../lib/date";
 import { api, apiError } from "../api/client";
 import { formSnapshot, confirmDiscard } from "../ui/kit";
 import { useAuth } from "../auth/AuthContext";
@@ -10,7 +10,8 @@ import { useColumnResize, useTableSort } from "../ui/tableTools";
 interface Att { id: string; uid: string; date: string; check_in: string; check_out: string; status: string; note: string; work_min?: number; session_start?: string; corrected?: boolean; }
 
 const nowHM = () => new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
-const minsBetween = (s: string, e: string) => { if (!s || !e) return 0; const d = (+e.slice(0, 2) * 60 + +e.slice(3, 5)) - (+s.slice(0, 2) * 60 + +s.slice(3, 5)); return d > 0 ? d : 0; };
+// 끝이 시작보다 앞서면 자정을 넘긴 것으로 본다(23:00~01:00 = 120분).
+const minsBetween = (s: string, e: string) => { if (!s || !e) return 0; const d = (+e.slice(0, 2) * 60 + +e.slice(3, 5)) - (+s.slice(0, 2) * 60 + +s.slice(3, 5)); return d < 0 ? d + 1440 : d; };
 // 근무시간 = 세션별 실근무 누적 + 지금 진행 중인 세션. 자리비움 구간은 빠진다.
 const workMin = (a?: { check_in?: string; check_out?: string; work_min?: number; session_start?: string }) => {
   if (!a?.check_in) return 0;
@@ -32,7 +33,7 @@ export default function Attendance() {
   const [mine, setMine] = useState<Att[]>([]);
   const [reqs, setReqs] = useState<Req[]>([]);
   const [err, setErr] = useState("");
-  const today = todayKST();
+  const today = workdayKST();       // 새벽 6시 전이면 전날 근무로 본다(서버와 같은 규칙)
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [reqForm, setReqForm] = useState<null | { date: string; check_in: string; check_out: string; requested_status: string; reason: string }>(null);
@@ -73,9 +74,16 @@ export default function Attendance() {
   async function goAway() { try { await api.post("/attendance/attendance/away"); load(); } catch (e) { setErr(apiError(e)); } }
   async function comeBack() { try { await api.post("/attendance/attendance/back"); load(); } catch (e) { setErr(apiError(e)); } }
 
-  function openReq() {
-    const a = mine.find((x) => x.date === today);
-    const f = { date: today, check_in: a?.check_in || "", check_out: a?.check_out || "", requested_status: a?.status || "업무 중", reason: "" };
+  // 대시보드에서 "출퇴근 시간 보정"을 누르면 ?correct=YYYY-MM-DD 로 들어온다 — 그 날짜로 바로 연다.
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get("correct");
+    if (d && mine.length && !reqForm) openReq(d);
+  }, [mine]);
+
+  function openReq(forDate?: string) {
+    const d = forDate || today;
+    const a = mine.find((x) => x.date === d);
+    const f = { date: d, check_in: a?.check_in || "", check_out: a?.check_out || "", requested_status: a?.status || "업무 중", reason: "" };
     setReqForm(f); setReqSnap(formSnapshot(f));
   }
   // 모달을 닫을 때 입력 중인 내용이 있으면 확인을 받는다
@@ -101,17 +109,20 @@ export default function Attendance() {
           <div style={{ flex: 1 }} data-testid="att-today">
             상태: <b>{todayRec?.status || "미체크"}</b> · 출근 {todayRec?.check_in || "—"} / 퇴근 {todayRec?.check_out || "—"} · 근무 <b>{fmtWork(workMin(todayRec))}</b>
             {todayRec?.status === "자리비움" && <span className="muted small"> · 자리비움 중이라 근무시간이 늘지 않습니다</span>}
+            {today !== todayKST() && <span className="muted small"> · 새벽 {WORKDAY_START_HOUR}시 전이라 {today} 근무로 기록됩니다</span>}
           </div>
           {(() => {
             const st = todayRec?.status || "미체크";
             const away = st === "자리비움";
             const inWork = st !== "미체크" && st !== "퇴근";
             return <>
-              {/* 지금 가능한 동작을 강조한다 — 비활성 버튼이 더 진하면 어느 쪽을 눌러야 할지 반대로 읽힌다 */}
-              <button className={"btn " + (inWork ? "ghost" : "primary")} data-testid="att-checkin" disabled={inWork} onClick={checkIn}>출근 체크</button>
-              {away
-                ? <button className="btn primary" data-testid="att-back" onClick={comeBack}>복귀</button>
-                : <button className="btn ghost" data-testid="att-away" disabled={!inWork} onClick={goAway} title="잠시 자리를 비웁니다 — 비운 시간은 근무시간에서 빠집니다">자리비움</button>}
+              {/* 지금 가능한 동작을 강조한다 — 비활성 버튼이 더 진하면 어느 쪽을 눌러야 할지 반대로 읽힌다.
+                  출근한 뒤에는 출근 버튼이 할 일이 없으므로 그 자리를 자리비움(비운 동안은 복귀)이 대신한다. */}
+              {!inWork
+                ? <button className="btn primary" data-testid="att-checkin" onClick={checkIn}>출근 체크</button>
+                : away
+                  ? <button className="btn primary" data-testid="att-back" onClick={comeBack}>복귀</button>
+                  : <button className="btn ghost" data-testid="att-away" onClick={goAway} title="잠시 자리를 비웁니다 — 비운 시간은 근무시간에서 빠집니다">자리비움</button>}
               <button className={"btn " + (inWork && !away ? "primary" : "ghost")} data-testid="att-checkout" disabled={!inWork} onClick={checkOut}>퇴근 체크</button>
             </>;
           })()}
@@ -122,7 +133,7 @@ export default function Attendance() {
         <div className="card-h" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <b>내 출퇴근 기록</b>
-            <button className="btn ghost sm" data-testid="att-req-open" onClick={openReq}>+ 출퇴근 시간 정정 요청</button>
+            <button className="btn ghost sm" data-testid="att-req-open" onClick={() => openReq()}>+ 출퇴근 시간 정정 요청</button>
           </span>
           <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <input type="date" data-testid="att-from" aria-label="조회 시작일" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 150, margin: 0 }} />
@@ -147,8 +158,8 @@ export default function Attendance() {
             {!shownMine.length && <tr><td colSpan={5} className="muted">{(from || to) ? "해당 기간 기록 없음" : "기록 없음"}</td></tr>}
           </tbody>
         </table>
-        <Pager page={mineCur} pages={minePages} set={setMinePage} />
       </div>
+      <Pager page={mineCur} pages={minePages} set={setMinePage} />
 
       <div className="card">
         <div className="card-h"><b>내 출퇴근 정정 요청</b><span className="muted small">{myReqs.length}건</span></div>
@@ -171,8 +182,8 @@ export default function Attendance() {
             {!myReqs.length && <tr><td colSpan={4} className="muted">정정 요청 없음</td></tr>}
           </tbody>
         </table>
-        <Pager page={reqCur} pages={reqPages} set={setReqPage} />
       </div>
+      <Pager page={reqCur} pages={reqPages} set={setReqPage} />
 
       {reqForm && (
         <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) closeReq(); }}>

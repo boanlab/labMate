@@ -7,6 +7,18 @@ export function yearKST(): number {
   return Number(todayKST().slice(0, 4));
 }
 
+// 근무일 — 새벽 6시를 하루의 경계로 본다(백엔드 attendance 의 DAY_START_HOUR 와 같은 규칙).
+// 자정 기준으로 끊으면 새벽까지 일하는 사람의 근무가 0시에 끊겨 '미체크'로 넘어간다.
+export const WORKDAY_START_HOUR = 6;
+export function workdayKST(): string {
+  const today = todayKST();
+  const hour = Number(new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour12: false, hour: "2-digit" }).slice(0, 2));
+  if (hour >= WORKDAY_START_HOUR) return today;
+  const d = new Date(today + "T00:00:00");
+  d.setDate(d.getDate() - 1);   // toISOString 은 UTC 로 밀리므로 지역 시간 그대로 조립한다
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // UTC(ISO, timestamptz) 값을 KST 표기로 변환. 값이 없으면 "".
 // created_at/updated_at/audit.at 등 서버 UTC 타임스탬프 표시용(앞 10자 자르기는 UTC 날짜라 하루 어긋남).
 export function dateKST(iso?: string | null): string {

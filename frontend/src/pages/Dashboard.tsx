@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useDirectory } from "../api/directory";
+import { usePref } from "../api/prefs";
 import { richHtml } from "../ui/richHtml";
-import { todayKST, dtKST } from "../lib/date";
+import { todayKST, workdayKST, dtKST } from "../lib/date";
 import { FIXED_KINDS, seriesOf } from "../lib/pubClass";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
-import { Kpi, Card, statusClass } from "../ui/kit";
+import { confirmDialog } from "../ui/dialog";
+import { Kpi, Card } from "../ui/kit";
 import { useColumnResize, useTableSort } from "../ui/tableTools";
 import { MentorNudge, collectSignals } from "../components/MentorNudge";
 import { WeeklyReview, collectWeekFacts } from "../components/WeeklyReview";
@@ -28,6 +30,7 @@ function pubShare(u: Pub): number {
   return n > 1 ? 1 / n : 1;
 }
 interface Notice { id: string; acked_user_ids: string[]; target_user_ids?: string[]; }
+interface DayLog { id: string; date: string; title: string; project_id: string; done: boolean; note: string; order: number }
 interface Activity { id: string; code: string; name: string; category: string; status: string; start: string | null; end: string | null; pm_id: string; members: string[]; }
 // 기간 기반 자동 상태(예정/진행 중/완료)
 function liveStatus(start: string | null, end: string | null): string {
@@ -67,6 +70,7 @@ export default function Dashboard() {
   const { me } = useAuth();
   const nav = useNavigate();
   const isMgr = !!me && (["prof", "staff", "admin"].includes(me.role) || !!me.delegated_admin);
+  const isProf = me?.role === "prof";      // 지도교수는 근태 기록 대상이 아니다
   const canBudget = !!me && (["prof", "staff"].includes(me.role) || !!me.delegated_admin);   // 예산 조회 권한(학생 차단)
   const [projects, setProjects] = useState<Project[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -78,14 +82,57 @@ export default function Dashboard() {
   const [inbox, setInbox] = useState<Appr[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  // 대시보드에서 바로 적는 오늘 업무일지 — 화면을 옮기지 않고 한 줄 남길 수 있게.
+  const [dayLogs, setDayLogs] = useState<DayLog[]>([]);
+  const [logTitle, setLogTitle] = useState("");
+  useEffect(() => { api.get<DayLog[]>("/projects/dailylogs").then((r) => setDayLogs(r.data)).catch(() => {}); }, []);
+  async function addLog(e: React.FormEvent) {
+    e.preventDefault();
+    if (!logTitle.trim()) return;
+    try {
+      const { data } = await api.post<DayLog>("/projects/dailylogs", { date: todayKST(), title: logTitle.trim(), order: dayLogs.length });
+      setDayLogs((ls) => [...ls, data]); setLogTitle("");
+    } catch { /* 대시보드에서 실패는 조용히 넘긴다 — 업무일지 화면에서 다시 시도할 수 있다 */ }
+  }
+  const setLogLocal = (id: string, body: Partial<DayLog>) => setDayLogs((ls) => ls.map((x) => x.id === id ? { ...x, ...body } : x));
+  async function saveLog(l: DayLog, body: Partial<DayLog>) {
+    setLogLocal(l.id, body);
+    try { await api.patch(`/projects/dailylogs/${l.id}`, body); } catch { setLogLocal(l.id, l); }
+  }
+  async function delLog(l: DayLog) {
+    if (!await confirmDialog(`"${l.title}"을(를) 지울까요?`, { danger: true })) return;
+    try { await api.delete(`/projects/dailylogs/${l.id}`); setDayLogs((ls) => ls.filter((x) => x.id !== l.id)); } catch { /* 무시 */ }
+  }
+
+  const [pfShut, setPfShut] = usePref<boolean>("dash_portfolio_shut", false);   // 과제 포트폴리오 접힘
   const [selEv, setSelEv] = useState<any>(null);
   const [myAppr, setMyAppr] = useState<any[]>([]);
   const [myMeetings, setMyMeetings] = useState<any[]>([]);
   const [audit, setAudit] = useState<any[]>([]);
 
+  // 퇴근을 안 찍고 넘어간 날 찾기 — 본인 기록과 정정요청을 함께 본다.
+  const [myAtt, setMyAtt] = useState<any[]>([]);
+  const [myReqs, setMyReqs] = useState<any[]>([]);
+  useEffect(() => {
+    api.get<any[]>("/attendance/attendance/me").then((r) => setMyAtt(r.data)).catch(() => {});
+    api.get<any[]>("/attendance/attendance/correct-requests").then((r) => setMyReqs(r.data)).catch(() => {});
+  }, []);
+
+  // 지난 근무일 중 출근만 있고 퇴근이 없는 날. 이미 보정 신청(대기·승인)이 있으면 뺀다.
+  const workday = workdayKST();
+  const handled = new Set(myReqs.filter((r) => r.status === "대기" || r.status === "승인").map((r) => r.date));
+  const missingOut = myAtt
+    .filter((a) => a.date < workday && a.check_in && !a.check_out && !handled.has(a.date))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5);
+
+
   async function reloadAtt() { try { setAtt((await api.get("/attendance/attendance/today")).data); } catch { /* */ } }
   async function checkIn() { try { await api.post("/attendance/attendance/check-in", { status: "업무 중", note: "" }); reloadAtt(); } catch { /* */ } }
   async function checkOut() { try { await api.post("/attendance/attendance/check-out"); reloadAtt(); } catch { /* */ } }
+  // 자리비움·복귀도 대시보드에서 — 잠깐 자리를 비울 때마다 출퇴근 화면을 여는 건 번거롭다.
+  async function goAway() { try { await api.post("/attendance/attendance/away"); reloadAtt(); } catch { /* */ } }
+  async function comeBack() { try { await api.post("/attendance/attendance/back"); reloadAtt(); } catch { /* */ } }
 
   useEffect(() => {
     if (me?.role === "admin") {
@@ -141,17 +188,19 @@ export default function Dashboard() {
   // 결재 — 내 차례인 문서
   const myTurn = inbox.filter((a) => a.status === "진행" && a.steps[currentIdx(a.steps)]?.uid === me?.id);
 
-  // 연구원 근태 — 분포는 본인(교수 포함) 전체 기준, 아래 카드 목록만 본인 제외
+  // 연구원 근태 — 기록 대상(지도교수·관리자 제외)만 센다. 아래 카드 목록은 본인도 뺀다.
   const attBy = (uid: string) => att.find((a) => a.uid === uid);
-  const members = users.filter((u) => u.active !== false && u.role !== "admin").sort(sortMembers);
+  const members = users.filter((u) => u.active !== false && !["admin", "prof"].includes(u.role)).sort(sortMembers);
+  const memberIds = new Set(members.map((u) => u.id));
   const attCount: Record<string, number> = {};
-  att.forEach((a) => { attCount[a.status] = (attCount[a.status] || 0) + 1; });
+  att.filter((a) => memberIds.has(a.uid)).forEach((a) => { attCount[a.status] = (attCount[a.status] || 0) + 1; });
   const attSegs = Object.keys(attCount).map((s) => ({ label: s, value: attCount[s], color: STCOL[s] || "var(--sub)" }));
   const uncheckCount = members.filter((m) => !att.some((a) => a.uid === m.id)).length;
 
   // 연구원(학생) 개인 현황 데이터
   const myToday = att.find((a) => a.uid === me?.id) || null;   // 본인 기록만 — 없으면 미체크(타인 폴백 금지)
   const myInWork = !!myToday?.status && myToday.status !== "미체크" && myToday.status !== "퇴근";
+  const myAway = myToday?.status === "자리비움";
   const myActions = myMeetings.flatMap((m: any) => (m.actions || []).filter((a: any) => a.assignee_id === me?.id && !a.done).map((a: any) => ({ ...a, mt: m.title })));
   const myPendingAppr = myAppr.filter((a: any) => a.status === "진행");
   // '내 할 일' — 세부업무·회의록 액션·결재·필독 공지를 한자리에 모은다.
@@ -181,8 +230,6 @@ export default function Dashboard() {
     tasks: myTasks, actions: myActions, unackNotices: myUnackNotices.length,
     pendingAppr: myPendingAppr.length, lastReportAt: lastReport,
   });
-  // 프로젝트 현황: 본인이 담당자(PM) 또는 참여연구원인 진행중 프로젝트만
-  const openActs = activities.filter((p) => liveStatus(p.start, p.end) !== "완료" && (seesAll || p.pm_id === me?.id || (p.members || []).includes(me?.id || "")));
   const unackNotices = notices.filter((n) => (!(n.target_user_ids || []).length || (n.target_user_ids || []).includes(me?.id || "")) && !(n.acked_user_ids || []).includes(me?.id || "")).length;
 
   // ── 관리자(admin) 전용 대시보드 — 구성원 현황 · 최근 감사 로그 ──
@@ -241,47 +288,41 @@ export default function Dashboard() {
   }
 
   // 공통 대시보드 (교수 기준, 역할별 일부 분기)
-  // 연구실을 처음 세팅할 때의 순서 — 앞 단계가 있어야 뒤 화면이 의미를 갖는다
-  const setupSteps = [
-    { label: "구성원 추가", to: "/members", done: users.filter((u) => u.role !== "admin").length > 1 },
-    { label: "연구과제 등록", to: "/grants", done: projects.length > 0 },   // projects 는 kind=grant 로만 받아온다
-    { label: "예산 편성", to: "/budget", done: budgets.some((b) => b.allocated > 0) },
-    { label: "첫 공지 작성", to: "/notices", done: notices.length > 0 },
-  ];
-
   return (
     <div data-testid="page-dashboard">
       <h1 style={{ marginBottom: 10 }}>{me?.name}{me?.role === "prof" ? " 교수님" : ""} {isMgr ? "연구실 현황" : "현황"} <span className="muted" style={{ fontSize: 13, fontWeight: 400 }}>· 한눈에 보기</span></h1>
 
-      {/* 갓 배포한 연구실은 모든 화면이 비어 있어 어디서 시작할지 알기 어렵다.
-          관리 권한자에게만, 아직 채워지지 않은 항목이 있을 때만 순서를 알려준다. */}
-      {isMgr && setupSteps.some((s) => !s.done) && (
-        <Card testid="dash-setup" title="시작하기">
-          <div className="bd" style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            {setupSteps.map((st) => (
-              <button key={st.label} className={"btn " + (st.done ? "ghost" : "primary")} data-testid={`setup-${st.to.replace("/", "")}`}
-                onClick={() => nav(st.to)} disabled={st.done} style={{ opacity: st.done ? 0.55 : 1 }}>
-                {st.done ? "✓ " : ""}{st.label}
-              </button>
-            ))}
-            <span className="muted small" style={{ alignSelf: "center" }}>
-              {setupSteps.filter((s) => s.done).length}/{setupSteps.length} 완료 — 왼쪽부터 채우면 나머지 화면이 함께 살아납니다.
-            </span>
+      {!isProf && missingOut.length > 0 && (
+        <div className="card dash-warn" data-testid="dash-missing-out">
+          <div>
+            <b>퇴근 체크가 빠진 날이 있습니다</b>
+            <div className="muted small">{missingOut.map((a) => a.date).join(", ")} — 출근만 기록되어 근무시간이 계산되지 않습니다.</div>
           </div>
-        </Card>
+          <button className="btn primary sm" data-testid="dash-correct" style={{ marginLeft: "auto" }}
+            onClick={() => nav(`/attendance?correct=${missingOut[0].date}`)}>출퇴근 시간 보정</button>
+        </div>
       )}
 
       <div className="dash-top">
         <div className="kpi dash-att" data-testid="dash-attendance" style={{ gridColumn: "span 2", display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="l">내 근태</div>
-            <div className="n" style={{ fontSize: 18, color: STCOL[myToday?.status || "미체크"] || "var(--ink)" }}>● {myToday?.status || "미체크"}</div>
-            <div className="sub">{myToday?.check_in ? `출근 ${myToday.check_in}` : "출근 전"}{myToday?.check_out ? ` · 퇴근 ${myToday.check_out}` : ""}</div>
+            <div className="n" style={{ fontSize: 18, color: isProf ? "var(--sub)" : (STCOL[myToday?.status || "미체크"] || "var(--ink)") }}>● {isProf ? "해당 없음" : (myToday?.status || "미체크")}</div>
+            <div className="sub">{isProf ? "지도교수는 근태 대상이 아닙니다"
+              : `${myToday?.check_in ? `출근 ${myToday.check_in}` : "출근 전"}${myToday?.check_out ? ` · 퇴근 ${myToday.check_out}` : ""}`}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
             {/* 지금 가능한 동작을 강조한다 — 비활성 버튼이 더 진하면 어느 쪽을 눌러야 할지 반대로 읽힌다 */}
-            <button className={"btn sm " + (myInWork ? "ghost" : "primary")} data-testid="dash-checkin" disabled={myInWork} onClick={checkIn}>출근</button>
-            <button className={"btn sm " + (myInWork ? "primary" : "ghost")} data-testid="dash-checkout" disabled={!myInWork} onClick={checkOut}>퇴근</button>
+            {/* 출근한 뒤에는 출근 버튼이 할 일이 없다 — 그 자리를 자리비움(비운 동안은 복귀)이 대신한다. */}
+            {!myInWork
+              ? <button className="btn sm primary" data-testid="dash-checkin" disabled={isProf}
+                  title={isProf ? "지도교수는 근태 대상이 아닙니다" : undefined} onClick={checkIn}>출근</button>
+              : myAway
+                ? <button className="btn sm primary" data-testid="dash-back" onClick={comeBack}>복귀</button>
+                : <button className="btn sm ghost" data-testid="dash-away" onClick={goAway}
+                    title="잠시 자리를 비웁니다 — 비운 시간은 근무시간에서 빠집니다">자리비움</button>}
+            <button className={"btn sm " + (myInWork && !myAway ? "primary" : "ghost")} data-testid="dash-checkout" disabled={isProf || !myInWork}
+              title={isProf ? "지도교수는 근태 대상이 아닙니다" : undefined} onClick={checkOut}>퇴근</button>
           </div>
         </div>
         <div className={"kpi " + (unackNotices ? "k-amber" : "k-green")} style={{ gridColumn: "span 2", cursor: "pointer" }} data-testid="kpi-notices" onClick={() => nav("/notices")} title="공지사항으로 이동">
@@ -397,7 +438,13 @@ export default function Dashboard() {
         )}
       </div>
 
-      <Card title="과제 포트폴리오" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/grants")}>과제관리 →</a>}>
+      <Card title="과제 포트폴리오" extra={
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/grants")}>과제관리 →</a>
+          <button className="btn ghost sm" data-testid="dash-pf-toggle" aria-expanded={!pfShut}
+            onClick={() => setPfShut(!pfShut)}>{pfShut ? "펼치기" : "접기"}</button>
+        </span>}>
+        {pfShut ? <div className="muted small">수행 중 과제 {ps.length}건 — 펼치기를 눌러 보세요</div> : (
         <div className="card scroll" style={{ margin: 0, border: "none" }}>
           <table ref={pfRef} className="tbl fit" data-testid="dash-portfolio" style={{ width: "100%" }}>
             <thead><tr>
@@ -440,26 +487,11 @@ export default function Dashboard() {
             </tbody>
           </table>
         </div>
+        )}
       </Card>
 
       {isMgr && (
         <div className="grid g2">
-          <Card title="프로젝트 현황" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/projects")}>프로젝트 →</a>} testid="dash-activities">
-            <table className="tbl" data-preview="상위 6건" style={{ tableLayout: "fixed", width: "100%", minWidth: 0 }}>
-              <thead><tr><th>명칭</th><th style={{ width: 74 }}>분류</th><th style={{ width: 80 }}>상태</th></tr></thead>
-              <tbody>
-                {openActs.slice(0, 6).map((p) => (
-                  <tr key={p.id}>
-                    <td style={{ overflow: "hidden", textOverflow: "ellipsis" }} title={p.name}><a className="lnk small" style={{ cursor: "pointer", fontWeight: 700 }} onClick={() => nav(`/projects?open=${p.id}`)}>{p.name}</a></td>
-                    <td className="small muted" style={{ overflow: "hidden", textOverflow: "ellipsis" }} title={p.category}>{p.category}</td>
-                    <td><span className={statusClass(liveStatus(p.start, p.end))}>{liveStatus(p.start, p.end)}</span></td>
-                  </tr>
-                ))}
-                {!openActs.length && <tr><td colSpan={3} className="muted" style={{ textAlign: "center", padding: 12 }}>진행 중 프로젝트 없음</td></tr>}
-              </tbody>
-            </table>
-          </Card>
-
           <Card title="세부 업무 현황" extra={<span className="muted small">내 업무 {myTasks.length}건</span>} testid="dash-tasks">
             <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 16px", marginBottom: 8 }}>
               <span className="small"><b style={{ color: "var(--sub)" }}>●</b> 예정 <b>{taskCount["예정"] || 0}</b></span>
@@ -483,6 +515,27 @@ export default function Dashboard() {
                 {!openTasks.length && <tr><td colSpan={3} className="muted" style={{ textAlign: "center", padding: 12 }}>진행할 업무 없음</td></tr>}
               </tbody>
             </table>
+          </Card>
+
+          {/* 오늘 일지를 화면을 옮기지 않고 바로 적는다. 과제 연결·메모 같은 나머지는 업무일지 화면에서. */}
+          <Card title="업무일지" testid="dash-daily"
+            extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/daily")}>업무일지 →</a>}>
+            <form onSubmit={addLog} style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <input value={logTitle} onChange={(e) => setLogTitle(e.target.value)} data-testid="dash-daily-title"
+                placeholder="오늘 할 일" aria-label="오늘 할 일" style={{ margin: 0, flex: 1 }} />
+              <button className="btn primary sm" type="submit" data-testid="dash-daily-add">추가</button>
+            </form>
+            {dayLogs.map((l) => (
+              <div key={l.id} className="daily-row" data-testid={`dash-daily-${l.id}`}>
+                <input type="checkbox" checked={l.done} onChange={(e) => saveLog(l, { done: e.target.checked })}
+                  aria-label={`${l.title} 완료`} style={{ margin: 0 }} />
+                <input value={l.title} onChange={(e) => setLogLocal(l.id, { title: e.target.value })}
+                  onBlur={(e) => saveLog(l, { title: e.target.value })} aria-label="할 일"
+                  className={l.done ? "daily-done" : ""} style={{ margin: 0, flex: 1, minWidth: 0 }} />
+                <button className="btn ghost sm" onClick={() => delLog(l)} aria-label="삭제" style={{ color: "var(--bad-text)" }}>✕</button>
+              </div>
+            ))}
+            {!dayLogs.length && <div className="muted small">오늘 적은 일이 없습니다</div>}
           </Card>
         </div>
       )}
