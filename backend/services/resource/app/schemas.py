@@ -73,7 +73,8 @@ class RackOut(BaseModel):
 
 class BookingIn(BaseModel):
     resource: str
-    date: date
+    date: date                       # 시작일
+    end_date: date | None = None     # 여러 날 예약의 종료일(포함). 비우면 하루짜리
     start: str = ""
     end: str = ""
     purpose: str = ""
@@ -114,34 +115,3 @@ class VideoOut(VideoIn):
     model_config = {"from_attributes": True}
 
 
-class Lesson(BaseModel):
-    id: str = ""
-    title: str
-    type: str = "영상"
-    ref: str = ""
-    dur: str = ""
-    body: str = ""
-
-
-class CourseIn(BaseModel):
-    cat: str = "온보딩"
-    title: str
-    desc: str = ""
-    owner_id: str = ""
-    lessons: list[Lesson] = Field(default_factory=list)
-    required: bool = False
-    due: date | None = None
-    target_roles: list[str] = Field(default_factory=list)
-
-
-class CourseOut(BaseModel):
-    id: str
-    cat: str
-    title: str
-    desc: str
-    owner_id: str
-    lessons: list[dict]
-    required: bool = False
-    due: date | None = None
-    target_roles: list[str] = Field(default_factory=list)
-    model_config = {"from_attributes": True}

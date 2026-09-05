@@ -20,7 +20,7 @@ async function downloadBlob(path: string, filename: string) {
 }
 
 // 역할별 모듈 접근 매트릭스(프론트 표현용 — 실제 권한은 각 서비스가 강제)
-const MODULES = ["대시보드", "캘린더", "연구과제", "프로젝트", "세부업무", "연구노트", "전자결재", "자원예약", "공지", "게시판", "회의록", "연구비집행", "예산", "학생인건비", "근태", "근태 관리", "휴가", "구성원", "실적", "교육", "아카이브", "자산", "인프라", "환경설정", "감사로그"];
+const MODULES = ["대시보드", "캘린더", "연구과제", "프로젝트", "세부업무", "연구노트", "전자결재", "자원예약", "공지", "게시판", "회의록", "연구비집행", "예산", "학생인건비", "근태", "근태 관리", "휴가", "구성원", "실적", "아카이브", "자산", "인프라", "환경설정", "감사로그"];
 function perm(role: string, mod: string): "rw" | "r" | "-" {
   // 관리자(admin)는 대시보드·구성원·환경설정·감사로그만
   if (role === "admin") {
@@ -36,7 +36,7 @@ function perm(role: string, mod: string): "rw" | "r" | "-" {
     case "구성원": return (role === "staff" || role === "prof") ? "rw" : "r";  // 관리=지도교수·행정, 그 외 조회
     case "휴가": return "rw";                                                 // 전원 신청 가능(학사 포함)
     case "연구과제": return role === "prof" ? "rw" : "r";                      // 생성·수정=교수·위임, 그 외 조회
-    case "전자결재": case "프로젝트": case "자원예약": case "게시판": case "회의록": case "교육": case "연구노트":
+    case "전자결재": case "프로젝트": case "자원예약": case "게시판": case "회의록": case "연구노트":
       return role === "staff" ? "-" : "rw";                                   // 행정 차단(위임 학생은 본인 역할로 접근)
     case "세부업무": case "아카이브": return "rw";                              // 행정 포함 전원(관리자 제외)
     case "실적": case "자산": case "인프라": return manage ? "rw" : "r";       // 관리=교수·행정, 학생 전원 조회
@@ -66,8 +66,6 @@ const MASTER_MENU: { group: string; items: { key: string; label: string; require
   ] },
   { group: "연구실", items: [
     { key: "pub_types", label: "실적 종류", required: ["국제논문지", "국내논문지", "국제학술대회", "국내학술대회", "국제특허", "국내특허"] },
-    { key: "course_types", label: "교육 분류" },
-    { key: "lesson_types", label: "강의 구성 유형" },
     { key: "asset_types", label: "자산 분류" },
     { key: "device_types", label: "장비 종류" },
   ] },
