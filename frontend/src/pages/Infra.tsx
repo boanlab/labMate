@@ -109,9 +109,11 @@ export default function Infra() {
             <div><label htmlFor={`${uid}-1`}>랙 이름</label><input id={`${uid}-1`} data-testid="rk-name" value={rackForm.name} onChange={(e) => setRackForm({ ...rackForm, name: e.target.value })} placeholder="예: R5" /></div>
             <div><label htmlFor={`${uid}-2`}>랙 크기(U)</label><input id={`${uid}-2`} data-testid="rk-u" type="number" min={1} value={rackForm.u_height} onChange={(e) => setRackForm({ ...rackForm, u_height: Number(e.target.value) })} /></div>
           </div>
-          <div className="bd" style={{ display: "flex", gap: 8 }}>
+          <div className="bd" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button className="btn primary" data-testid="rack-add-submit">{rackForm.id ? "저장" : "랙 추가"}</button>
             <button type="button" className="btn ghost" onClick={() => setRackForm(null)}>취소</button>
+            {rackForm.id && <button type="button" data-testid="rack-del" onClick={async () => { const r = racks.find((x) => x.id === rackForm.id); if (r) { await delRack(r); setRackForm(null); } }}
+              style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
           </div>
         </form>
       )}
@@ -181,8 +183,6 @@ export default function Infra() {
                 {canManage && (
                   <div className="rackcab-f" style={{ textAlign: "center", padding: "7px 0", fontSize: 12 }}>
                     <a className="lnk" data-testid={`rack-edit-${rk.name}`} style={{ cursor: "pointer" }} onClick={() => setRackForm({ id: rk.id, name: rk.name, u_height: rk.u_height })}>수정</a>
-                    <span className="muted"> | </span>
-                    <a className="lnk danger" data-testid={`rack-del-${rk.name}`} style={{ cursor: "pointer" }} onClick={() => delRack(rk)}>삭제</a>
                   </div>
                 )}
               </div>

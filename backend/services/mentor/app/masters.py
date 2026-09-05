@@ -13,6 +13,7 @@ FEATURES: dict[str, str] = {
     "note": "연구노트 점검",
     "task": "세부업무 점검",
     "report": "보고서·제안서 점검",
+    "post": "공지·게시글 점검",
     "schedule": "일정 마일스톤 제안",
     "review": "주간 회고 초안",
     "nudge": "밀린 일 독려",

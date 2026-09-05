@@ -113,7 +113,14 @@ body.dark .form-err { background: #3a1f1d; border-color: #5a2e2a; color: #f0a99e
 .side { width: 224px; background: var(--sidebar); color: #cdd3dd; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid var(--appbar-line); }
 .side-nav { flex: 1; padding: 12px 10px; overflow: auto; }
 .nav-group { margin-bottom: 12px; }
-.nav-title { font-size: 10.5px; color: #8b95a6; padding: 4px 11px; margin-top: 2px; text-transform: uppercase; letter-spacing: .6px; font-weight: 700; }
+/* 그룹 제목 = 접기 버튼. 눌러 접으면 제목만 남는다(메뉴가 길어져 아래가 안 보이는 것을 막는다) */
+.nav-title { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%;
+  font-size: 10.5px; color: #8b95a6; padding: 4px 11px; margin-top: 2px; text-transform: uppercase; letter-spacing: .6px; font-weight: 700;
+  background: none; border: none; cursor: pointer; text-align: left; font-family: inherit;
+  min-height: 26px; }   /* 누르는 자리라 WCAG 2.5.8(24px) 는 넘긴다 */
+.nav-title:hover { color: #c4cbd6; }
+.nav-title:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 6px; }
+.nav-caret { font-size: 9px; opacity: .7; }
 .nav-link { display: flex; align-items: center; gap: 11px; padding: 7px 11px; border-radius: 9px; color: #c4cbd6; text-decoration: none; font-size: 13.5px; font-weight: 500; transition: background .12s, color .12s; }
 .nav-ico { display: inline-flex; opacity: .68; }
 .nav-link:hover .nav-ico, .nav-link.active .nav-ico { opacity: 1; }
@@ -240,7 +247,8 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 .chip { cursor: pointer; }
 .chip-n { margin-left: 5px; font-weight: 700; opacity: .6; }
 .chip.on .chip-n { opacity: .85; }
-.pager { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; font-size: 13px; color: var(--sub); }
+/* 표 카드 밖에 둔다 — 아래쪽에도 여백을 줘 다음 카드와 붙지 않게 한다 */
+.pager { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin: 10px 0 16px; font-size: 13px; color: var(--sub); }
 
 /* 진행바 */
 .bar { background: var(--soft); border-radius: 999px; height: 8px; overflow: hidden; }
@@ -248,6 +256,25 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 
 /* ── 캘린더 월 그리드 ── */
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+/* 주간 보기 — 시간 격자. 왼쪽에 시각, 오른쪽에 요일 7칸.
+   시간이 없는 일정은 격자 어디에도 놓을 수 없어 '하루 종일' 줄에 따로 모은다. */
+.wk { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.wk-row { display: grid; grid-template-columns: 72px repeat(7, minmax(0, 1fr)); }
+.wk-head { border-bottom: 1px solid var(--line); background: var(--soft); }
+.wk-dow { padding: 8px 6px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--sub); cursor: pointer; border-left: 1px solid var(--line2); }
+.wk-dow.today { color: var(--brand); background: var(--bsoft); }
+.wk-allday { border-bottom: 1px solid var(--line); min-height: 34px; }
+.wk-allday .wk-gut { font-size: 11px; color: var(--sub); padding: 7px 8px; text-align: right; }
+.wk-allday .wk-col { padding: 5px 4px; display: flex; flex-direction: column; gap: 3px; }
+.wk-col { border-left: 1px solid var(--line2); cursor: pointer; }
+.wk-body { position: relative; }
+.wk-body .wk-gut { position: relative; }
+.wk-hour { height: var(--wk-h); font-size: 11px; color: var(--sub); text-align: right; padding: 0 8px; transform: translateY(-6px); }
+/* 시간 눈금 — 요소를 늘어놓는 대신 배경으로 그린다(칸마다 DOM 을 만들 이유가 없다) */
+.wk-day { position: relative; background-image: repeating-linear-gradient(to bottom, var(--line2) 0 1px, transparent 1px var(--wk-h)); }
+.wk-day.today { background-color: var(--bsoft); }
+.wk-ev { position: absolute; overflow: hidden; text-overflow: ellipsis; padding: 2px 6px; line-height: 1.35; }
+
 .cal .dow { font-size: 12px; color: var(--sub); font-weight: 700; text-align: center; padding: 4px 0 8px; }
 .cal .day { min-height: 78px; border: 1px solid var(--line); border-radius: 10px; padding: 7px 8px; background: var(--panel); display: flex; flex-direction: column; gap: 3px; overflow: hidden; cursor: pointer; }
 .cal .day.off { background: var(--soft); border-color: transparent; cursor: default; }
@@ -258,13 +285,21 @@ body.dark .cal .day:hover { border-color: #33415a; }
 .cal .today .dn { color: var(--brand); }
 .cal .ev { display: block; border-radius: 6px; padding: 2px 7px; font-size: 11px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .cal .more { font-size: 10.5px; color: var(--sub); font-weight: 600; }
-.callayout { display: grid; grid-template-columns: 230px 1fr; gap: 14px; align-items: start; }
+/* 달력이 폭을 다 쓰도록 세로로 쌓는다 — 레이어 표시는 달력 아래에서 가로로 편다 */
+.callayout { display: block; }
+.layer-rows { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 22px; }
+.layer-rows .switch { margin-left: 4px; }   /* 가로로 늘어놓을 때는 오른쪽 끝까지 밀 이유가 없다 */
 .layer-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13.5px; }
 .layer-dot { width: 11px; height: 11px; border-radius: 3px; }
-.switch { margin-left: auto; width: 40px; height: 24px; border-radius: 999px; border: none; background: var(--line); position: relative; cursor: pointer; }
-.switch.on { background: var(--brand-solid); }
-.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: .15s; }
-.switch.on::after { left: 18px; }
+/* 스위치 — 보이는 크기는 작게, 누르는 자리는 24px 를 지킨다(WCAG 2.5.8).
+   위아래 여백을 padding 으로 두고 배경을 content-box 에만 그려 둘을 분리한다.
+   background 축약형을 쓰면 background-clip 이 초기화되므로 background-color 로 지정한다. */
+.switch { margin-left: auto; width: 34px; height: 24px; padding: 2px 0; box-sizing: border-box;
+  border-radius: 999px; border: none; background-color: var(--line); background-clip: content-box;
+  position: relative; cursor: pointer; }
+.switch.on { background-color: var(--brand-solid); }
+.switch::after { content: ""; position: absolute; top: 4px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: .15s; }
+.switch.on::after { left: 15px; }
 
 /* ── 칸반 보드 ── */
 .kanban { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
@@ -354,9 +389,9 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
   .appbar-icon { width: 40px; height: 40px; }
   .user-chip { min-height: 40px; }
   .lnk, .tbl a { padding: 2px 0; }
-  .switch { width: 46px; height: 28px; }
-  .switch::after { width: 24px; height: 24px; }
-  .switch.on::after { left: 20px; }
+  .switch { width: 38px; height: 26px; }
+  .switch::after { top: 4px; width: 18px; height: 18px; }
+  .switch.on::after { left: 17px; }
 }
 /* 데스크탑: 사이드바 접기 */
 @media (min-width: 861px) {
@@ -381,7 +416,6 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
   .appbar { padding: 0 10px 0 12px; }
   .appbar-brand { font-size: 16px; gap: 9px; }
   .appbar-r { gap: 6px; }
-  .callayout { grid-template-columns: 1fr; }
   .card { overflow-x: auto; }                 /* 넓은 표는 카드 안에서 가로 스크롤(페이지 가로 스크롤 방지) */
   .tbl.fit th, .tbl.fit td { padding-left: 8px; padding-right: 8px; }   /* 모바일: 반응형 표 여백 축소로 컬럼 폭 확보 */
   .cal { min-width: 540px; }                  /* 7열 캘린더는 카드 내 가로 스크롤 */
@@ -436,7 +470,9 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 /* CKEditor 5 공용 — 폼은 최소높이, 노트(fill)는 부모 높이 채우고 내부 스크롤 */
 .ck-host { min-width: 0; }
 .ck-host .ck.ck-editor { min-width: 0; max-width: 100%; }
-.ck-host .ck.ck-toolbar { border-radius: 8px 8px 0 0; }   /* 넘치는 버튼은 에디터 폭 기준 ⋮ 메뉴로 접힘(CKEditor 네이티브) */
+.ck-host .ck.ck-toolbar { border-radius: 8px 8px 0 0; }
+/* 붙어 있는 툴바는 상단바(.appbar, z-index:50) 아래층에 둔다 — 겹칠 때 상단바가 이긴다 */
+.ck-host .ck.ck-sticky-panel__content_sticky { z-index: 40; }   /* 넘치는 버튼은 에디터 폭 기준 ⋮ 메뉴로 접힘(CKEditor 네이티브) */
 .ck-host .ck-editor__editable { min-height: var(--ck-min-h, 140px); }
 .ck-host .ck-content { font-size: 14px; overflow-wrap: break-word; }
 .ck-host .ck-content img { max-width: 100%; height: auto; }
@@ -487,11 +523,6 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .note-tag-in { width: 72px; margin: 0; padding: 4px 7px; font-size: 12px; }
 @media (max-width: 860px) { [data-testid="page-notes"], [data-testid="page-archive"] { height: auto; } .notes-layout { grid-template-columns: 1fr !important; } .notes-tree { max-height: 300px; } .notes-editor { overflow: visible; } .notes-editor-doc { min-height: 60vh; } }
 
-/* 교육 강의 본문 — 편집 전 클릭 미리보기(에디터는 편집 행만 마운트) */
-.ck-preview { min-height: 60px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; cursor: text; font-size: 14px; background: var(--panel); overflow-wrap: break-word; }
-.ck-preview:hover { border-color: var(--brand); }
-.ck-preview img { max-width: 100%; height: auto; }
-
 /* 대시보드 오늘 일정 — 클릭 가능 행 + 오늘/다가오는 구분선 */
 .dash-ev { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--line2); cursor: pointer; }
 .dash-ev:hover { color: var(--brand); }
@@ -515,14 +546,35 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 }
 
 /* AI 멘토 점검 결과 */
+/* 입력란 라벨 줄 오른쪽에 보조 동작(멘토 점검 등)을 붙인다.
+   결과 패널은 그 줄에 끼어들지 않고 아래로 흘려보낸다(flex 100%). */
+/* 라벨 여백(8px 0 3px)을 0으로 만들므로, 그만큼을 줄 자체가 가진다 — 위아래가 붙어 보이지 않게 */
+.field-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0 6px; }
+.field-head > label { margin: 0; }
+.field-head > :first-child { margin-right: auto; min-width: 0; }   /* 첫 칸(라벨·칩줄)이 남는 폭을 먹어 동작을 오른쪽 끝으로 민다 */
+.field-head > .mentor-out { flex: 1 0 100%; margin: 6px 0 12px; }   /* 아래 편집기·칩과 붙지 않게 */
+
 .mentor-out { margin-top: 10px; border: 1px solid var(--brand); border-radius: 9px; background: var(--panel); padding: 10px 12px; }
 .mentor-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .mentor-body { white-space: pre-wrap; font-size: 13.5px; line-height: 1.65; }
+/* 업무일지 한 줄 — 좁은 화면에서는 접힌다 */
+.daily-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 5px 0; border-bottom: 1px solid var(--line2); }
+.daily-row .daily-done { text-decoration: line-through; color: var(--sub); }
+
+/* 대시보드 경고 박스 — 놓친 일을 알려 주고 바로 처리하러 갈 수 있게 한다 */
+.dash-warn { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 11px 14px; border-color: var(--warn); }
+
+.mentor-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+/* 개선안에서 사람이 채워야 하는 자리 — 그냥 지나치면 담당자·마감일이 빈 채로 남는다 */
+.mentor-todo { color: var(--bad-text); font-weight: 700; }
+/* 개선안 — 지적과 한눈에 구분되게 선으로 끊는다 */
+.mentor-rev { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.mentor-rev > .mentor-body { margin-top: 4px; }
 .cmp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin-top: 10px; }
 .cmp-col { border: 1px solid var(--line); border-radius: 9px; padding: 10px; background: var(--panel); }
 .cmp-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
 
-/* 지도철학 */
+/* 지도 철학 */
 .ph-list { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
 .ph-chat { max-height: 340px; overflow-y: auto; display: grid; gap: 8px; margin-bottom: 10px; }
 .ph-turn { display: grid; gap: 2px; padding: 8px 10px; border-radius: 9px; }
@@ -536,6 +588,18 @@ body.dark .ph-turn.me { background: #26313f; }
 .nudge-list { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
 
 /* 목표(OKR) */
+/* 목표 연간 보기 — 네 분기를 나란히. 좁아지면 2열, 더 좁아지면 1열로 접는다 */
+.okr-year { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start; }
+@media (max-width: 1200px) { .okr-year { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .okr-year { grid-template-columns: 1fr; } }
+.okr-drop { border-radius: var(--rad); }
+.okr-drop.over { outline: 2px dashed var(--brand); outline-offset: 2px; }   /* 여기 놓으면 이 분기로 옮겨진다 */
+.okr-mini { padding: 7px 0; border-bottom: 1px solid var(--line2); }
+.okr-mini[draggable="true"] { cursor: grab; }
+.okr-mini[draggable="true"]:active { cursor: grabbing; }
+.okr-mini:last-child { border-bottom: none; }
+.okr-mini-t { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .okr { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
 .okr-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .okr-bar { height: 6px; border-radius: 3px; background: var(--line); margin: 8px 0; overflow: hidden; }

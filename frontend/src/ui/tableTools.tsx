@@ -20,6 +20,47 @@ function save(key: string, v: Record<number, number>) {
   setPref(KEY(key), v);
 }
 
+/** 컬럼 머리글 — thead 가 여러 줄이면 첫 줄만이 컬럼 격자다.
+ *  둘째 줄까지 한 줄로 세면 인덱스가 밀려 엉뚱한 컬럼에 폭이 들어간다. */
+function headCells(t: HTMLTableElement): HTMLTableCellElement[] {
+  const row = t.tHead?.rows[0];
+  return row ? (Array.from(row.cells) as HTMLTableCellElement[]) : [];
+}
+/** 머리글이 병합된 표는 경계와 컬럼이 1:1 이 아니라 폭 조절을 걸지 않는다. */
+function resizable(ths: HTMLTableCellElement[]): boolean {
+  return ths.length > 1 && !ths.some((th) => th.colSpan > 1);
+}
+function colCells(t: HTMLTableElement): HTMLTableColElement[] {
+  return Array.from(t.querySelectorAll<HTMLTableColElement>("colgroup col"));
+}
+/** 저장한 값은 '그때의 픽셀'이 아니라 컬럼 사이의 비율로 쓴다.
+ *  창을 넓히거나 좁혀도 표는 늘 카드를 100% 채우고, 사람이 맞춘 비율만 지켜진다.
+ *  한 칸이라도 값이 없으면 비율을 만들 수 없으니 화면 기본값(내용에 맞춘 폭)에 맡긴다. */
+function ratios(widths: Record<number, number>, n: number): number[] | null {
+  const w: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const v = widths[i];
+    if (!v || v <= 0) return null;
+    w.push(v);
+  }
+  const total = w.reduce((a, b) => a + b, 0);
+  return total > 0 ? w.map((v) => v / total) : null;
+}
+/** 비율을 폭(%)으로 입힌다. 픽셀로 못박지 않아야 창 크기에 따라 브라우저가 알아서 다시 나눈다. */
+function applyRatios(t: HTMLTableElement, widths: Record<number, number>): void {
+  const ths = headCells(t);
+  const rs = ratios(widths, ths.length);
+  if (!rs) return;
+  const cols = colCells(t);
+  rs.forEach((r, i) => {
+    const pct = `${(r * 100).toFixed(4)}%`;
+    if (ths[i]) ths[i].style.width = pct;
+    if (cols[i]) cols[i].style.width = pct;
+  });
+  t.style.tableLayout = "fixed";
+  t.style.width = "100%";
+}
+
 /**
  * 표에 컬럼 너비 조절을 붙인다. `<table ref={ref} className="tbl …">` 처럼 쓴다.
  *
@@ -47,30 +88,18 @@ export function useColumnResize(storageKey: string) {
   useEffect(() => {
     const t = ref.current;
     if (!t || !window.matchMedia(DESKTOP).matches) return;
+    const ths = headCells(t);
+    if (!resizable(ths)) return;
     t.classList.add("resizable");
-    const ths = Array.from(t.querySelectorAll<HTMLTableCellElement>("thead th"));
     // 경계를 끌 수 있다는 것을 알려 준다(정렬 안내가 이미 있으면 덧붙인다)
     ths.forEach((th, i) => {
       if (i === ths.length - 1) return;
       const base = th.getAttribute("title") || "";
       if (!base.includes("경계")) th.setAttribute("title", (base ? base + " · " : "") + "오른쪽 경계를 끌면 폭 조절, 두 번 누르면 기본값");
     });
-    const cols = Array.from(t.querySelectorAll<HTMLTableColElement>("colgroup col"));
-    for (const [i, w] of Object.entries(widths.current)) {
-      const n = Number(i);
-      if (ths[n]) ths[n].style.width = `${w}px`;
-      if (cols[n]) cols[n].style.width = `${w}px`;
-    }
-    // width:100% 고정 레이아웃은 남는 폭을 다시 나눠 주기 때문에, 한 칸을 끌면 다른 칸들이 함께
-    // 움직여 끈 만큼 반영되지 않는다. 그래서 폭을 조절한 뒤에는 표 전체 너비를 컬럼 합으로 못박아
-    // 지정값이 그대로 지켜지게 하고, 넘치는 만큼은 감싼 칸이 가로로 스크롤한다.
-    const wrap = t.parentElement;
-    if (Object.keys(widths.current).length) {
-      const sum = ths.reduce((a, th) => a + (widths.current[ths.indexOf(th)] || th.getBoundingClientRect().width), 0);
-      t.style.width = `${Math.round(sum)}px`;
-      t.style.tableLayout = "fixed";
-      if (wrap) wrap.style.overflowX = "auto";
-    }
+    // 폭은 비율(%)로 입힌다. 픽셀로 못박으면 창을 넓혔을 때 표만 홀쭉하게 남아 왼쪽으로 몰린다.
+    // %로 두면 창 크기가 달라져도 표가 늘 100%를 채우고 컬럼도 브라우저가 알아서 다시 나눈다.
+    applyRatios(t, widths.current);
   });
 
   useEffect(() => {
@@ -82,25 +111,21 @@ export function useColumnResize(storageKey: string) {
     let idx = -1, startX = 0, startW = 0;
     const thAt = (e: PointerEvent) => {
       const th = (e.target as HTMLElement)?.closest?.("th") as HTMLTableCellElement | null;
-      if (!th) return null;
+      // 머리글 둘째 줄은 컬럼 경계가 아니다 — 여기서 끌면 엉뚱한 컬럼이 움직인다.
+      if (!th || !headCells(t).includes(th)) return null;
       const r = th.getBoundingClientRect();
       return e.clientX >= r.right - GRIP ? th : null;   // 오른쪽 경계 근처만 잡는다
     };
-    const setW = (n: number, w: number) => {
-      const ths = Array.from(t.querySelectorAll<HTMLTableCellElement>("thead th"));
-      const cols = Array.from(t.querySelectorAll<HTMLTableColElement>("colgroup col"));
-      if (ths[n]) ths[n].style.width = `${w}px`;
-      if (cols[n]) cols[n].style.width = `${w}px`;
-    };
+    let pairW = 0;                      // 끄는 칸 + 오른쪽 칸의 폭 합(끄는 동안 고정)
 
     function onMove(e: PointerEvent) {
-      if (idx < 0) return;
+      if (idx < 0 || !t) return;
       e.preventDefault();
-      const w = Math.max(MIN_W, Math.round(startW + (e.clientX - startX)));
+      // 끈 만큼 오른쪽 칸에서 덜어 온다 — 두 칸의 합이 그대로라 표는 계속 100%를 채운다.
+      const w = Math.max(MIN_W, Math.min(pairW - MIN_W, Math.round(startW + (e.clientX - startX))));
       widths.current[idx] = w;
-      setW(idx, w);
-      const sum = Object.values(widths.current).reduce((a, v) => a + v, 0);
-      if (t) t.style.width = `${sum}px`;
+      widths.current[idx + 1] = pairW - w;
+      applyRatios(t, widths.current);
     }
     function onUp() {
       if (idx < 0) return;
@@ -109,28 +134,22 @@ export function useColumnResize(storageKey: string) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       save(storageKey, widths.current);
-      const wrap = t?.parentElement;
-      if (wrap) wrap.style.overflowX = "auto";
     }
     function onDown(e: PointerEvent) {
       if (!window.matchMedia(DESKTOP).matches) return;
       const th = thAt(e);
       if (!th) return;
       e.preventDefault(); e.stopPropagation();          // 정렬 클릭과 겹치지 않게
-      idx = Array.from(t!.querySelectorAll("thead th")).indexOf(th);
-      startX = e.clientX; startW = th.getBoundingClientRect().width;
-      // 끌기 시작할 때 모든 컬럼을 지금 폭으로 못박는다.
-      // 이렇게 해야 한 칸을 넓혀도 나머지가 따라 움직이지 않고, 끈 만큼만 바뀐다.
-      const allTh = Array.from(t!.querySelectorAll<HTMLTableCellElement>("thead th"));
+      const allTh = headCells(t!);
+      if (!resizable(allTh)) return;
+      const n0 = allTh.indexOf(th);
+      if (n0 < 0 || n0 >= allTh.length - 1) return;    // 마지막 칸은 덜어 올 오른쪽 칸이 없다
+      idx = n0;
+      // 끌기 시작할 때 모든 컬럼의 지금 폭을 비율의 출발점으로 삼는다.
       if (!original.current) original.current = allTh.map((el) => el.style.width);
-      allTh.forEach((el, n) => {
-        const w = Math.round(el.getBoundingClientRect().width);
-        widths.current[n] = widths.current[n] ?? w;
-        el.style.width = `${widths.current[n]}px`;
-      });
-      t!.style.tableLayout = "fixed";
-      const w0 = t!.parentElement;
-      if (w0) w0.style.overflowX = "auto";
+      allTh.forEach((el, n) => { widths.current[n] = widths.current[n] || Math.round(el.getBoundingClientRect().width); });
+      startX = e.clientX; startW = widths.current[idx];
+      pairW = startW + widths.current[idx + 1];
       document.body.classList.add("col-resizing");
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
@@ -141,15 +160,13 @@ export function useColumnResize(storageKey: string) {
       const th = (e.target as HTMLElement)?.closest?.("th") as HTMLTableCellElement | null;
       if (!th) return;
       const r = th.getBoundingClientRect();
-      if (e.clientX < r.right - GRIP) return;
+      if (e.clientX < r.right - GRIP || !headCells(t!).includes(th)) return;
       widths.current = {};
       save(storageKey, widths.current);
-      t!.querySelectorAll<HTMLTableCellElement>("thead th").forEach((el, n) => { el.style.width = original.current?.[n] ?? ""; });
-      t!.querySelectorAll<HTMLTableColElement>("colgroup col").forEach((el) => { el.style.width = ""; });
+      headCells(t!).forEach((el, n) => { el.style.width = original.current?.[n] ?? ""; });
+      colCells(t!).forEach((el) => { el.style.width = ""; });
       t!.style.width = "";
       t!.style.tableLayout = "";
-      const wrap = t!.parentElement;
-      if (wrap) wrap.style.overflowX = "";
       setNonce((n) => n + 1);            // 다시 그려 JSX 기본 폭이 되살아나게 한다
     }
     head.addEventListener("pointerdown", onDown as EventListener);

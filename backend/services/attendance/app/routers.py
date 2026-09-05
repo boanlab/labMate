@@ -30,8 +30,15 @@ def _kst_now() -> datetime:
     return datetime.now(KST)
 
 
+# 근무일의 시작 시각. 자정을 기준으로 하면 새벽까지 일하는 사람의 근무가 0시에 끊겨
+# 다음 날 '미체크'로 넘어간다. 새벽 6시를 하루의 경계로 삼아 그때까지는 전날 근무로 본다.
+DAY_START_HOUR = 6
+
+
 def _today() -> date:
-    return _kst_now().date()
+    """지금이 속한 '근무일'. 새벽 6시 전이면 전날이다."""
+    now = _kst_now()
+    return (now - timedelta(days=1)).date() if now.hour < DAY_START_HOUR else now.date()
 
 
 def _now_hm() -> str:
@@ -106,11 +113,17 @@ def check_in(body: schemas.CheckIn, user: CurrentUser = Depends(get_current_user
 
 
 def _minutes_between(start: str, end: str) -> int:
-    """HH:MM 두 시각의 분 차이(같은 날 기준, 음수는 0)."""
+    """HH:MM 두 시각의 분 차이.
+
+    끝이 시작보다 앞서면 자정을 넘긴 것으로 보고 24시간을 더한다
+    (23:00 에 앉아 01:00 까지 일했으면 120분이다. 예전에는 0분으로 사라졌다).
+    """
     if not start or not end:
         return 0
     d = (int(end[:2]) * 60 + int(end[3:5])) - (int(start[:2]) * 60 + int(start[3:5]))
-    return d if d > 0 else 0
+    if d < 0:
+        d += 24 * 60
+    return d
 
 
 @router.post("/attendance/away", response_model=schemas.AttendanceOut)

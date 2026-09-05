@@ -142,9 +142,9 @@ const EMPTY = { project_id: projects[0]?.id || "", category: "인건비", subcat
       closeForm(); load();
     } catch (e) { setErr(apiError(e)); }
   }
-  async function del(x: Exp) {
-    if (!await confirmDialog(`집행 내역 "${x.title}"을(를) 삭제할까요? (예산 집행액도 원복됩니다)`, { danger: true })) return;
-    try { await api.delete(`/funds/expenses/${x.id}`); load(); } catch (e) { setErr(apiError(e)); }
+  async function del(x: Exp): Promise<boolean> {
+    if (!await confirmDialog(`집행 내역 "${x.title}"을(를) 삭제할까요? (예산 집행액도 원복됩니다)`, { danger: true })) return false;
+    try { await api.delete(`/funds/expenses/${x.id}`); load(); return true; } catch (e) { setErr(apiError(e)); return false; }
   }
 
   // 과제 해당 연도 기간(미입력 시 총 기간)이 선택 연도를 포함하면 그 연도 과제로 노출
@@ -252,9 +252,10 @@ const EMPTY = { project_id: projects[0]?.id || "", category: "인건비", subcat
               )}
             </div>
           </div>
-          <div className="bd" style={{ display: "flex", gap: 8 }}>
+          <div className="bd" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button type="submit" className="btn primary" data-testid="exp-save">{editId ? "저장" : "등록"}</button>
             <button type="button" className="btn ghost" onClick={toggleForm}>취소</button>
+            {editId && <button type="button" data-testid="exp-del" onClick={async () => { const x = items.find((i) => i.id === editId); if (x && await del(x)) closeForm(); }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
           </div>
         </form>
       )}
@@ -285,7 +286,7 @@ const EMPTY = { project_id: projects[0]?.id || "", category: "인건비", subcat
             <th {...sort.th("amount")} style={{ width: 104 }}>금액{sort.mark("amount")}</th>
             <th className="hide-sm" style={{ width: 64 }}>증빙</th>
             {approvalOn && <th {...sort.th("status")} style={{ width: 78 }}>상태{sort.mark("status")}</th>}
-            <th style={{ width: 168 }}>처리</th>
+            <th style={{ width: 124 }}>처리</th>
           </tr></thead>
           <tbody>
             {shown.map((x) => (
@@ -301,8 +302,7 @@ const EMPTY = { project_id: projects[0]?.id || "", category: "인건비", subcat
                 <td style={{ whiteSpace: "nowrap" }}>
                   {approvalOn && x.by_id === me?.id && ["작성중", "반려"].includes(x.status)
                     && <><button className="btn primary sm" data-testid={`e-submit-${x.id}`} onClick={() => submitExpense(x)}>상신</button>{" "}</>}
-                  {(x.by_id === me?.id || isAdmin) && <button className="btn ghost sm" data-testid={`e-edit-${x.id}`} onClick={() => editExpense(x)}>수정</button>}{" "}
-                  {(x.by_id === me?.id || isAdmin) && <button className="btn ghost sm" data-testid={`e-del-${x.id}`} style={{ color: "var(--bad-text)" }} onClick={() => del(x)}>삭제</button>}
+                  {(x.by_id === me?.id || isAdmin) && <button className="btn ghost sm" data-testid={`e-edit-${x.id}`} onClick={() => editExpense(x)}>수정</button>}
                 </td>
               </tr>
             ))}

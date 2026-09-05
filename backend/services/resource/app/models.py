@@ -61,8 +61,10 @@ class Booking(OrgScoped, SoftDelete, Base):
     __tablename__ = "bookings"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     resource: Mapped[str] = mapped_column(String(80))
-    date: Mapped[date_t] = mapped_column(Date, index=True)
-    start: Mapped[str] = mapped_column(String(5), default="")
+    date: Mapped[date_t] = mapped_column(Date, index=True)                    # 시작일
+    # 여러 날 빌리는 자원(장비 등)을 위한 종료일. 비어 있으면 하루짜리다.
+    end_date: Mapped[date_t | None] = mapped_column(Date, nullable=True)
+    start: Mapped[str] = mapped_column(String(5), default="")                 # 하루짜리일 때만 의미가 있다
     end: Mapped[str] = mapped_column(String(5), default="")
     by_id: Mapped[str] = mapped_column(String(32))
     purpose: Mapped[str] = mapped_column(String(200), default="")
@@ -92,21 +94,3 @@ class Video(OrgScoped, SoftDelete, Base):
     by_id: Mapped[str] = mapped_column(String(32))
 
 
-class Course(OrgScoped, SoftDelete, Base):
-    __tablename__ = "courses"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    cat: Mapped[str] = mapped_column(String(20), default="온보딩")
-    title: Mapped[str] = mapped_column(String(200))
-    desc: Mapped[str] = mapped_column(Text, default="")
-    owner_id: Mapped[str] = mapped_column(String(32), default="")
-    lessons: Mapped[list] = mapped_column(JSON, default=list)   # [{id,title,type,ref,dur}]
-    required: Mapped[bool] = mapped_column(default=False)       # 필수 이수
-    due: Mapped[date_t | None] = mapped_column(Date, nullable=True)  # 이수 기한
-    target_roles: Mapped[list] = mapped_column(JSON, default=list)   # 대상 역할(빈값=전원)
-
-
-class CourseProgress(OrgScoped, SoftDelete, Base):
-    __tablename__ = "course_progress"
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
-    uid: Mapped[str] = mapped_column(String(32), index=True)
-    lesson_id: Mapped[str] = mapped_column(String(40), index=True)

@@ -9,6 +9,9 @@
 """
 from __future__ import annotations
 
+from datetime import date as _date
+
+
 def today_line() -> str:
     """오늘 날짜 — 주지 않으면 모델이 지난 날짜를 '다음 마감'으로 제안한다."""
     from datetime import datetime, timedelta, timezone
@@ -79,6 +82,14 @@ SPECIFIC = (
 )
 
 FEATURE_PROMPT: dict[str, str] = {
+    "post": (
+        "연구실 구성원에게 돌릴 공지·게시글을 검토합니다. 다음을 점검하세요.\n"
+        "1) 제목만 보고도 무슨 일인지, 나와 상관있는지 알 수 있는가. 두루뭉술하면 고쳐 쓴 제목을 제시하세요.\n"
+        "2) 읽는 사람이 '무엇을 해야 하는지'가 첫 화면에 있는가. 할 일이 본문 끝에 묻혀 있으면 앞으로 올리라고 하세요.\n"
+        "3) 기한·대상·장소·준비물처럼 빠지면 되묻게 되는 정보가 빠져 있지 않은가. 빠진 항목을 짚어 주세요.\n"
+        "4) 링크·첨부가 '무엇인지' 설명 없이 붙어 있지 않은가.\n"
+        "5) 공지가 아니라 논의가 필요한 내용이면 그 점을 알려 주세요.\n"
+    ),
     "meeting": (
         "회의록을 검토합니다. 다음을 점검하세요.\n"
         "1) 결정사항이 '무엇을 정했는지' 뿐 아니라 '왜 그렇게 정했는지, 어떤 대안을 검토했는지'까지 있는가. "
@@ -137,9 +148,9 @@ def _with_days(context: dict) -> dict:
 
 def build(feature: str, title: str, body: str, context: dict, principles: list[str] | None = None) -> list[dict[str, str]]:
     system = COMMON + today_line() + "\n" + FEATURE_PROMPT.get(feature, "작성한 내용을 검토하고 개선점을 제안하세요.\n")
-    if feature in ("meeting", "note", "task", "report", "review", "schedule"):
+    if feature in ("meeting", "note", "task", "report", "review", "schedule", "post"):
         system += SPECIFIC
-    if feature in ("meeting", "note", "task", "report", "review"):
+    if feature in ("meeting", "note", "task", "report", "review", "post"):
         system += STYLE
     if principles:
         # 지도교수가 승인한 지침 — 일반론보다 우선한다. 이것이 이 연구실만의 기준이 된다.
@@ -211,6 +222,79 @@ def extract_messages(category: str, history: list[dict[str, str]]) -> list[dict[
     return [
         {"role": "system", "content": EXTRACT_SYSTEM},
         {"role": "user", "content": f"[주제] {label}\n\n[인터뷰 기록]\n{convo}"},
+    ]
+
+
+# ── 개선안(고쳐 쓰기) ──
+# 지적만 받으면 "그래서 어떻게 고치라는 건데"가 남는다. 고쳐 쓴 글을 함께 주되,
+# 없는 사실을 채워 넣으면 안 된다 — 그 순간 초안보다 나쁜 글이 된다.
+# 문서 종류 — 고쳐 쓸 때 말투와 형식을 원문에 맞추기 위한 힌트.
+KIND: dict[str, str] = {
+    "meeting": "회의록", "note": "연구노트", "task": "세부업무",
+    "report": "보고서·제안서", "post": "공지·게시글", "schedule": "일정 계획", "review": "주간 회고",
+}
+
+REVISE_SYSTEM = (
+    "받은 초안을 고쳐 씁니다. 지적사항이 함께 오면 그것을 반영합니다.\n"
+    "규칙:\n"
+    "- 초안에 없는 사실(날짜·이름·수치·기관·결과)을 지어내지 않습니다. 채워 넣는 것보다 비워 두는 편이 낫습니다.\n"
+    "- 초안에서 알 수 없어 사람이 채워야 하는 자리는 반드시 [미정: 무엇] 형식으로 남깁니다.\n"
+    "  예: [미정: 담당자], [미정: 마감일], [미정: 장소], [미정: 목표 수치]\n"
+    "  이 표기 외에 '___', '(TBD)', 'OOO' 같은 다른 빈칸 표기는 쓰지 않습니다.\n"
+    "- 원래 글의 구조와 항목 순서를 최대한 지킵니다. 통째로 다시 쓰지 않습니다.\n"
+    "- 모호한 동사('확인', '알아보기')는 무엇을 언제까지 만들어 내는지가 드러나게 고칩니다.\n"
+    "- 원문의 말투와 문서 종류를 유지합니다. 회의록은 회의록답게 씁니다.\n"
+    "- 고쳐 쓴 본문만 출력합니다. 설명·머리말·마크다운 코드펜스를 붙이지 않습니다.\n"
+)
+
+
+def revise_messages(feature: str, title: str, body: str, review: str, context: dict) -> list[dict[str, str]]:
+    kind = KIND.get(feature, "문서")
+    ctx = "\n".join(f"- {k}: {v}" for k, v in (context or {}).items())
+    parts = [f"[문서 종류] {kind}", f"[제목] {title or '(제목 없음)'}"]
+    if ctx:
+        parts.append(f"[부가 정보]\n{ctx}")
+    if review.strip():
+        parts.append(f"[앞서 받은 지적사항]\n{review.strip()}")
+    parts.append(f"[초안]\n{body}")
+    return [
+        {"role": "system", "content": REVISE_SYSTEM + today_line()},
+        {"role": "user", "content": "\n\n".join(parts)},
+    ]
+
+
+# ── 회의록에서 액션아이템 뽑기 ──
+# 회의가 끝나면 "누가 언제까지 무엇을"이 남아야 한다. 사람이 다시 읽으며 옮겨 적는
+# 일을 대신하되, 없는 일을 만들지 않는 것이 이 기능의 전부다.
+ACTIONS_SYSTEM = (
+    "회의록에서 '누가 언제까지 무엇을' 할 일(액션아이템)만 뽑아냅니다.\n"
+    "규칙:\n"
+    "- 회의록에 적힌 내용에서만 뽑습니다. 없는 일을 지어내지 않습니다.\n"
+    "- 단순 공지·정보 전달은 할 일이 아닙니다. 누군가 실제로 해야 하는 것만 뽑습니다.\n"
+    "- 제목은 동사로 끝나는 한 문장으로 씁니다. 예: '과제 계획서를 그룹웨어에 업로드'\n"
+    "- 회의록에 사람 이름이 적혀 있으면 그 사람을 담당자로 넣습니다. 담당자는 참석자 명단에 있는\n"
+    "  이름만 그대로 씁니다. 한 항목에 여러 명이 적혀 있으면 사람마다 항목을 따로 만듭니다.\n"
+    "  회의록에서 누가 할지 알 수 없을 때만 빈 문자열로 둡니다.\n"
+    "- 기한은 YYYY-MM-DD 로만 씁니다. '다음 주 월요일' 같은 표현은 아래 회의 일자와 요일을 기준으로\n"
+    "  계산합니다. 회의록에서 기한을 알 수 없으면 빈 문자열로 둡니다. 지어내지 않습니다.\n"
+    "- 많아야 12개까지만 추립니다. 같은 일은 합칩니다.\n"
+    "- 반드시 아래 JSON 배열 형식으로만 답합니다. 다른 말은 붙이지 않습니다.\n"
+    '[{"title": "할 일 한 문장", "assignee": "담당자 이름 또는 빈 문자열", "due": "YYYY-MM-DD 또는 빈 문자열"}]\n'
+)
+
+
+def action_messages(title: str, body: str, attendees: list[str], date: str) -> list[dict[str, str]]:
+    who = ", ".join(a for a in attendees if a) or "(명단 없음)"
+    # 요일을 함께 준다 — 모델이 '다음 주 월요일'을 스스로 세다가 하루씩 어긋난다.
+    when = date or "(모름)"
+    try:
+        d = _date.fromisoformat(date)
+        when = f"{date} ({'월화수목금토일'[d.weekday()]}요일)"
+    except ValueError:
+        pass
+    return [
+        {"role": "system", "content": ACTIONS_SYSTEM + f"\n회의 일자: {when}\n참석자 명단: {who}\n"},
+        {"role": "user", "content": f"[회의 제목] {title or '(제목 없음)'}\n\n[회의록]\n{body}"},
     ]
 
 

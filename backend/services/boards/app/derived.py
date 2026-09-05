@@ -16,8 +16,12 @@ from .models import Meeting, Notice
 def derive(user: CurrentUser, db: Session) -> list[Derived]:
     out: list[Derived] = []
 
-    # 필독인데 아직 확인하지 않은 공지
-    for n in db.scalars(select(Notice).where(Notice.required.is_(True), Notice.deleted_at.is_(None))):
+    # 필독인데 아직 확인하지 않은 공지.
+    # 관리자는 연구실 업무 공지의 수신자가 아니다(화면도 '확인 대상이 아닙니다'로 막는다).
+    # 여기서 걸러 주지 않으면 확인 버튼이 없는데 알림만 남아 지울 방법이 없다.
+    required = [] if user.role == "admin" else db.scalars(
+        select(Notice).where(Notice.required.is_(True), Notice.deleted_at.is_(None)))
+    for n in required:
         targets = n.target_user_ids or []
         if targets and user.id not in targets:
             continue                                   # 대상 지정 공지인데 나는 대상이 아님

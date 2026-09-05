@@ -4,6 +4,7 @@ import { Pager } from "../ui/pageTable";
 import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
 import { confirmDialog } from "../ui/dialog";
+import { htmlToPlain, plainToHtml } from "../ui/html";
 import { confirmDiscard } from "../ui/kit";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig, names } from "../api/config";
@@ -122,6 +123,11 @@ export default function Approvals() {
   }
   function loadTemplate() { setBody(TEMPLATES[form.type] || ""); }
 
+  /** 개선안을 본문에 넣는다. 덮어쓰는 일이라 한 번 묻는다(편집기 Ctrl+Z 로도 되돌아간다). */
+  async function applyRevision(text: string) {
+    if (!await confirmDialog("결재 문서 본문을 개선안으로 바꿉니다. 지금 내용은 사라집니다. 계속할까요?", { title: "개선안 반영" })) return;
+    setBody(plainToHtml(text));
+  }
   async function save(draft = false) {
     setErr("");
     if (!form.title.trim()) { setErr("제목을 입력하세요"); return; }
@@ -176,9 +182,10 @@ export default function Approvals() {
   async function recall(a: Appr) {
     try { await api.post(`/boards/approvals/${a.id}/recall`, {}); load(); } catch (e) { setErr(apiError(e)); }
   }
-  async function del(a: Appr) {
-    if (!await confirmDialog(`문서 "${a.title}"을(를) 삭제할까요?`)) return;
-    try { await api.delete(`/boards/approvals/${a.id}`); load(); } catch (e) { setErr(apiError(e)); }
+  async function del(a: Appr): Promise<boolean> {
+    if (!await confirmDialog(`문서 "${a.title}"을(를) 삭제할까요?`)) return false;
+    try { await api.delete(`/boards/approvals/${a.id}`); load(); return true; }
+    catch (e) { setErr(apiError(e)); return false; }
   }
   function submitReject() {
     if (!reject) return;
@@ -258,12 +265,13 @@ export default function Approvals() {
             </label>
             <HtmlEditor value={body} onChange={setBody} testid="a-doc" minHeight={300} />
           </div>
-          <div className="bd" style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid var(--line2)", flexWrap: "wrap" }}>
+          <div className="bd field-head" style={{ borderTop: "1px solid var(--line2)", marginBottom: 0 }}>
+            {/* 점검·개선안은 왼쪽, 저장·상신은 오른쪽 — 글을 다듬는 일과 넘기는 일을 갈라 둔다 */}
             <MentorButton feature="report" collect={() => ({
               title: form.title,
-              body: body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+              body: htmlToPlain(body),
               context: { 문서유형: form.type },
-            })} />
+            })} onApply={applyRevision} />
             <button className="btn ghost" onClick={() => setEditing(null)}>취소</button>
             {editing.resubmit ? (
               <button className="btn primary" data-testid="appr-add-submit" onClick={() => save()}>재상신</button>
@@ -272,6 +280,11 @@ export default function Approvals() {
               <button className="btn primary" data-testid="appr-add-submit" onClick={() => save(false)}>상신</button>
             </>) : (
               <button className="btn primary" data-testid="appr-add-submit" onClick={() => save(false)}>저장</button>
+            )}
+            {/* 결재가 시작된 문서는 애초에 이 화면으로 들어오지 못한다 — 목록 대신 여기서만 지운다 */}
+            {editing.id && !editing.resubmit && (
+              <button type="button" data-testid="appr-del" onClick={async () => { const a = mine.find((x) => x.id === editing.id); if (a && await del(a)) setEditing(null); }}
+                style={{ background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>
             )}
           </div>
         </div>
@@ -304,7 +317,7 @@ export default function Approvals() {
       </div>
       {err && <div className="form-err" data-testid="appr-error">{err}</div>}
 
-      {isApprover && (
+      {isApprover && (<>
         <div className="card">
           <div className="card-h"><b>결재 수신함</b></div>
           <table ref={inboxRef} className="tbl fit" data-testid="appr-inbox">
@@ -341,9 +354,9 @@ export default function Approvals() {
               {!inbox.length && <tr><td colSpan={8} className="muted">수신 결재 없음</td></tr>}
             </tbody>
           </table>
-          <Pager page={inCur} pages={inPages} set={setInPage} />
         </div>
-      )}
+        <Pager page={inCur} pages={inPages} set={setInPage} />
+      </>)}
 
       <div className="card">
         <div className="card-h"><b>내 상신함</b></div>
@@ -371,7 +384,6 @@ export default function Approvals() {
                     {!started && a.status !== "반려" && <button className="btn ghost sm" data-testid={`a-edit-${a.id}`} onClick={() => openEdit(a)}>수정</button>}{" "}
                     {a.status === "진행" && !started && <button className="btn ghost sm" data-testid={`a-recall-${a.id}`} onClick={() => recall(a)}>회수</button>}{" "}
                     {(a.status === "반려" || a.status === "회수") && <button className="btn ghost sm" data-testid={`a-resubmit-${a.id}`} onClick={() => openEdit(a, true)}>재상신</button>}{" "}
-                    {!started && <button className="btn ghost sm" data-testid={`a-del-${a.id}`} style={{ color: "var(--bad-text)" }} onClick={() => del(a)}>삭제</button>}
                   </td>
                 </tr>
               );
@@ -379,8 +391,8 @@ export default function Approvals() {
             {!mine.length && <tr><td colSpan={7} className="muted">상신 문서 없음</td></tr>}
           </tbody>
         </table>
-        <Pager page={mineCur} pages={minePages} set={setMinePage} />
       </div>
+      <Pager page={mineCur} pages={minePages} set={setMinePage} />
 
       {reject && (
         <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) closeReject(); }}>

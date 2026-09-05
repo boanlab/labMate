@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -15,22 +14,16 @@ from labmate_common.deps import CurrentUser, get_current_user
 
 from . import schemas
 from .masters import DEFAULTS
-from .models import Asset, Booking, Course, CourseProgress, Device, LibFile, Rack, Video
+from .models import Asset, Booking, Device, LibFile, Rack, Video
 
 router = APIRouter()
 ASSET_ADMIN = ("prof", "staff", "admin")     # 자산·인프라 등록
-LIB_MNG = ("prof", "phd", "staff", "admin")  # 파일·영상·강좌 관리
+LIB_MNG = ("prof", "phd", "staff", "admin")  # 파일·영상 관리
 
 
 def _has(u: CurrentUser, roles) -> bool:
     # 인프라담당은 자산·인프라(ASSET_ADMIN) 관리 허용
     return u.role in roles or (u.delegated_admin and roles in (ASSET_ADMIN, LIB_MNG)) or (u.infra_manager and roles == ASSET_ADMIN)
-
-
-def _ensure_lesson_ids(lessons: list[dict]) -> list[dict]:
-    for ls in lessons:
-        ls["id"] = ls.get("id") or uuid.uuid4().hex[:12]
-    return lessons
 
 
 # ── 자산 ──
@@ -206,12 +199,34 @@ def list_bookings(_: CurrentUser = Depends(get_current_user), db: Session = Depe
     return list(db.scalars(select(Booking).order_by(Booking.date.desc())))
 
 
+def _clash(db: Session, body: schemas.BookingIn, skip_id: str = "") -> str:
+    """겹치는 예약이 있으면 사람이 읽을 사유를, 없으면 빈 문자열을 돌려준다.
+
+    날짜 구간이 안 겹치면 볼 것도 없다. 겹칠 때, 양쪽 다 하루짜리이고 시간이 적혀 있으면
+    시간까지 따진다. 한쪽이라도 여러 날이면 그 기간은 통째로 잡힌 것으로 본다
+    (장비를 사흘 빌려 갔는데 둘째 날 오후만 비어 있을 리 없다).
+    """
+    b_end = body.end_date or body.date
+    if b_end < body.date:
+        raise HTTPException(400, "종료일이 시작일보다 빠릅니다")
+    for b in db.scalars(select(Booking).where(Booking.resource == body.resource)):
+        if b.id == skip_id:
+            continue
+        o_end = b.end_date or b.date
+        if b_end < b.date or body.date > o_end:      # 날짜가 안 겹친다
+            continue
+        one_day = body.end_date is None and b.end_date is None
+        if one_day and body.start and b.start and (body.end <= b.start or body.start >= b.end):
+            continue                                  # 같은 날이지만 시간대가 안 겹친다
+        when = f"{b.date}~{o_end}" if b.end_date else f"{b.date}"
+        return f"예약 충돌: {when}" + (f" {b.start}~{b.end}" if b.start and not b.end_date else "")
+    return ""
+
+
 @router.post("/bookings", response_model=schemas.BookingOut, status_code=201)
 def create_booking(body: schemas.BookingIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    # 동일 자원·일자·시간대 충돌 검사
-    for b in db.scalars(select(Booking).where(Booking.resource == body.resource, Booking.date == body.date)):
-        if body.start and b.start and not (body.end <= b.start or body.start >= b.end):
-            raise HTTPException(400, f"예약 충돌: {b.start}~{b.end}")
+    if (why := _clash(db, body)):
+        raise HTTPException(400, why)
     bk = Booking(by_id=user.id, **body.model_dump())
     db.add(bk); db.commit(); db.refresh(bk)
     return bk
@@ -229,10 +244,8 @@ def update_booking(bid: str, body: schemas.BookingIn, user: CurrentUser = Depend
         raise HTTPException(404, "예약을 찾을 수 없습니다")
     if not _can_edit_booking(user, bk):
         raise HTTPException(403, "본인 예약 또는 관리자만 수정할 수 있습니다")
-    # 동일 자원·일자·시간대 충돌 검사 (자기 자신 제외)
-    for b in db.scalars(select(Booking).where(Booking.resource == body.resource, Booking.date == body.date)):
-        if b.id != bid and body.start and b.start and not (body.end <= b.start or body.start >= b.end):
-            raise HTTPException(400, f"예약 충돌: {b.start}~{b.end}")
+    if (why := _clash(db, body, skip_id=bid)):
+        raise HTTPException(400, why)
     for k, v in body.model_dump().items():
         setattr(bk, k, v)
     db.commit(); db.refresh(bk)
@@ -295,89 +308,3 @@ def delete_video(vid: str, user: CurrentUser = Depends(get_current_user), db: Se
         v.deleted_at = datetime.now(timezone.utc); db.commit()
     elif v:
         raise HTTPException(403, "삭제 권한이 없습니다")
-
-
-# ── LMS: 강좌 + 개인 수강 진도 ──
-@router.get("/courses", response_model=list[schemas.CourseOut])
-def list_courses(_: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    return list(db.scalars(select(Course)))
-
-
-@router.post("/courses", response_model=schemas.CourseOut, status_code=201)
-def create_course(body: schemas.CourseIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not _has(user, LIB_MNG):
-        raise HTTPException(403, "강좌 개설 권한이 없습니다")
-    data = body.model_dump()
-    _ensure_lesson_ids(data["lessons"])
-    c = Course(owner_id=body.owner_id or user.id, **{k: v for k, v in data.items() if k != "owner_id"})
-    db.add(c); db.commit(); db.refresh(c)
-    return c
-
-
-@router.put("/courses/{cid}", response_model=schemas.CourseOut)
-def update_course(cid: str, body: schemas.CourseIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """강좌·강의(lesson) 직접 구성. 소유자 또는 관리자."""
-    c = db.get(Course, cid)
-    if not c:
-        raise HTTPException(404, "강좌 없음")
-    if c.owner_id != user.id and user.role not in ("prof", "admin"):
-        raise HTTPException(403, "강좌 수정 권한이 없습니다")
-    data = body.model_dump()
-    c.cat = data["cat"]; c.title = data["title"]; c.desc = data["desc"]
-    c.lessons = _ensure_lesson_ids(data["lessons"])
-    c.required = data["required"]; c.due = data["due"]; c.target_roles = data["target_roles"]
-    db.commit(); db.refresh(c)
-    return c
-
-
-@router.delete("/courses/{cid}", status_code=204)
-def delete_course(cid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    c = db.get(Course, cid)
-    if c and (c.owner_id == user.id or user.role in ("prof", "admin")):
-        c.deleted_at = datetime.now(timezone.utc); db.commit()
-    elif c:
-        raise HTTPException(403, "삭제 권한이 없습니다")
-
-
-@router.get("/courses/report")
-def course_report(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """필수 강좌 이수 현황(관리자) — 강좌별 완료/미완료 인원 집계용 원자료."""
-    if not _has(user, LIB_MNG):
-        raise HTTPException(403, "조회 권한이 없습니다")
-    progress = list(db.scalars(select(CourseProgress)))
-    done_by_lesson: dict[str, list[str]] = {}
-    for p in progress:
-        done_by_lesson.setdefault(p.lesson_id, []).append(p.uid)
-    out = []
-    for c in db.scalars(select(Course)):
-        lesson_ids = [ls.get("id") for ls in c.lessons]
-        # 모든 레슨을 완료한 사용자 = 이수자
-        per_user: dict[str, int] = {}
-        for lid in lesson_ids:
-            for uid in done_by_lesson.get(lid, []):
-                per_user[uid] = per_user.get(uid, 0) + 1
-        completed = [uid for uid, n in per_user.items() if n >= len(lesson_ids) and lesson_ids]
-        out.append({
-            "id": c.id, "title": c.title, "required": c.required,
-            "due": c.due.isoformat() if c.due else None,
-            "target_roles": c.target_roles, "lesson_count": len(lesson_ids),
-            "completed_uids": completed,
-        })
-    return out
-
-
-@router.get("/courses/progress")
-def my_progress(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """내가 완료한 레슨 id 목록."""
-    return {"done": [p.lesson_id for p in db.scalars(select(CourseProgress).where(CourseProgress.uid == user.id))]}
-
-
-@router.post("/courses/lessons/{lesson_id}/toggle")
-def toggle_lesson(lesson_id: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    existing = db.scalar(select(CourseProgress).where(CourseProgress.uid == user.id, CourseProgress.lesson_id == lesson_id))
-    if existing:
-        existing.deleted_at = datetime.now(timezone.utc); done = False
-    else:
-        db.add(CourseProgress(uid=user.id, lesson_id=lesson_id)); done = True
-    db.commit()
-    return {"lesson_id": lesson_id, "done": done}

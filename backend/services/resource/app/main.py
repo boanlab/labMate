@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
     ])
     add_columns(engine, [
         ("assets", "bookable", "BOOLEAN DEFAULT FALSE NOT NULL"),
+        ("bookings", "end_date", "DATE"),          # 여러 날 예약(장비 등)
     ])
     yield
 

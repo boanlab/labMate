@@ -46,6 +46,38 @@ class ReviewOut(BaseModel):
     model: str = ""
 
 
+class ActionsIn(BaseModel):
+    """회의록에서 액션아이템을 뽑는다."""
+    title: str = Field(default="", max_length=300)
+    body: str = Field(default="", max_length=20000)
+    attendees: list[str] = Field(default_factory=list, description="참석자 이름 — 담당자는 이 안에서만 고른다")
+    date: str = Field(default="", max_length=10, description="회의 일자(YYYY-MM-DD) — 상대 기한 계산 기준")
+
+
+class ActionItemOut(BaseModel):
+    title: str
+    assignee: str = ""
+    due: str = ""
+
+
+class ActionsOut(BaseModel):
+    items: list[ActionItemOut] = []
+    detail: str = ""
+
+
+class ReviseIn(BaseModel):
+    """점검 결과를 반영해 고쳐 쓴 초안을 받는다."""
+    feature: str = Field(description="meeting/note/task/report/schedule/review")
+    title: str = Field(default="", max_length=300)
+    body: str = Field(default="", max_length=20000)
+    review: str = Field(default="", max_length=8000, description="앞서 받은 점검 결과 — 있으면 그것을 반영한다")
+    context: dict = Field(default_factory=dict)
+
+
+class ReviseOut(BaseModel):
+    text: str = ""
+
+
 class UsageOut(BaseModel):
     month: str
     calls: int

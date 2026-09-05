@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from datetime import date as _date          # 필드명이 date 인 스키마에서 타입을 가리지 않게
 from pydantic import BaseModel, Field
 
 
@@ -44,6 +45,36 @@ class TaskOut(TaskIn):
     id: str
     project_id: str
     by_id: str = ""
+    model_config = {"from_attributes": True}
+
+
+class DailyLogIn(BaseModel):
+    """개인 업무일지 한 줄."""
+    date: _date
+    title: str = Field(max_length=300)
+    project_id: str = ""
+    done: bool = False
+    note: str = ""
+    order: int = 0
+
+
+class DailyLogPatch(BaseModel):
+    date: _date | None = None
+    title: str | None = Field(default=None, max_length=300)
+    project_id: str | None = None
+    done: bool | None = None
+    note: str | None = None
+    order: int | None = None
+
+
+class DailyLogOut(BaseModel):
+    id: str
+    date: _date
+    title: str
+    project_id: str = ""
+    done: bool = False
+    note: str = ""
+    order: int = 0
     model_config = {"from_attributes": True}
 
 

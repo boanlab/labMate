@@ -109,17 +109,19 @@ export default function MyPage() {
           매일 같은 시각에 방해받지 않는 시간을 정해 두면 연구가 밀리지 않습니다.
           이 시간에는 <b>알림을 띄우지 않고</b> 캘린더에 블록으로 표시합니다.
         </p>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-            <input type="checkbox" data-testid="mp-deep-on" checked={deep.on} onChange={(e) => setDeep({ ...deep, on: e.target.checked })} />
-            사용
-          </label>
+        <label style={{ display: "inline-flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
+          <input type="checkbox" data-testid="mp-deep-on" checked={deep.on} onChange={(e) => setDeep({ ...deep, on: e.target.checked })} />
+          사용
+        </label>
+        {/* 제목 줄과 입력 줄을 나란히 맞춘다. 한국어 시간 표기("오전 09:00" + 시계 아이콘)가
+            잘리지 않도록 칸을 넉넉히 준다. */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px", maxWidth: 360 }}>
           <label htmlFor={`${uid}-df`} className="muted small">시작</label>
-          <input id={`${uid}-df`} type="time" data-testid="mp-deep-from" value={deep.from} disabled={!deep.on}
-            onChange={(e) => setDeep({ ...deep, from: e.target.value })} style={{ width: 120 }} />
           <label htmlFor={`${uid}-dt`} className="muted small">종료</label>
+          <input id={`${uid}-df`} type="time" data-testid="mp-deep-from" value={deep.from} disabled={!deep.on}
+            onChange={(e) => setDeep({ ...deep, from: e.target.value })} style={{ margin: 0 }} />
           <input id={`${uid}-dt`} type="time" data-testid="mp-deep-to" value={deep.to} disabled={!deep.on}
-            onChange={(e) => setDeep({ ...deep, to: e.target.value })} style={{ width: 120 }} />
+            onChange={(e) => setDeep({ ...deep, to: e.target.value })} style={{ margin: 0 }} />
         </div>
       </Card>
     </div>

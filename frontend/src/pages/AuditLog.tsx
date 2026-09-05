@@ -7,7 +7,7 @@ import { dateKST, dtKST } from "../lib/date";
 const SERVICES = ["members", "projects", "funds", "attendance", "boards", "resource"];
 const SERVICE_KO: Record<string, string> = {
   members: "인증·구성원", projects: "연구과제·실적", funds: "예산·연구비·인건비",
-  attendance: "근태·휴가", boards: "공지·게시판·회의·결재", resource: "자산·인프라·예약·교육",
+  attendance: "근태·휴가", boards: "공지·게시판·회의·결재", resource: "자산·인프라·예약",
 };
 const PAGE = 30;
 

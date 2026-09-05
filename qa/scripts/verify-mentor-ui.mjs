@@ -11,8 +11,9 @@ let pass = 0, fail = 0;
 const chk = (ok, l, d) => { ok ? pass++ : fail++; console.log(`${ok ? "✅" : "❌"} ${l}${d ? "  — " + d : ""}`); };
 
 const NEW_ROUTES = [
+  { p: "/daily", label: "업무일지", allow: ["prof", "phd", "master", "under", "deleg"] },
   { p: "/goals", label: "목표", allow: ["prof", "phd", "master", "under", "deleg"] },
-  { p: "/philosophy", label: "지도철학", allow: ["prof", "phd", "master", "under", "deleg"] },
+  { p: "/philosophy", label: "지도 철학", allow: ["prof", "phd", "master", "under", "deleg"] },
   { p: "/coaching", label: "지도 현황", allow: ["prof"] },
 ];
 

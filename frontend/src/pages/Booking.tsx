@@ -8,7 +8,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useConfig } from "../api/config";
 import { confirmDialog } from "../ui/dialog";
 
-interface Bk { id: string; resource: string; date: string; start: string; end: string; purpose: string; by_id: string; }
+interface Bk { id: string; resource: string; date: string; end_date: string | null; start: string; end: string; purpose: string; by_id: string; }
 const RESOURCES_FB = ["세미나실", "회의실", "GPU 서버", "공용 워크스테이션", "실험장비"];
 
 export default function Booking() {
@@ -24,8 +24,9 @@ export default function Booking() {
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState("");
   const today = todayKST();
-  const empty = { resource: "세미나실", date: today, start: "10:00", end: "11:00", purpose: "" };
+  const empty = { resource: "세미나실", date: today, end_date: "", start: "10:00", end: "11:00", purpose: "" };
   const [form, setForm] = useState(empty);
+  const multiDay = !!form.end_date && form.end_date > form.date;   // 종료일이 있으면 여러 날 예약
   const [snap, setSnap] = useState("");   // 폼 초기 상태 — 작성 중 이탈 경고 판정용
   const [view, setView] = useState<"예정" | "지난" | "전체">("예정");   // 예약 화면의 관심사는 '앞으로'다
   const [resFilter, setResFilter] = useState("전체");
@@ -64,24 +65,32 @@ export default function Booking() {
     if (!(await confirmDiscard(formSnapshot(form) !== snap))) return;
     closeForm();
   }
-  function startEdit(b: Bk) { const f = { resource: b.resource, date: b.date, start: b.start, end: b.end, purpose: b.purpose }; setEditId(b.id); setForm(f); setAdding(true); setSnap(formSnapshot(f)); }
+  function startEdit(b: Bk) { const f = { resource: b.resource, date: b.date, end_date: b.end_date || "", start: b.start, end: b.end, purpose: b.purpose }; setEditId(b.id); setForm(f); setAdding(true); setSnap(formSnapshot(f)); }
 
   async function add(e: React.FormEvent) {
     e.preventDefault(); setErr("");
     // 종료가 시작보다 빠르면 길이가 음수인 예약이 만들어진다 — 저장 전에 막는다.
-    if (!form.date) return setErr("일자를 선택하세요");
-    if (!form.start || !form.end) return setErr("시작·종료 시간을 입력하세요");
-    if (form.end <= form.start) return setErr("종료 시간이 시작 시간보다 빠르거나 같습니다");
+    if (!form.date) return setErr("시작일을 선택하세요");
+    if (multiDay) {
+      if (form.end_date < form.date) return setErr("종료일이 시작일보다 빠릅니다");
+    } else {
+      if (!form.start || !form.end) return setErr("시작·종료 시간을 입력하세요");
+      if (form.end <= form.start) return setErr("종료 시간이 시작 시간보다 빠르거나 같습니다");
+    }
     if (!editId && form.date < today) return setErr("지난 날짜는 예약할 수 없습니다");
     try {
-      if (editId) await api.patch(`/resource/bookings/${editId}`, form);
-      else await api.post("/resource/bookings", form);
+      // 여러 날 예약은 시간이 의미가 없다 — 비워 보내 목록·충돌 검사가 헷갈리지 않게 한다.
+      const payload = multiDay ? { ...form, start: "", end: "" } : { ...form, end_date: null };
+      if (editId) await api.patch(`/resource/bookings/${editId}`, payload);
+      else await api.post("/resource/bookings", payload);
       setAdding(false); setEditId(""); setForm(empty); load();
     } catch (e) { setErr(apiError(e)); }
   }
-  async function del(b: Bk) {
-    if (!await confirmDialog(`${b.resource} 예약(${b.date} ${b.start}~${b.end})을 삭제할까요?`, { danger: true })) return;
-    try { await api.delete(`/resource/bookings/${b.id}`); load(); } catch (e) { setErr(apiError(e)); }
+  async function del(b: Bk): Promise<boolean> {
+    const when = b.end_date && b.end_date > b.date ? `${b.date} ~ ${b.end_date}` : `${b.date} ${b.start}~${b.end}`;
+    if (!await confirmDialog(`${b.resource} 예약(${when})을 삭제할까요?`, { danger: true })) return false;
+    try { await api.delete(`/resource/bookings/${b.id}`); load(); return true; }
+    catch (e) { setErr(apiError(e)); return false; }
   }
 
   return (
@@ -95,15 +104,27 @@ export default function Booking() {
         <form className="card" onSubmit={add} data-testid="booking-form">
           {editId && <div className="card-h"><b>예약 수정</b></div>}
           <div className="bd grid2">
-            <div><label htmlFor={`${uid}-1`}>자원</label><select id={`${uid}-1`} data-testid="bk-resource" value={form.resource} onChange={(e) => setForm({ ...form, resource: e.target.value })}>{RESOURCES.map((r) => <option key={r}>{r}</option>)}</select></div>
-            <div><label htmlFor={`${uid}-2`}>일자</label><input id={`${uid}-2`} data-testid="bk-date" type="date" min={editId ? undefined : today} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-            <div><label htmlFor={`${uid}-3`}>시작</label><input id={`${uid}-3`} type="time" data-testid="bk-start" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} required /></div>
-            <div><label htmlFor={`${uid}-4`}>종료</label><input id={`${uid}-4`} type="time" data-testid="bk-end" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} required /></div>
+            <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-1`}>자원</label><select id={`${uid}-1`} data-testid="bk-resource" value={form.resource} onChange={(e) => setForm({ ...form, resource: e.target.value })}>{RESOURCES.map((r) => <option key={r}>{r}</option>)}</select></div>
+            <div><label htmlFor={`${uid}-2`}>시작일</label><input id={`${uid}-2`} data-testid="bk-date" type="date" min={editId ? undefined : today} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+            {/* 여러 날 빌리는 자원(장비 등)은 종료일을 준다. 비우면 하루짜리다. */}
+            <div><label htmlFor={`${uid}-6`}>종료일 <span className="muted small">(여러 날 빌릴 때만)</span></label>
+              <input id={`${uid}-6`} data-testid="bk-end-date" type="date" min={form.date} value={form.end_date}
+                onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></div>
+            {multiDay ? (
+              <div style={{ gridColumn: "1 / -1" }} className="muted small" data-testid="bk-allday">
+                {form.date} ~ {form.end_date} · 이 기간 동안 종일 잡힙니다(시간 지정 없음)
+              </div>
+            ) : (<>
+              <div><label htmlFor={`${uid}-3`}>시작</label><input id={`${uid}-3`} type="time" data-testid="bk-start" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} required /></div>
+              <div><label htmlFor={`${uid}-4`}>종료</label><input id={`${uid}-4`} type="time" data-testid="bk-end" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} required /></div>
+            </>)}
             <div style={{ gridColumn: "1 / -1" }}><label htmlFor={`${uid}-5`}>용도</label><input id={`${uid}-5`} data-testid="bk-purpose" value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /></div>
           </div>
-          <div className="bd" style={{ display: "flex", gap: 8 }}>
+          <div className="bd" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button className="btn primary" data-testid="booking-add-submit">{editId ? "저장" : "예약"}</button>
             <button type="button" className="btn ghost" onClick={toggleForm}>취소</button>
+            {editId && <button type="button" data-testid="bk-del" onClick={async () => { const b = items.find((x) => x.id === editId); if (b && await del(b)) closeForm(); }}
+              style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
           </div>
         </form>
       )}
@@ -129,13 +150,12 @@ export default function Booking() {
             {shown.map((b) => (
               <tr key={b.id} style={b.date === today ? { background: "var(--bsoft)" } : undefined}>
                 <td>{b.resource}</td>
-                <td>{b.date}{b.date === today && <span className="badge s-ok" style={{ marginLeft: 6 }}>오늘</span>}</td>
-                <td>{b.start}~{b.end}</td><td className="hide-sm">{uname(b.by_id)}</td><td>{b.purpose}</td>
+                <td>{b.end_date && b.end_date > b.date ? `${b.date} ~ ${b.end_date}` : b.date}{b.date === today && <span className="badge s-ok" style={{ marginLeft: 6 }}>오늘</span>}</td>
+                <td>{b.end_date && b.end_date > b.date ? <span className="muted">종일</span> : `${b.start}~${b.end}`}</td><td className="hide-sm">{uname(b.by_id)}</td><td>{b.purpose}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  {canEdit(b) ? <>
-                    <button className="btn ghost sm" data-testid={`bk-edit-${b.id}`} onClick={() => startEdit(b)}>수정</button>{" "}
-                    <button className="btn ghost sm" data-testid={`bk-del-${b.id}`} style={{ color: "var(--bad-text)" }} onClick={() => del(b)}>삭제</button>
-                  </> : <span className="muted small">—</span>}
+                  {canEdit(b)
+                    ? <button className="btn ghost sm" data-testid={`bk-edit-${b.id}`} onClick={() => startEdit(b)}>수정</button>
+                    : <span className="muted small">—</span>}
                 </td>
               </tr>
             ))}

@@ -105,7 +105,8 @@ await session("under", "학부연구생", async (page, errors, R) => {
   await R.run("출근 체크", async () => {
     await page.goto(BASE + "/attendance"); await settle(page);
     const btn = page.locator('[data-testid="att-checkin"]');
-    if (await btn.isDisabled()) return "이미 출근 처리됨(정상)";
+    // 출근한 뒤에는 이 버튼이 자리비움으로 바뀌어 사라진다(비활성이 아니라 없음).
+    if (!(await btn.count())) return "이미 출근 처리됨(정상)";
     await btn.click();
     await settle(page, 1200);
     return (await page.locator("table").first().innerText()).split("\n").slice(1, 2).join("");

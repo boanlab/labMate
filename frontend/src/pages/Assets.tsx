@@ -1,5 +1,4 @@
 import { useEffect, useState, useId } from "react";
-import { useDirectory } from "../api/directory";
 import { api, apiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useConfig } from "../api/config";
@@ -52,7 +51,7 @@ export default function Assets() {
   function editAsset(a: Asset) {
     setForm({ asset_class: a.asset_class, asset_no: a.asset_no, name: a.name, spec: a.spec, model: a.model, owner_id: a.owner_id || "", project_id: a.project_id || "", building: a.building || "", floor: a.floor || "", room: a.room || "", location: a.location || "", buy_date: a.buy_date || "", note: a.note || "", bookable: !!a.bookable });
     setEditId(a.id); setAdding(true); window.scrollTo({ top: 0, behavior: "smooth" });
-    setSnap(formSnapshot({ asset_class: a.asset_class, asset_no: a.asset_no, name: a.name, spec: a.spec, model: a.model, owner_id: a.owner_id || "", project_id: a.project_id || "", building: a.building || "", floor: a.floor || "", room: a.room || "", location: a.location || "", buy_date: a.buy_date || "", note: a.note || "" }));
+    setSnap(formSnapshot({ asset_class: a.asset_class, asset_no: a.asset_no, name: a.name, spec: a.spec, model: a.model, owner_id: a.owner_id || "", project_id: a.project_id || "", building: a.building || "", floor: a.floor || "", room: a.room || "", location: a.location || "", buy_date: a.buy_date || "", note: a.note || "", bookable: !!a.bookable }));
   }
   function closeForm() { setAdding(false); setEditId(""); setForm({ ...EMPTY }); setSnap(""); }
   async function save(e: React.FormEvent) {
@@ -70,8 +69,9 @@ export default function Assets() {
     try { await api.delete(`/resource/assets/${a.id}`); load(); return true; } catch (e) { setErr(apiError(e)); return false; }
   }
 
-  const dirName = useDirectory();
-  const ownerName = (a: Asset) => dirName(a.owner_id);
+  // 책임자는 구성원 계정이 아니라 자산대장에 적힌 이름 그대로다(외부 인원·퇴직자도 그대로 남는다).
+  // 명부에서 찾아 바꾸려 들면 계정이 없는 사람이 모두 "(삭제된 구성원)"으로 보인다.
+  const ownerName = (a: Asset) => a.owner_id.trim();
   const projCode = (a: Asset) => (a.project_id ? pcode(a.project_id) : "");
   const cols: Col<Asset>[] = [
     { key: "asset_class", label: "분류", value: (a) => a.asset_class, render: (a) => <span className="badge s-info">{a.asset_class}</span> },
@@ -82,7 +82,7 @@ export default function Assets() {
     { key: "building", label: "건물", render: (a) => <span className="small">{a.building || "—"}</span> },
     { key: "floor", label: "층", render: (a) => <span className="small">{a.floor || "—"}</span> },
     { key: "room", label: "호실", render: (a) => <span className="small">{a.room || "—"}</span> },
-    { key: "owner", label: "책임자", render: (a) => <span className="small">{ownerName(a)}</span> },
+    { key: "owner", label: "책임자", value: (a) => ownerName(a), render: (a) => <span className="small">{ownerName(a) || "—"}</span> },
     { key: "location", label: "위치", render: (a) => <span className="small">{a.location || "—"}</span> },
     { key: "project", label: "과제", render: (a) => <span className="small muted">{projCode(a) || "—"}</span> },
     { key: "buy_date", label: "구매일자", value: (a) => a.buy_date || "", render: (a) => <span className="small muted">{a.buy_date || "—"}</span> },
