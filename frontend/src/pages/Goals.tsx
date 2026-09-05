@@ -21,19 +21,6 @@ function currentPeriod(): string {
   const d = new Date();
   return `${d.getFullYear()}-${quarterOf(d)}분기`;
 }
-/** 고를 수 있는 분기 — 다음 한 분기와 지난 네 분기.
- *  다음 분기를 미리 세우고, 지난 분기를 돌아볼 수 있어야 한다. */
-function nearbyPeriods(): string[] {
-  const d = new Date();
-  const out: string[] = [];
-  for (let i = 1; i >= -4; i--) {
-    let y = d.getFullYear(), q = quarterOf(d) + i;
-    while (q > 4) { q -= 4; y += 1; }
-    while (q < 1) { q += 4; y -= 1; }
-    out.push(`${y}-${q}분기`);
-  }
-  return out;
-}
 
 function rate(o: Objective): number {
   if (!o.key_results.length) return 0;
@@ -101,8 +88,11 @@ export default function Goals() {
     try { await api.delete(`/projects/key-results/${k.id}`); load(); } catch (e) { setErr(apiError(e)); }
   }
 
-  const periods = Array.from(new Set([...nearbyPeriods(), ...list.map((o) => o.period)])).sort().reverse();
-  const years = Array.from(new Set(periods.map((p) => p.slice(0, 4)))).sort().reverse();
+  const thisYear = new Date().getFullYear();
+  const years = Array.from(new Set([
+    ...[thisYear + 1, thisYear, thisYear - 1, thisYear - 2].map(String),
+    ...list.map((o) => o.period.slice(0, 4)),
+  ])).sort().reverse();
   const year = period.slice(0, 4);
   // 분기 보기는 그 분기만 받아 오므로 list 가 곧 그 분기다. 사람별로 묶어 보여 준다.
   const byOwner: Record<string, Objective[]> = {};
@@ -114,16 +104,17 @@ export default function Goals() {
       {err && <div className="form-err" data-testid="goal-err">{err}</div>}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-        {view === "quarter" ? (<>
+        {/* 연도와 분기를 따로 고른다 — 붙여 두면 목록이 길어지고 원하는 조합을 찾기 어렵다 */}
+        <label htmlFor={`${uid}-y`} className="muted small">연도</label>
+        <select id={`${uid}-y`} data-testid="goal-year" value={year} style={{ width: 100 }}
+          onChange={(e) => setPeriod(`${e.target.value}-${period.slice(5)}`)}>
+          {years.map((y) => <option key={y}>{y}</option>)}
+        </select>
+        {view === "quarter" && (<>
           <label htmlFor={`${uid}-p`} className="muted small">분기</label>
-          <select id={`${uid}-p`} data-testid="goal-period" value={period} onChange={(e) => setPeriod(e.target.value)} style={{ width: 150 }}>
-            {periods.map((p) => <option key={p}>{p}</option>)}
-          </select>
-        </>) : (<>
-          <label htmlFor={`${uid}-y`} className="muted small">연도</label>
-          <select id={`${uid}-y`} data-testid="goal-year" value={year} style={{ width: 110 }}
-            onChange={(e) => setPeriod(`${e.target.value}-${period.slice(5)}`)}>
-            {years.map((y) => <option key={y}>{y}</option>)}
+          <select id={`${uid}-p`} data-testid="goal-period" value={period.slice(5, 6)} style={{ width: 90 }}
+            onChange={(e) => setPeriod(`${year}-${e.target.value}분기`)}>
+            {[1, 2, 3, 4].map((q) => <option key={q} value={String(q)}>{q}분기</option>)}
           </select>
         </>)}
         <div style={{ display: "flex", gap: 4 }}>
