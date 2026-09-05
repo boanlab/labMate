@@ -213,16 +213,6 @@ export default function Calendar() {
       )}
 
       <div className="callayout">
-        <Card title="레이어 표시">
-          {LAYERS.map((t) => (
-            <div className="layer-row" key={t}>
-              <span className="layer-dot" style={{ background: TCOL[t] || "#5a6478" }} />
-              <span>{t}</span>
-              <button className={"switch" + (!hidden[t] ? " on" : "")} data-testid={`layer-${t}`} onClick={() => setHidden((l) => ({ ...l, [t]: !l[t] }))} />
-            </div>
-          ))}
-        </Card>
-
         <Card title={`${y}년 ${m + 1}월`} extra={
           <span style={{ display: "flex", gap: 6 }}>
             <button className="btn ghost sm" data-testid="cal-prev" onClick={() => setRef(new Date(y, m - 1, 1))}>◀</button>
@@ -245,6 +235,19 @@ export default function Calendar() {
                 </div>
               );
             })}
+          </div>
+        </Card>
+
+        {/* 제목 없이 토글만 — 무엇을 켜고 끄는지는 항목 이름으로 충분하다 */}
+        <Card>
+          <div className="layer-rows">
+            {LAYERS.map((t) => (
+              <div className="layer-row" key={t}>
+                <span className="layer-dot" style={{ background: TCOL[t] || "#5a6478" }} />
+                <span>{t}</span>
+                <button className={"switch" + (!hidden[t] ? " on" : "")} data-testid={`layer-${t}`} onClick={() => setHidden((l) => ({ ...l, [t]: !l[t] }))} />
+              </div>
+            ))}
           </div>
         </Card>
       </div>

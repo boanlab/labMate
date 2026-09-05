@@ -38,3 +38,9 @@ services:
     volumes:
       - ./backend/services/resource/app:/app/app
       - ./backend/libs/common/labmate_common:/usr/local/lib/python3.12/site-packages/labmate_common
+
+  mentor-service:
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./backend/services/mentor/app:/app/app
+      - ./backend/libs/common/labmate_common:/usr/local/lib/python3.12/site-packages/labmate_common

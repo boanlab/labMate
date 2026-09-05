@@ -209,6 +209,19 @@ export default function Members() {
           <div className="bd" style={{ borderTop: "1px solid var(--line2)", display: "flex", gap: 8, alignItems: "center" }}>
             <button className="btn primary" data-testid="member-add-submit">{editId ? "저장" : "추가 (첫 로그인 시 비밀번호 변경 강제)"}</button>
             <button type="button" className="btn ghost" onClick={closeForm}>취소</button>
+            {editId && (() => {
+              const u = users.find((x) => x.id === editId);
+              if (!u) return null;
+              const canRole = isRealAdmin && !["prof", "staff", "admin"].includes(u.role);
+              return <>
+                {canRole && <button type="button" className="btn ghost" data-testid={`m-delegate-${u.email}`}
+                  onClick={() => toggleDelegate(u)}>{u.delegated_admin ? "위임해제" : "행정위임"}</button>}
+                {canRole && <button type="button" className="btn ghost" data-testid={`m-infra-${u.email}`}
+                  onClick={() => toggleInfra(u)}>{u.infra_manager ? "인프라해제" : "인프라담당"}</button>}
+                {canActOn(u) && <button type="button" className="btn ghost" data-testid={`m-active-${u.email}`}
+                  onClick={async () => { await toggleActive(u); closeForm(); }}>비활성화</button>}
+              </>;
+            })()}
             {editId && <button type="button" data-testid="member-del" onClick={async () => { const u = users.find((x) => x.id === editId); if (u && await delUser(u)) closeForm(); }} style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--bad-text)", fontSize: 11.5, textDecoration: "underline", cursor: "pointer", opacity: 0.85 }}>삭제</button>}
           </div>
         </form>
@@ -239,10 +252,10 @@ export default function Members() {
                 <td><span className={"badge " + (!u.active ? "s-mute" : u.must_change_password ? "s-wait" : "s-ok")}>{!u.active ? "비활성" : u.must_change_password ? "비번변경 필요" : "정상"}</span></td>
                 {canManageUsers && (
                   <td>
-                    {canActOn(u) && u.active && <button className="btn ghost sm" data-testid={`m-edit-${u.email}`} onClick={() => editUser(u)}>수정</button>}{" "}
-                    {isRealAdmin && u.active && !["prof", "staff", "admin"].includes(u.role) && <button className="btn ghost sm" data-testid={`m-delegate-${u.email}`} onClick={() => toggleDelegate(u)}>{u.delegated_admin ? "위임해제" : "행정위임"}</button>}{" "}
-                    {isRealAdmin && u.active && !["prof", "staff", "admin"].includes(u.role) && <button className="btn ghost sm" data-testid={`m-infra-${u.email}`} onClick={() => toggleInfra(u)}>{u.infra_manager ? "인프라해제" : "인프라담당"}</button>}{" "}
-                    {canActOn(u) && <button className="btn ghost sm" data-testid={`m-active-${u.email}`} onClick={() => toggleActive(u)}>{u.active ? "비활성화" : "활성화"}</button>}
+                    {canActOn(u) && u.active && <button className="btn ghost sm" data-testid={`m-edit-${u.email}`} onClick={() => editUser(u)}>수정</button>}
+                    {/* 권한 위임·인프라 담당·비활성화는 수정 화면 안에서 한다 — 목록에서 바로 누르기엔 무거운 동작이다.
+                        비활성 계정은 수정 화면에 들어갈 수 없으므로 되살리는 버튼만 행에 남긴다. */}
+                    {canActOn(u) && !u.active && <button className="btn ghost sm" data-testid={`m-active-${u.email}`} onClick={() => toggleActive(u)}>활성화</button>}
                     {!canActOn(u) && <span className="muted small">—</span>}
                   </td>
                 )}

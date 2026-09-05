@@ -37,6 +37,9 @@ const PLUGINS = [
 
 const CONFIG: any = {
   licenseKey: "GPL",
+  // 툴바는 스크롤하면 화면 위에 붙는다. 상단바(.appbar, 54px)가 이미 그 자리를 쓰고 있어
+  // 그만큼 내려 주지 않으면 툴바가 상단바를 덮는다.
+  ui: { viewportOffset: { top: 54 } },
   plugins: PLUGINS,
   extraPlugins: [uploadAdapter],
   toolbar: {

@@ -148,8 +148,8 @@ export default function Leave() {
             {!shownMine.length && <tr><td colSpan={7} className="muted">{!loaded ? "불러오는 중…" : (from || to) ? "해당 기간 신청 내역 없음" : "신청 내역이 없습니다"}</td></tr>}
           </tbody>
         </table>
-        <Pager page={mineCur} pages={minePages} set={setMinePage} />
       </div>
+      <Pager page={mineCur} pages={minePages} set={setMinePage} />
     </div>
   );
 }

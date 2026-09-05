@@ -21,45 +21,55 @@ const ALL = ["prof", "phd", "master", "under", "staff"];
 const EVERYONE = [...ALL, "admin"];
 // 행정(staff) 차단 모듈 — 프로젝트·전자결재·자원예약·게시판·회의록. 위임 학생은 본인 역할로 접근.
 const NO_STAFF = ["prof", "phd", "master", "under"];
+// 근태 기록 대상 — 지도교수는 출퇴근을 찍지 않는다(관리자도 제외).
+const TRACKED = ["phd", "master", "under", "staff"];
 interface MenuItem { to: string; label: string; icon: string; roles: string[]; }
 const GROUPS: { title: string; items: MenuItem[] }[] = [
   { title: "메인", items: [
     { to: "/", label: "대시보드", icon: "grid", roles: EVERYONE },
     { to: "/calendar", label: "캘린더", icon: "calendar", roles: ALL },
   ] },
-  { title: "업무", items: [
-    { to: "/grants", label: "연구과제", icon: "award", roles: ["prof", "phd", "master", "under", "staff"] },
-    { to: "/projects", label: "프로젝트", icon: "folder", roles: NO_STAFF },
-    { to: "/tasks", label: "세부업무", icon: "clipboard", roles: ["prof", "phd", "master", "under", "staff"] },
+  // 매일 여는 것부터. 개인이 자기 일을 적고 챙기는 자리다.
+  { title: "내 업무", items: [
+    { to: "/daily", label: "업무일지", icon: "clipboard", roles: ALL },
+    { to: "/tasks", label: "세부업무", icon: "clipboard", roles: ALL },
     { to: "/goals", label: "목표", icon: "award", roles: NO_STAFF },
     { to: "/notes", label: "연구노트", icon: "book", roles: NO_STAFF },
-    { to: "/approvals", label: "전자결재", icon: "doc", roles: NO_STAFF },
-    { to: "/booking", label: "자원예약", icon: "pin", roles: NO_STAFF },
   ] },
+  // 연구 그 자체 — 무엇을 하고 있고 무엇이 남았는가.
+  { title: "연구", items: [
+    { to: "/grants", label: "연구과제", icon: "award", roles: ALL },
+    { to: "/projects", label: "프로젝트", icon: "folder", roles: NO_STAFF },
+    { to: "/publications", label: "실적", icon: "award", roles: ALL },
+    { to: "/archive", label: "아카이브", icon: "folder", roles: ALL },
+  ] },
+  // 남과 주고받는 것. 전자결재도 결국 문서를 넘기는 절차라 여기에 둔다.
   { title: "소통", items: [
     { to: "/notices", label: "공지사항", icon: "bell", roles: ALL },
     { to: "/board", label: "게시판", icon: "chat", roles: NO_STAFF },
     { to: "/meetings", label: "회의록", icon: "clipboard", roles: NO_STAFF },
+    { to: "/approvals", label: "전자결재", icon: "doc", roles: NO_STAFF },
   ] },
   { title: "연구비", items: [
     { to: "/budget", label: "예산", icon: "wallet", roles: ["prof", "staff"] },
-    { to: "/payroll", label: "학생인건비", icon: "coins", roles: ALL },
     { to: "/expenses", label: "연구비집행", icon: "card", roles: ["prof", "staff"] },
+    { to: "/payroll", label: "학생인건비", icon: "coins", roles: ALL },
   ] },
-  { title: "인사", items: [
-    { to: "/attendance", label: "출퇴근", icon: "clock", roles: ALL },
-    { to: "/leave", label: "휴가", icon: "sun", roles: ALL },
-    { to: "/members", label: "구성원", icon: "users", roles: EVERYONE },
-    { to: "/att-admin", label: "근태 관리", icon: "clock", roles: ["prof"] },
-  ] },
-  { title: "연구실", items: [
-    { to: "/philosophy", label: "지도철학", icon: "book", roles: NO_STAFF },
-    { to: "/coaching", label: "지도 현황", icon: "users", roles: ["prof", "staff"] },
-    { to: "/publications", label: "실적", icon: "award", roles: ALL },
-    { to: "/library", label: "교육", icon: "book", roles: NO_STAFF },
-    { to: "/archive", label: "아카이브", icon: "folder", roles: ALL },
+  // 예약·자산·인프라는 같은 물건을 다른 각도에서 보는 것이라 한데 둔다.
+  { title: "자원", items: [
+    { to: "/booking", label: "자원예약", icon: "pin", roles: NO_STAFF },
     { to: "/assets", label: "자산", icon: "desktop", roles: ALL },
     { to: "/infra", label: "인프라", icon: "server", roles: ALL },
+  ] },
+  { title: "인사", items: [
+    { to: "/attendance", label: "출퇴근", icon: "clock", roles: TRACKED },
+    { to: "/leave", label: "휴가", icon: "sun", roles: ALL },
+    { to: "/att-admin", label: "근태 관리", icon: "clock", roles: ["prof"] },
+    { to: "/members", label: "구성원", icon: "users", roles: EVERYONE },
+  ] },
+  { title: "지도", items: [
+    { to: "/philosophy", label: "지도 철학", icon: "book", roles: NO_STAFF },
+    { to: "/coaching", label: "지도 현황", icon: "users", roles: ["prof", "staff"] },
   ] },
   { title: "관리", items: [
     { to: "/admin", label: "환경설정", icon: "shield", roles: ["admin"] },
@@ -86,18 +96,61 @@ export default function Layout({ children }: { children: ReactNode }) {
     else setCollapsed(!collapsed);
   }
 
+  // 접어 둔 메뉴 그룹 — 계정에 남긴다(PC 를 바꿔도 같은 화면).
+  const [shutGroups, setShutGroups] = usePref<string[]>("nav_groups_shut", []);
+  const toggleGroup = (title: string) =>
+    setShutGroups(shutGroups.includes(title) ? shutGroups.filter((t) => t !== title) : [...shutGroups, title]);
+
   // 라우트 이동 시 모바일 드로어 닫기
   useEffect(() => { setDrawer(false); setMenu(false); }, [loc.pathname]);
-  // 말줄임된 표 셀에 hover 시 title 자동 부착(위임 처리 — 화면별로 달지 않아도 된다).
+  // 말줄임(…)이 생긴 곳은 마우스를 올리면 전체 내용을 도움말로 보여 준다(위임 처리).
+  // 잘리는 것은 셀 안쪽 줄인데 도움말이 그 줄에만 붙으면 셀 여백을 지날 때 뜨지 않아
+  // "안 뜬다"고 느끼게 된다. 그래서 표에서는 셀(td·th) 전체에 붙인다.
   useEffect(() => {
+    const AUTO = "data-auto-title";                              // 우리가 붙인 것만 나중에 지우거나 갱신한다
+    const MAX = 600;                                             // 도움말이 화면을 덮을 만큼 길어지면 안 된다
+    /** 잘렸는가 — '넘쳐서 감춰진' 경우만이다.
+     *  스크롤되는 칸(overflow:auto/scroll)은 넘쳐도 사용자가 끝까지 볼 수 있으니 대상이 아니다.
+     *  이걸 빼먹으면 에디터·본문 같은 스크롤 영역이 통째로 도움말이 된다. */
+    function clipped(el: HTMLElement): boolean {
+      const cs = getComputedStyle(el);
+      const hx = cs.overflowX === "hidden" || cs.overflowX === "clip";
+      const hy = cs.overflowY === "hidden" || cs.overflowY === "clip";
+      const cell = el.tagName === "TD" || el.tagName === "TH";
+      if (!hx && !hy && !cell) return false;
+      return ((hx || cell) && el.scrollWidth > el.clientWidth + 1) || (hy && el.scrollHeight > el.clientHeight + 1);
+    }
+    /** 셀 자체나 그 안 어느 줄이든 잘렸는가. */
+    function cut(el: HTMLElement): boolean {
+      return clipped(el) || Array.from(el.querySelectorAll<HTMLElement>("*")).some(clipped);
+    }
+    /** 줄 구분을 살린 전체 내용 — 여러 줄인 셀은 도움말도 여러 줄로 보여 준다. */
+    function fullText(el: HTMLElement): string {
+      return (el.innerText || el.textContent || "").split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
+    }
+    function put(el: HTMLElement): void {
+      if (el.hasAttribute("title") && !el.hasAttribute(AUTO)) return;   // 화면이 직접 단 설명 우선
+      if (!cut(el)) {
+        if (el.hasAttribute(AUTO)) { el.removeAttribute("title"); el.removeAttribute(AUTO); }
+        return;
+      }
+      const txt = fullText(el);
+      if (!txt || txt.length > MAX) return;
+      el.setAttribute("title", txt);
+      el.setAttribute(AUTO, "");
+    }
     function onOver(e: MouseEvent) {
       const t = e.target as HTMLElement | null;
-      const cell = t && t.closest ? (t.closest("td, th") as HTMLElement | null) : null;
-      if (!cell || cell.hasAttribute("title")) return;
-      if (cell.querySelector("[title]")) return;                 // 안쪽에 이미 툴팁이 있으면 둔다
-      if (cell.scrollWidth <= cell.clientWidth + 1) return;       // 잘리지 않았으면 불필요
-      const txt = (cell.textContent || "").trim();
-      if (txt) cell.setAttribute("title", txt);
+      if (!t || !t.closest) return;
+      // 글을 쓰는 곳에는 붙이지 않는다 — 본문이 통째로 도움말로 떠 편집을 가린다.
+      if (t.closest("[contenteditable], input, textarea, select, .ck")) return;
+      const cell = t.closest("td, th") as HTMLElement | null;
+      if (cell) { put(cell); return; }
+      // 표 밖(카드·목록 등)에서는 가리킨 지점에서 위로 올라가며 잘린 요소를 찾는다.
+      let el: HTMLElement | null = t;
+      for (let n = 0; el && n < 4 && el !== document.body; n++, el = el.parentElement) {
+        if (clipped(el)) { put(el); return; }
+      }
     }
     document.addEventListener("mouseover", onOver, true);
     return () => document.removeEventListener("mouseover", onOver, true);
@@ -175,10 +228,16 @@ export default function Layout({ children }: { children: ReactNode }) {
           {GROUPS.map((g) => {
             const items = g.items.filter(visible);
             if (!items.length) return null;
+            // 지금 보고 있는 화면이 든 그룹이라도 누르면 접힌다 — 눌러도 안 접히면 고장으로 읽힌다.
+            // 현재 위치는 화면 상단의 빵부스러기가 알려 준다.
+            const shut = shutGroups.includes(g.title);
             return (
               <div key={g.title} className="nav-group">
-                <div className="nav-title">{g.title}</div>
-                {items.map((it) => (
+                <button type="button" className="nav-title" data-testid={`nav-group-${g.title}`}
+                  aria-expanded={!shut} onClick={() => toggleGroup(g.title)}>
+                  <span>{g.title}</span><span className="nav-caret">{shut ? "▸" : "▾"}</span>
+                </button>
+                {!shut && items.map((it) => (
                   <NavLink key={it.to} to={it.to} end className={({ isActive }) => "nav-link" + (isActive ? " active" : "")} data-testid={`nav-${it.to}`}>
                     <span className="nav-ico"><Icon name={it.icon} /></span>{it.label}
                   </NavLink>

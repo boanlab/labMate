@@ -310,7 +310,7 @@ export default function Payroll() {
                   {MONTHS.map((m) => <th key={m} {...paySort.th(`m${m}`)} style={{ textAlign: "center" }}>{Number(m)}월{paySort.mark(`m${m}`)}</th>)}
                   <th {...paySort.th("annual", "col-stick-r")}>연 합계{paySort.mark("annual")}</th>
                 </tr>
-                <tr style={{ background: "var(--soft)" }}><th className="muted small">지급확정</th>{MONTHS.map((mm) => <th key={mm} style={{ textAlign: "center" }} className="muted small">{monthPend(mm) > 0 ? `미확정 ${monthPend(mm)}` : (payMonthTotal(mm) ? "완료" : "—")}</th>)}<th></th></tr>
+                <tr style={{ background: "var(--soft)" }}><th className="muted small col-stick-l">지급확정</th>{MONTHS.map((mm) => <th key={mm} style={{ textAlign: "center" }} className="muted small">{monthPend(mm) > 0 ? `미확정 ${monthPend(mm)}` : (payMonthTotal(mm) ? "완료" : "—")}</th>)}<th className="col-stick-r"></th></tr>
               </thead>
               <tbody>
                 {paySort.apply(payStudents, {
@@ -325,7 +325,7 @@ export default function Payroll() {
                   </tr>
                 ))}
                 {!payStudents.length && <tr><td colSpan={14} className="muted">지급 내역 없음 — [참여율 편성]에서 먼저 입력하세요</td></tr>}
-                <tr style={{ fontWeight: 700, background: "var(--soft)" }}><td>월 합계</td>{MONTHS.map((mm) => <td key={mm} style={{ textAlign: "center", fontSize: 11 }}>{payMonthTotal(mm) ? won(payMonthTotal(mm)) : "—"}</td>)}<td>{won(students.reduce((a, u) => a + payAnnual(u.id), 0))}</td></tr>
+                <tr style={{ fontWeight: 700, background: "var(--soft)" }}><td className="col-stick-l" style={{ background: "var(--soft)" }}>월 합계</td>{MONTHS.map((mm) => <td key={mm} style={{ textAlign: "center", fontSize: 11 }}>{payMonthTotal(mm) ? won(payMonthTotal(mm)) : "—"}</td>)}<td className="col-stick-r" style={{ background: "var(--soft)" }}>{won(students.reduce((a, u) => a + payAnnual(u.id), 0))}</td></tr>
               </tbody>
             </table>
           </div>
