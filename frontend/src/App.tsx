@@ -92,8 +92,8 @@ function App() {
           <Route path="/infra" element={<Protected><Infra /></Protected>} />
           <Route path="/booking" element={<Protected roles={NO_STAFF}><Booking /></Protected>} />
           <Route path="/members" element={<Protected><Members /></Protected>} />
-          <Route path="/philosophy" element={<Protected roles={NO_STAFF}><Philosophy /></Protected>} />
-          <Route path="/coaching" element={<Protected roles={["prof", "staff", "admin"]} strict><Coaching /></Protected>} />
+          <Route path="/philosophy" element={<Protected roles={["prof"]} strict><Philosophy /></Protected>} />
+          <Route path="/coaching" element={<Protected roles={["prof"]} strict><Coaching /></Protected>} />
           <Route path="/mypage" element={<Protected><MyPage /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

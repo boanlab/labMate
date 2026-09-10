@@ -417,12 +417,9 @@ async def philosophy_extract(category: str, user: CurrentUser = Depends(_require
 
 
 @router.get("/philosophy/principles", response_model=list[schemas.PrincipleOut])
-def principles_list(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """교수·관리자는 초안까지, 학생은 승인된 지침만 본다(무엇을 기준으로 지도받는지 알 수 있어야 한다)."""
-    stmt = select(Principle).order_by(Principle.category, Principle.order)
-    if user.role not in ("prof", "admin"):
-        stmt = stmt.where(Principle.approved.is_(True))
-    return list(db.scalars(stmt))
+def principles_list(_: CurrentUser = Depends(_require_prof), db: Session = Depends(get_db)):
+    """지도 지침 목록 — 지도교수만. 지침은 멘토가 조언할 때 쓰는 근거이지 공개 문서가 아니다."""
+    return list(db.scalars(select(Principle).order_by(Principle.category, Principle.order)))
 
 
 @router.post("/philosophy/principles", response_model=schemas.PrincipleOut, status_code=201)

@@ -68,8 +68,9 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/members", label: "구성원", icon: "users", roles: EVERYONE },
   ] },
   { title: "지도", items: [
-    { to: "/philosophy", label: "지도 철학", icon: "book", roles: NO_STAFF },
-    { to: "/coaching", label: "지도 현황", icon: "users", roles: ["prof", "staff"] },
+    // 지도(指導)는 지도교수의 일이다 — 철학도 현황도 교수만 본다.
+    { to: "/philosophy", label: "지도 철학", icon: "book", roles: ["prof"] },
+    { to: "/coaching", label: "지도 현황", icon: "users", roles: ["prof"] },
   ] },
   { title: "관리", items: [
     { to: "/admin", label: "환경설정", icon: "shield", roles: ["admin"] },
