@@ -23,7 +23,13 @@ KST = timezone(timedelta(hours=9))
 
 
 def _hr_admin(u: CurrentUser) -> bool:
+    """휴가 결재 — 교수가 자리를 비워도 멈추면 안 되므로 행정·행정위임도 함께 본다."""
     return u.role in HR_ADMIN or u.delegated_admin
+
+
+def _att_admin(u: CurrentUser) -> bool:
+    """남의 근태 조회·정정 — 지도교수만. 근무시간을 고쳐 쓰는 일이라 위임하지 않는다."""
+    return u.role == "prof"
 
 
 def _kst_now() -> datetime:
@@ -73,7 +79,10 @@ def my_attendance(user: CurrentUser = Depends(get_current_user), db: Session = D
 
 @router.get("/attendance/today", response_model=list[schemas.AttendanceOut])
 def today_all(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """구성원 오늘 근태 현황 — 관리자/위임만 전체, 그 외 본인."""
+    """구성원 오늘 근태 현황 — 교수·행정·행정위임은 전체, 그 외 본인.
+
+    지금 누가 연구실에 있는지 보는 화면(대시보드)이라 정정 권한과는 별개로 둔다.
+    """
     rows = list(db.scalars(select(Attendance).where(Attendance.date == _today())))
     if not _hr_admin(user):
         rows = [r for r in rows if r.uid == user.id]
@@ -82,8 +91,8 @@ def today_all(user: CurrentUser = Depends(get_current_user), db: Session = Depen
 
 @router.get("/attendance/all", response_model=list[schemas.AttendanceOut])
 def list_all_attendance(uid: str = "", date_from: str = "", date_to: str = "", user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """구성원 근태 현황·이력 조회(관리자·위임) — 구성원·기간 필터."""
-    if not _hr_admin(user):
+    """구성원 근태 현황·이력 조회(지도교수) — 구성원·기간 필터."""
+    if not _att_admin(user):
         raise HTTPException(403, "권한이 없습니다")
     q = select(Attendance)
     if uid:
@@ -197,7 +206,7 @@ def _apply_correction(db, by_id, uid, date, check_in, check_out, status, note, r
 @router.post("/attendance/correct", response_model=schemas.AttendanceOut)
 def correct_attendance(body: schemas.CorrectionIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     """근태 보정 — 전/후 이력 기록."""
-    if not _hr_admin(user):
+    if not _att_admin(user):
         raise HTTPException(403, "근태 보정 권한이 없습니다")
     if not body.reason.strip():
         raise HTTPException(400, "보정 사유는 필수입니다")
@@ -220,10 +229,10 @@ def create_correct_request(body: schemas.CorrectionReqIn, user: CurrentUser = De
 
 @router.get("/attendance/correct-requests", response_model=list[schemas.CorrectionReqOut])
 def list_correct_requests(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """관리자는 전체, 일반 사용자는 본인 요청만 — 최신순."""
+    """지도교수는 전체, 그 외에는 본인 요청만 — 최신순."""
     q = select(CorrectionReq).order_by(CorrectionReq.created_at.desc())
     rows = list(db.scalars(q))
-    if not _hr_admin(user):
+    if not _att_admin(user):
         rows = [r for r in rows if r.uid == user.id]
     return rows
 
@@ -231,7 +240,7 @@ def list_correct_requests(user: CurrentUser = Depends(get_current_user), db: Ses
 @router.post("/attendance/correct-requests/{rid}/decide", response_model=schemas.CorrectionReqOut)
 def decide_correct_request(rid: str, decision: str, note: str = "", user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     """정정 요청 승인/반려 — 승인 시 보정 적용."""
-    if not _hr_admin(user):
+    if not _att_admin(user):
         raise HTTPException(403, "정정 요청 처리 권한이 없습니다")
     r = db.get(CorrectionReq, rid)
     if not r or r.deleted_at:
@@ -257,14 +266,14 @@ def decide_correct_request(rid: str, decision: str, note: str = "", user: Curren
 @router.get("/attendance/at", response_model=schemas.AttendanceOut | None)
 def attendance_at(uid: str, date: date, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     """특정 구성원·일자의 근태 레코드 조회(근태 보정 자동 채움용) — 없으면 null."""
-    if not _hr_admin(user):
+    if not _att_admin(user):
         raise HTTPException(403, "권한이 없습니다")
     return db.scalar(select(Attendance).where(Attendance.uid == uid, Attendance.date == date))
 
 
 @router.get("/attendance/logs", response_model=list[schemas.AttLogOut])
 def attendance_logs(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not _hr_admin(user):
+    if not _att_admin(user):
         raise HTTPException(403, "조회 권한이 없습니다")
     return list(db.scalars(select(AttLog).order_by(AttLog.at.desc())))
 

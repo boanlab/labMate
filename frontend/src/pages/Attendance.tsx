@@ -34,6 +34,8 @@ export default function Attendance() {
   const [reqs, setReqs] = useState<Req[]>([]);
   const [err, setErr] = useState("");
   const today = workdayKST();       // 새벽 6시 전이면 전날 근무로 본다(서버와 같은 규칙)
+  const isProf = me?.role === "prof";   // 지도교수는 근태 기록 대상이 아니다(대시보드와 같은 규칙)
+  const PROF_OFF = "지도교수는 근태 대상이 아닙니다";
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [reqForm, setReqForm] = useState<null | { date: string; check_in: string; check_out: string; requested_status: string; reason: string }>(null);
@@ -107,7 +109,8 @@ export default function Attendance() {
         <div className="card-h"><b>오늘 내 출퇴근</b></div>
         <div className="bd" style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ flex: 1 }} data-testid="att-today">
-            상태: <b>{todayRec?.status || "미체크"}</b> · 출근 {todayRec?.check_in || "—"} / 퇴근 {todayRec?.check_out || "—"} · 근무 <b>{fmtWork(workMin(todayRec))}</b>
+            상태: <b>{isProf ? "해당 없음" : (todayRec?.status || "미체크")}</b> · 출근 {todayRec?.check_in || "—"} / 퇴근 {todayRec?.check_out || "—"} · 근무 <b>{fmtWork(workMin(todayRec))}</b>
+            {isProf && <span className="muted small"> · {PROF_OFF}</span>}
             {todayRec?.status === "자리비움" && <span className="muted small"> · 자리비움 중이라 근무시간이 늘지 않습니다</span>}
             {today !== todayKST() && <span className="muted small"> · 새벽 {WORKDAY_START_HOUR}시 전이라 {today} 근무로 기록됩니다</span>}
           </div>
@@ -119,11 +122,12 @@ export default function Attendance() {
               {/* 지금 가능한 동작을 강조한다 — 비활성 버튼이 더 진하면 어느 쪽을 눌러야 할지 반대로 읽힌다.
                   출근한 뒤에는 출근 버튼이 할 일이 없으므로 그 자리를 자리비움(비운 동안은 복귀)이 대신한다. */}
               {!inWork
-                ? <button className="btn primary" data-testid="att-checkin" onClick={checkIn}>출근 체크</button>
+                ? <button className="btn primary" data-testid="att-checkin" disabled={isProf} title={isProf ? PROF_OFF : undefined} onClick={checkIn}>출근 체크</button>
                 : away
                   ? <button className="btn primary" data-testid="att-back" onClick={comeBack}>복귀</button>
                   : <button className="btn ghost" data-testid="att-away" onClick={goAway} title="잠시 자리를 비웁니다 — 비운 시간은 근무시간에서 빠집니다">자리비움</button>}
-              <button className={"btn " + (inWork && !away ? "primary" : "ghost")} data-testid="att-checkout" disabled={!inWork} onClick={checkOut}>퇴근 체크</button>
+              <button className={"btn " + (inWork && !away ? "primary" : "ghost")} data-testid="att-checkout" disabled={isProf || !inWork}
+                title={isProf ? PROF_OFF : undefined} onClick={checkOut}>퇴근 체크</button>
             </>;
           })()}
         </div>
