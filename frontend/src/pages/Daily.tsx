@@ -6,8 +6,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api, apiError } from "../api/client";
+import { onPrefsReady, peekPref, setPref } from "../api/prefs";
 import { todayKST } from "../lib/date";
 import { confirmDialog } from "../ui/dialog";
+import HtmlEditor from "../ui/HtmlEditorLazy";
+import { htmlToPlain, plainToHtml } from "../ui/html";
 import { Card, PageHeader } from "../ui/kit";
 import { MentorButton } from "../ui/Mentor";
 
@@ -41,6 +44,13 @@ function addMonth(day: string, n: number): string {
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const label = (day: string) => `${day} (${WD[new Date(day + "T00:00:00").getDay()]})`;
 
+// 보고서 임시저장 — 계정에 둔다. 초안을 쓰다 만 채 다른 PC 로 옮겨 가는 일이 흔하다.
+// 기간별로 따로 보관하되(주 하나 쓰다 지난주 것을 열어도 잃지 않도록) 최근 5건까지만 남긴다.
+const DRAFT_KEY = "daily_report_drafts";
+type Drafts = Record<string, { html: string; at: string }>;
+const readDrafts = (): Drafts => peekPref<Drafts>(DRAFT_KEY) || {};
+const stamp = () => new Date().toTimeString().slice(0, 5);
+
 export default function Daily() {
   const today = todayKST();
   const [day, setDay] = useState(today);
@@ -54,6 +64,10 @@ export default function Daily() {
   // 보고 기간은 일지에서 보고 있는 날과 따로 움직인다 — 뒤늦게 지난주 보고를 써야 하는 일이 흔하다.
   const [anchor, setAnchor] = useState(today);
   const [report, setReport] = useState("");
+  const [savedAt, setSavedAt] = useState("");     // 임시저장 시각(빈 값이면 저장된 초안 없음)
+  const loadedKey = useRef("");                   // 지금 화면에 올려 둔 초안의 기간 — 기간 전환 중 덮어쓰기 방지
+  const reportRef = useRef("");
+  reportRef.current = report;
   const addRef = useRef<HTMLInputElement | null>(null);
 
   // 보고 기간은 달을 걸칠 수 있다(예: 8/31~9/6). 보고 있는 달과 보고 기간을 모두 덮는 범위를 받는다.
@@ -121,26 +135,94 @@ export default function Daily() {
     } catch (e) { setErr(apiError(e)); }
   }
 
-  // ── 보고서 초안 — 기간 안의 기록을 과제별로 묶는다(사실만, AI 없이) ──
+  // ── 보고서 초안 — 결재의 주간·월간보고 서식에 맞춰 만든다(사실만, AI 없이) ──
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  /** 09-07 / 09-07~09-11 */
+  const dayRange = (days: string[]) => {
+    const d = [...days].sort(); const f = (x: string) => x.slice(5).replace("-", ".");
+    return d.length > 1 ? `${f(d[0])}~${f(d[d.length - 1])}` : f(d[0]);
+  };
+  type Row = { title: string; code: string; note: string; days: string[]; done: boolean };
+  const BLANK = "<ul><li></li></ul>";   // 채워 넣을 자리만 만들어 둔다
+  /** 과제별로 묶어 목록으로. 결재 양식이 "과제 > 업무내용" 두 단계라 그 모양을 따른다. */
+  function listOf(rows: Row[], withNote: boolean): string {
+    if (!rows.length) return "<ul><li>없음</li></ul>";
+    const byCode: Record<string, Row[]> = {};
+    rows.forEach((r) => { (byCode[r.code] ||= []).push(r); });
+    return Object.keys(byCode).sort().map((code) =>
+      `<ul><li>${esc(code)}<ul>` + byCode[code].map((r) =>
+        // 항목마다 완료/진행 중을 못 박는다 — "합계 7건 중 완료 1건"만으로는 어느 것이 끝났는지 알 수 없다.
+        `<li>${esc(r.title)} (${dayRange(r.days)} · ${r.done ? "완료" : "진행 중"}${withNote && r.note ? ` · ${esc(r.note)}` : ""})</li>`).join("") +
+      "</ul></li></ul>").join("");
+  }
   function buildReport(): string {
     const rows = logs.filter((l) => l.date >= range[0] && l.date <= range[1]);
     if (!rows.length) return "";
-    const groups: Record<string, Log[]> = {};
-    rows.forEach((l) => { (groups[codeOf(l.project_id) || "기타"] ||= []).push(l); });
-    const head = `[${span === "week" ? "주간" : "월간"} 업무 보고] ${range[0]} ~ ${range[1]}`;
-    const body = Object.keys(groups).sort().map((code) => {
-      const lines = groups[code]
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .map((l) => `- ${l.date} ${l.title}${l.note ? ` — ${l.note}` : ""}${l.done ? "" : " (진행 중)"}`);
-      return `${code}\n${lines.join("\n")}`;
-    }).join("\n\n");
-    const n = rows.length, d = rows.filter((l) => l.done).length;
-    return `${head}\n\n${body}\n\n합계: ${n}건 중 완료 ${d}건 · 진행 중 ${n - d}건`;
+    // 같은 일이 여러 날 이어지면 한 줄로 합친다 — 날마다 반복해 적으면 보고서를 읽을 수 없다.
+    const merged = new Map<string, Row>();
+    rows.forEach((l) => {
+      const code = codeOf(l.project_id) || "기타";
+      const key = `${code}|${l.title.trim()}`;
+      const cur = merged.get(key) || { title: l.title.trim(), code, note: "", done: false, days: [] };
+      cur.days.push(l.date);
+      if (l.done) cur.done = true;
+      if (l.note.trim()) cur.note = l.note.trim();
+      merged.set(key, cur);
+    });
+    const items = [...merged.values()];
+    const done = items.filter((r) => r.done);
+    const open = items.filter((r) => !r.done);
+    const head = span === "week"
+      ? `<h2>주간 업무 보고</h2><p>${range[0]} ~ ${range[1]}</p>`
+      : `<h2>월간 업무 보고</h2><p>${Number(range[0].slice(0, 4))}년 ${Number(range[0].slice(5, 7))}월</p>`;
+    const body = span === "week"
+      // 계획 칸은 비워 둔다 — 앞으로 할 일은 기록이 아니라 판단이라 사람이 직접 적어야 한다.
+      ? `<h3>금주 추진 업무</h3>${listOf(items, true)}<h3>차주 계획</h3>${BLANK}`
+      : `<h3>주요 업무 추진 실적</h3>${listOf(done, true)}`
+        + `<h3>미달성 업무 및 사유</h3>${listOf(open, true)}`
+        + `<h3>다음 달 계획</h3>${BLANK}`;
+    return `${head}${body}<p>합계: ${items.length}건 중 완료 ${done.length}건 · 진행 중 ${open.length}건</p>`;
   }
-  function makeReport() {
+  // 기간을 고르면 그 기간의 임시저장본을 올린다. 설정이 늦게 도착해도(새로고침 직후)
+  // 초안이 되살아나도록 도착 신호에 한 번 더 맞춘다 — 다만 이미 쓰고 있으면 건드리지 않는다.
+  const repKey = `${span}:${range[0]}`;
+  useEffect(() => {
+    const apply = () => {
+      if (loadedKey.current === repKey && reportRef.current) return;
+      const d = readDrafts()[repKey];
+      setReport(d ? d.html : "");
+      setSavedAt(d ? d.at : "");
+      loadedKey.current = repKey;
+    };
+    apply();
+    return onPrefsReady(apply);
+  }, [repKey]);
+
+  // 고칠 때마다 저장한다(setPref 가 0.4초 모았다 보낸다 — 타자마다 요청이 나가지 않는다).
+  useEffect(() => {
+    if (loadedKey.current !== repKey || !report) return;
+    const at = stamp();
+    const next: Drafts = { ...readDrafts(), [repKey]: { html: report, at } };
+    // 최근 5건만 — 설정 한 칸에 초안이 무한정 쌓이지 않도록
+    const keys = Object.keys(next);
+    if (keys.length > 5) keys.sort((a, b) => (next[a].at < next[b].at ? -1 : 1)).slice(0, keys.length - 5).forEach((k) => delete next[k]);
+    setPref(DRAFT_KEY, next);
+    setSavedAt(at);
+  }, [report, repKey]);
+
+  async function makeReport() {
+    if (report && !await confirmDialog("쓰고 있던 초안을 기록으로 다시 만든 초안이 덮어씁니다. 계속할까요?")) return;
     const t = buildReport();
     setReport(t);
     if (!t) setErr("이 기간에 기록이 없습니다");
+  }
+  /** 임시저장본 버리기 — 이 기간 것만 지운다. */
+  async function dropDraft() {
+    if (!await confirmDialog("이 기간의 임시저장본을 지울까요?", { danger: true })) return;
+    const next = { ...readDrafts() };
+    delete next[repKey];
+    setPref(DRAFT_KEY, next);
+    setReport(""); setSavedAt("");
   }
 
   return (
@@ -226,20 +308,27 @@ export default function Daily() {
                 : <>{Number(range[0].slice(0, 4))}년 {Number(range[0].slice(5, 7))}월 전체 · {range[0]} ~ {range[1]}</>}
             </span>
           </span>
-          <button className="btn primary sm" data-testid="daily-report" onClick={makeReport}>보고서 초안 만들기</button>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            {savedAt && <span className="muted small" data-testid="daily-draft-saved">임시저장됨 {savedAt}</span>}
+            <button className="btn primary sm" data-testid="daily-report" onClick={makeReport}>보고서 초안 만들기</button>
+          </span>
         </div>
         {report && (
           <>
-            <textarea value={report} onChange={(e) => setReport(e.target.value)} data-testid="daily-report-out"
-              style={{ width: "100%", minHeight: 220, fontFamily: "inherit" }} aria-label="보고서 초안" />
+            {/* 결재 기안에 그대로 옮겨 갈 글이라 서식을 살려 고칠 수 있어야 한다 */}
+            <div data-testid="daily-report-out">
+              <HtmlEditor value={report} onChange={setReport} minHeight={260} testid="daily-report-editor" />
+            </div>
             <div className="field-head">
-              <span className="muted small">그대로 결재 기안·주간보고에 붙여 넣으세요</span>
+              <span />   {/* 자리만 잡는다 — .field-head 는 첫 칸이 남는 폭을 먹어 버튼을 오른쪽으로 민다 */}
               <MentorButton feature="report" label="멘토 점검" collect={() => ({
                 title: `${span === "week" ? "주간" : "월간"} 업무 보고 (${range[0]} ~ ${range[1]})`,
-                body: report,
+                body: htmlToPlain(report),
                 context: { 기간: `${range[0]} ~ ${range[1]}` },
-              })} onApply={(t) => setReport(t)} />
-              <button className="btn ghost sm" onClick={() => navigator.clipboard.writeText(report).catch(() => setErr("복사하지 못했습니다"))}>복사</button>
+              })} onApply={(t) => setReport(plainToHtml(t))} />
+              <button className="btn ghost sm"
+                onClick={() => navigator.clipboard.writeText(htmlToPlain(report)).catch(() => setErr("복사하지 못했습니다"))}>복사</button>
+              <button className="btn ghost sm" data-testid="daily-draft-drop" onClick={dropDraft}>초안 버리기</button>
             </div>
           </>
         )}
