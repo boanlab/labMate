@@ -463,6 +463,11 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .lnk { color: var(--brand); cursor: pointer; }
 .lnk:hover { text-decoration: underline; }
 
+/* 알림 머리글 — 제목 옆으로 '모두 읽음·모두 지우기'. .menu-pop button 의 전체폭 규칙을 되돌린다. */
+.notif-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.notif-acts { margin-left: auto; display: inline-flex; gap: 4px; }
+.menu-pop .notif-acts button { display: inline-flex; width: auto; padding: 3px 8px; font-size: 11.5px; border: 1px solid var(--line); border-radius: 7px; }
+.notif-dot { flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 999px; background: #c0392f; }
 .notif-badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 999px; background: #c0392f; color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 
 /* 연구노트 — 트리 사이드바 + 에디터 (뷰포트 높이 채움, 내부 스크롤) */
