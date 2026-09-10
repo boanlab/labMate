@@ -3,6 +3,7 @@ import { useDirectory } from "../api/directory";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { richHtml } from "../ui/richHtml";
 import { todayKST } from "../lib/date";
+import { selectable } from "../lib/members";
 import { useSearchParams } from "react-router-dom";
 import { api, apiError } from "../api/client";
 import { confirmDialog, alertDialog, promptDialog } from "../ui/dialog";
@@ -532,7 +533,7 @@ export default function Projects({ kind = "grant" }: { kind?: "grant" | "activit
                 <input id={`${uid}-1`} data-testid="tf-title" value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} required />
                 <div className="grid2">
                   <div><label htmlFor={`${uid}-2`}>상태</label><select id={`${uid}-2`} value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}>{["예정", "진행 중", "완료"].map((s) => <option key={s}>{s}</option>)}</select></div>
-                  <div><label htmlFor={`${uid}-3`}>담당자</label><select id={`${uid}-3`} value={taskForm.assignee_id} onChange={(e) => setTaskForm({ ...taskForm, assignee_id: e.target.value })}><option value="">미지정</option>{users.filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+                  <div><label htmlFor={`${uid}-3`}>담당자</label><select id={`${uid}-3`} value={taskForm.assignee_id} onChange={(e) => setTaskForm({ ...taskForm, assignee_id: e.target.value })}><option value="">미지정</option>{selectable(users, taskForm.assignee_id).filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
                   <div><label htmlFor={`${uid}-4`}>시작일<Req/></label><input id={`${uid}-4`} type="date" min={open.start || undefined} max={taskForm.due || open.end || undefined} value={taskForm.start} onChange={(e) => setTaskForm({ ...taskForm, start: e.target.value })} /></div>
                   <div><label htmlFor={`${uid}-5`}>마감일<Req/></label><input id={`${uid}-5`} type="date" min={taskForm.start || open.start || undefined} max={open.end || undefined} value={taskForm.due} onChange={(e) => setTaskForm({ ...taskForm, due: e.target.value })} /></div>
                   <div><label htmlFor={`${uid}-6`}>실제 마감일 <span className="muted small">(완료 시 자동)</span></label><input id={`${uid}-6`} type="date" data-testid="tf-donedate" value={taskForm.done_date} onChange={(e) => setTaskForm({ ...taskForm, done_date: e.target.value })} /></div>

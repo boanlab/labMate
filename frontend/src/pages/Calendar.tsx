@@ -7,6 +7,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, Req } from "../ui/kit";
 import { useConfig, names } from "../api/config";
 import { todayKST } from "../lib/date";
+import { selectable } from "../lib/members";
 import { usePref } from "../api/prefs";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { MentorButton } from "../ui/Mentor";
@@ -284,7 +285,7 @@ export default function Calendar() {
                 {days.map((d, i) => (
                   <div key={i} className="wk-col" onClick={() => setDayModal(ymd(d))}>
                     {(byDate[ymd(d)] || []).filter((e) => !spanOf(e.time)).map((e) => (
-                      <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={evLabel(e)}>{e.title}</span>
+                      <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={evLabel(e)}>{e.recurring ? "🔁 " : ""}{evLabel(e)}</span>
                     ))}
                   </div>
                 ))}

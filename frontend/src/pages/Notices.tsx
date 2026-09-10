@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useId } from "react";
 import { useDirectory } from "../api/directory";
+import { selectable } from "../lib/members";
 import { richHtml } from "../ui/richHtml";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST, dateKST } from "../lib/date";
@@ -35,7 +36,7 @@ export default function Notices() {
   const [baseAt, setBaseAt] = useState<string | null>(null);   // 편집 시작 시점(낙관적 잠금)
   const today = todayKST();
   const uname = useDirectory();
-  const members = users.filter((u) => u.active !== false && u.role !== "admin");
+  const members = selectable(users, form.target_user_ids).filter((u) => u.role !== "admin");
 
   const tableRef = useColumnResize("notices");
   const sort = useTableSort({ key: "created", dir: -1 }, "notices");   // 기본: 최근 등록순
