@@ -38,7 +38,9 @@ body { margin: 0; font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-
 a { color: var(--brand); }
 
 button { font-family: inherit; cursor: pointer; }
-.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 8px 14px; font-size: 14px; white-space: nowrap; transition: background .12s, border-color .12s, box-shadow .12s, opacity .12s; }
+/* line-height 를 고정한다 — 이모지(✨·✕)는 글자보다 위아래로 큰 글꼴에서 나오므로,
+   기본값(normal)이면 그 버튼만 옆 버튼보다 높아진다. */
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 8px 14px; font-size: 14px; line-height: 1.35; white-space: nowrap; transition: background .12s, border-color .12s, box-shadow .12s, opacity .12s; }
 .btn:not(:disabled):hover { border-color: #cdd5df; }
 body.dark .btn:not(:disabled):hover { border-color: #2f3a4c; }
 .btn.primary { background: var(--brand-solid); color: #fff; border-color: var(--brand-solid); box-shadow: 0 1px 2px rgba(63,93,125,.28); }
