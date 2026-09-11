@@ -41,7 +41,6 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/grants", label: "연구과제", icon: "award", roles: ALL },
     { to: "/projects", label: "프로젝트", icon: "folder", roles: NO_STAFF },
     { to: "/publications", label: "실적", icon: "award", roles: ALL },
-    { to: "/archive", label: "아카이브", icon: "folder", roles: ALL },
   ] },
   // 남과 주고받는 것. 전자결재도 결국 문서를 넘기는 절차라 여기에 둔다.
   { title: "소통", items: [

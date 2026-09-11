@@ -14,7 +14,7 @@ const SCREEN: Record<string, string> = {
   "/booking": "자원예약", "/notices": "공지사항", "/board": "게시판", "/meetings": "회의록",
   "/budget": "예산", "/payroll": "학생인건비", "/expenses": "연구비집행", "/attendance": "출퇴근",
   "/leave": "휴가", "/members": "구성원", "/publications": "실적", "/daily": "업무일지",
-  "/archive": "아카이브", "/philosophy": "지도 철학", "/mypage": "마이페이지",
+  "/philosophy": "지도 철학", "/mypage": "마이페이지",
 };
 
 type Msg = { role: "user" | "assistant"; content: string };

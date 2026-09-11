@@ -25,7 +25,6 @@ import Leave from "./pages/Leave";
 import Notices from "./pages/Notices";
 import Board from "./pages/Board";
 import Notes from "./pages/Notes";
-import Archive from "./pages/Archive";
 import Meetings from "./pages/Meetings";
 import CalendarPage from "./pages/Calendar";
 import Approvals from "./pages/Approvals";
@@ -38,7 +37,7 @@ import { ReactNode } from "react";
 const STUDENT5 = ["prof", "phd", "master", "under", "staff"];
 // 근태 기록 대상 — 지도교수는 출퇴근을 찍지 않는다(근태 관리는 지도교수 몫).
 const TRACKED = ["phd", "master", "under", "staff"];
-// 행정(staff) 차단 모듈 — 프로젝트·전자결재·자원예약·게시판·회의록·아카이브. 위임 학생은 본인 역할로 접근.
+// 행정(staff) 차단 모듈 — 프로젝트·전자결재·자원예약·게시판·회의록. 위임 학생은 본인 역할로 접근.
 const NO_STAFF = ["prof", "phd", "master", "under"];
 function Protected({ children, roles, strict }: { children: ReactNode; roles?: string[]; strict?: boolean }) {
   const { me, loading } = useAuth();
@@ -87,7 +86,6 @@ function App() {
           <Route path="/board" element={<Protected roles={NO_STAFF}><Board /></Protected>} />
           <Route path="/meetings" element={<Protected roles={NO_STAFF}><Meetings /></Protected>} />
           <Route path="/approvals" element={<Protected roles={NO_STAFF}><Approvals /></Protected>} />
-          <Route path="/archive" element={<Protected roles={STUDENT5}><Archive /></Protected>} />
           <Route path="/assets" element={<Protected><Assets /></Protected>} />
           <Route path="/infra" element={<Protected><Infra /></Protected>} />
           <Route path="/booking" element={<Protected roles={NO_STAFF}><Booking /></Protected>} />

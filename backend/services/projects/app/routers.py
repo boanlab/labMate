@@ -22,7 +22,7 @@ from labmate_common.deps import CurrentUser, get_current_user
 from labmate_common.notifications import notify
 
 from . import schemas
-from .models import (ArchivePage, DailyLog, KeyResult, Milestone, NotePage, Objective, Project,
+from .models import (DailyLog, KeyResult, Milestone, NotePage, Objective, Project,
                      Publication, Task)
 
 router = APIRouter()
@@ -405,60 +405,7 @@ def delete_note(nid: str, user: CurrentUser = Depends(get_current_user), db: Ses
     db.commit()
 
 
-# ── 자료실(트리형 문서) ── 전 구성원 열람·작성·수정, 삭제는 작성자·교수
-def _arch_can_delete(user: CurrentUser, p: ArchivePage) -> bool:
-    return p.owner_id == user.id or user.role in ("prof", "admin") or bool(user.delegated_admin)
-
-
-@router.get("/archive", response_model=list[schemas.ArchiveOut])
-def list_archive(_: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    return list(db.scalars(select(ArchivePage).order_by(ArchivePage.sort)))
-
-
-@router.post("/archive", response_model=schemas.ArchiveOut, status_code=201)
-def create_archive(body: schemas.ArchiveIn, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    data = body.model_dump()
-    if data.get("sort") is None:                                   # 형제 마지막에 배치
-        sibs = list(db.scalars(select(ArchivePage).where(ArchivePage.parent_id == data["parent_id"])))
-        data["sort"] = (max((s.sort for s in sibs), default=0) + 1)
-    p = ArchivePage(owner_id=user.id, updated_by=user.id, **data)
-    db.add(p); db.commit(); db.refresh(p)
-    return p
-
-
-@router.patch("/archive/{aid}", response_model=schemas.ArchiveOut)
-def update_archive(aid: str, body: schemas.ArchivePatch, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    p = db.get(ArchivePage, aid)
-    if not p:
-        raise HTTPException(404, "자료 없음")
-    for k, v in body.model_dump(exclude_unset=True).items():
-        setattr(p, k, v)
-    p.updated_by = user.id
-    db.commit(); db.refresh(p)
-    return p
-
-
-@router.delete("/archive/{aid}", status_code=204)
-def delete_archive(aid: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    p = db.get(ArchivePage, aid)
-    if not p:
-        return
-    if not _arch_can_delete(user, p):
-        raise HTTPException(403, "삭제 권한이 없습니다 (작성자·교수만)")
-    now = datetime.now(timezone.utc)
-    ids = {aid}                                                    # 하위 트리 전체 소프트 삭제
-    while True:
-        children = list(db.scalars(select(ArchivePage).where(ArchivePage.parent_id.in_(ids))))
-        new = {c.id for c in children} - ids
-        if not new:
-            break
-        ids |= new
-    for x in db.scalars(select(ArchivePage).where(ArchivePage.id.in_(ids))):
-        x.deleted_at = now
-    db.commit()
-
-
-# ── 문서 ZIP 내보내기 ── 트리=폴더, 페이지=<제목>.html, 자료실은 첨부 포함
+# ── 문서 ZIP 내보내기 ── 트리=폴더, 페이지=<제목>.html
 def _safe_name(name: str) -> str:
     n = re.sub(r'[\\/:*?"<>|\r\n]+', "_", (name or "").strip())
     return n or "무제"
@@ -502,15 +449,6 @@ def export_notes(user: CurrentUser = Depends(get_current_user), db: Session = De
         raise HTTPException(403, "권한이 없습니다")
     buf = _docs_zip(list(db.scalars(select(NotePage).order_by(NotePage.sort))), with_files=False)
     return StreamingResponse(buf, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=labmate-notes.zip"})
-
-
-@router.get("/archive/export")
-def export_archive(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """연구실 전체 자료실 → ZIP(첨부 포함). 교수·행정·위임·관리자."""
-    if not _is_work_admin(user):
-        raise HTTPException(403, "권한이 없습니다")
-    buf = _docs_zip(list(db.scalars(select(ArchivePage).order_by(ArchivePage.sort))), with_files=True)
-    return StreamingResponse(buf, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=labmate-archive.zip"})
 
 
 # ── 목표(OKR) ──
