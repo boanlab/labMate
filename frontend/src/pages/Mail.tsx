@@ -266,7 +266,6 @@ export default function Mail() {
                           {m.subject}
                           {m.attachments > 0 && <span className="mail-clip" title="첨부 있음"> 📎</span>}
                         </span>
-                        {m.preview && <span className="mail-preview">{m.preview}</span>}
                       </span>
                       <span className={"mail-star" + (m.flagged ? " on" : "")} role="button" tabIndex={-1}
                         data-testid={`mail-star-${m.uid}`} onClick={(e) => { e.stopPropagation(); star(m); }}>{m.flagged ? "★" : "☆"}</span>

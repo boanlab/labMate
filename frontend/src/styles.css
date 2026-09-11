@@ -578,7 +578,6 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .mail-from { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mail-when { flex: none; font-size: 11px; color: var(--sub); }
 .mail-subject { display: block; font-size: 12.5px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mail-preview { display: block; font-size: 12px; color: var(--sub); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mail-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--brand-solid); margin-right: 5px; vertical-align: middle; }
 .mail-re { color: var(--brand); }
 .mail-clip { color: var(--sub); }
