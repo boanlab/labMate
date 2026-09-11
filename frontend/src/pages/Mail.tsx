@@ -338,13 +338,13 @@ function AccountSetup({ accounts, domain, onClose }: { accounts: Account[]; doma
           {!form && (
             <>
               <table className="tbl" data-testid="mail-acc-table">
-                <thead><tr><th>이름</th><th>주소</th><th style={{ width: 110 }}>비밀번호</th><th style={{ width: 210 }}></th></tr></thead>
+                <thead><tr><th>이름</th><th>주소</th><th style={{ width: 90 }}>비밀번호</th><th style={{ width: 210 }}></th></tr></thead>
                 <tbody>
                   {rows.map((a) => (
                     <tr key={a.id}>
                       <td>{a.label}{a.is_default && <span className="pill">기본</span>}</td>
                       <td>{a.address}</td>
-                      <td className="muted small">{a.hint || "—"}</td>
+                      <td className="muted small">{a.hint ? "설정됨" : "없음"}</td>
                       <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                         <button className="btn ghost sm" disabled={busy} onClick={() => test(a)}>연결 확인</button>{" "}
                         <button className="btn ghost sm" onClick={() => { setEditId(a.id); setAdv(!!a.imap_host || !!a.smtp_host); setForm({ ...emptyAcc, ...a, password: "" }); }}>수정</button>{" "}

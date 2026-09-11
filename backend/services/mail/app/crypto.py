@@ -31,9 +31,9 @@ def decrypt(token: str) -> str:
 
 
 def mask(raw: str) -> str:
-    """화면 표시용 — 앞 8자와 뒤 4자만 남긴다."""
-    if not raw:
-        return ""
-    if len(raw) <= 14:
-        return raw[:2] + "•" * 6
-    return f"{raw[:8]}{'•' * 6}{raw[-4:]}"
+    """비밀번호가 들어 있는지만 알린다 — 앞뒤 몇 글자도 내보내지 않는다.
+
+    (mentor 의 API 키는 어느 키인지 알아보라고 앞 8자를 남기지만, 메일 비밀번호는
+     사람이 기억하는 짧은 문자열이라 일부만 보여도 나머지를 좁히는 단서가 된다.)
+    """
+    return "\u2022" * 8 if raw else ""
