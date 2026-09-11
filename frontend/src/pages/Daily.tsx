@@ -120,12 +120,16 @@ export default function Daily() {
    *  지난 기록은 그대로 둔다(그 날 못 끝냈다는 사실이 일지의 내용이다).
    *  같은 제목은 하나만, 이미 이 날에 있는 것은 건너뛴다. */
   async function carryOver() {
+    // 같은 일이 여러 날에 걸쳐 적히므로 제목별로 '가장 최근에 적은 것'만 본다.
+    // 날마다 따로 보면 8일에 못 끝낸 일이 10일에 끝났어도 8일 기록을 보고 남은 일로 여긴다.
     const here = new Set(ofDay.map((l) => l.title.trim()));
-    const pick = new Map<string, Log>();
-    logs.filter((l) => l.date < day && !l.done)
+    const last = new Map<string, Log>();
+    logs.filter((l) => l.date < day)
       .sort((a, b) => a.date.localeCompare(b.date))
-      .forEach((l) => { const t = l.title.trim(); if (t && !here.has(t)) pick.set(t, l); });
-    const prev = [...pick.values()].slice(0, 20);      // 한 번에 쏟아지지 않게 상한을 둔다
+      .forEach((l) => { const t = l.title.trim(); if (t) last.set(t, l); });
+    const prev = [...last.values()]
+      .filter((l) => !l.done && !here.has(l.title.trim()))
+      .slice(0, 20);      // 한 번에 쏟아지지 않게 상한을 둔다
     if (!prev.length) return setErr("가져올 남은 일이 없습니다");
     setErr("");
     try {
