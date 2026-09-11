@@ -73,6 +73,12 @@ class MessageFull(MessageBrief):
     files: list[AttachmentOut] = []
 
 
+class ContactOut(BaseModel):
+    name: str = ""
+    address: str
+    n: int = 0                            # 주고받은 횟수(자주 쓰는 사람이 위로)
+
+
 class SendIn(BaseModel):
     account_id: str
     to: str = Field(min_length=3)         # 쉼표로 여럿

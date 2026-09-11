@@ -24,6 +24,7 @@ interface Brief {
   uid: string; subject: string; from_name: string; from_addr: string; to: string;
   date: string; size: number; seen: boolean; flagged: boolean; answered: boolean; attachments: number; preview: string;
 }
+interface Contact { name: string; address: string; n?: number }
 interface Full extends Brief { html: string; text: string; cc: string; files: { index: number; name: string; size: number; mime: string }[] }
 
 const emptyAcc = {
@@ -102,6 +103,7 @@ export default function Mail() {
   const [setup, setSetup] = useState(false);          // 계정 설정 모달
   const [compose, setCompose] = useState<null | { to: string; cc: string; subject: string; body: string; reply: string }>(null);
   const [sending, setSending] = useState(false);
+  const [book, setBook] = useState<Contact[]>([]);      // 받는 사람 추천(주고받은 주소 + 연구실 구성원)
   const qRef = useRef("");
   const [params, setParams] = useSearchParams();       // 알림에서 눌러 들어온 메일(account·uid)
   const wanted = useRef({ acc: params.get("account") || "", uid: params.get("uid") || "" });
@@ -118,6 +120,23 @@ export default function Mail() {
     } catch (e) { setErr(apiError(e)); }
   }
   useEffect(() => { loadAccounts(); }, []);
+
+  // 주소록 — 주고받은 주소(서버가 메일함을 훑어 만든다)에 연구실 구성원을 얹는다.
+  // 구성원은 바로 오고 메일 쪽은 조금 걸리므로, 오는 대로 합친다.
+  useEffect(() => {
+    if (!accId) return;
+    let on = true;
+    const put = (rows: Contact[]) => on && setBook((cur) => {
+      const seen = new Map(cur.map((c) => [c.address.toLowerCase(), c]));
+      rows.forEach((c) => { if (c.address && !seen.has(c.address.toLowerCase())) seen.set(c.address.toLowerCase(), c); });
+      return [...seen.values()];
+    });
+    api.get<any[]>("/members/users")
+      .then((r) => put(r.data.filter((u) => u.email).map((u) => ({ name: u.name, address: u.email }))))
+      .catch(() => { /* 없어도 직접 적으면 된다 */ });
+    api.get<Contact[]>(`/mail/contacts?account_id=${accId}`).then((r) => put(r.data)).catch(() => { /* 서버가 굼뜨면 생략 */ });
+    return () => { on = false; };
+  }, [accId]);
 
   // ── 메일함 ──
   useEffect(() => {
@@ -254,6 +273,44 @@ export default function Mail() {
   }
 
   const shown = list.filter((m) => (filter === "unseen" ? !m.seen : filter === "flagged" ? m.flagged : true));
+
+  if (compose) {
+    // 모달이 아니라 화면 하나를 다 쓴다 — 메일 쓰기는 잠깐 끼워 넣는 일이 아니라 본 일이다.
+    return (
+      <div data-testid="page-mail-compose">
+        <PageHeader crumb="소통 › 전자메일 › 메일 쓰기" title={compose.reply ? "답장" : "메일 쓰기"}
+          action={
+            <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+              <span className="muted small">보내는 계정 {acc?.address}</span>
+              <button className="btn ghost sm" onClick={() => setCompose(null)}>취소</button>
+              <button className="btn primary sm" data-testid="mail-send" disabled={sending} onClick={send}>
+                {sending ? "보내는 중…" : "보내기"}</button>
+            </span>} />
+        {err && <div className="form-err" data-testid="mail-error">{err}</div>}
+        <div className="card compose-card">
+          <div className="compose-row">
+            <label htmlFor={`${uid}-to`}>받는 사람</label>
+            <AddrInput id={`${uid}-to`} value={compose.to} book={book} testid="mail-to"
+              placeholder="이름이나 주소를 적으면 최근 주고받은 사람과 구성원을 찾아 줍니다"
+              onChange={(v) => setCompose({ ...compose, to: v })} />
+          </div>
+          <div className="compose-row">
+            <label htmlFor={`${uid}-cc`}>참조</label>
+            <AddrInput id={`${uid}-cc`} value={compose.cc} book={book} testid="mail-cc"
+              onChange={(v) => setCompose({ ...compose, cc: v })} />
+          </div>
+          <div className="compose-row">
+            <label htmlFor={`${uid}-subj`}>제목</label>
+            <input id={`${uid}-subj`} value={compose.subject} data-testid="mail-subject"
+              onChange={(e) => setCompose({ ...compose, subject: e.target.value })} />
+          </div>
+          {/* 메일용 서식 도구만 — 표·이미지는 받는 쪽 메일 앱에서 깨진다 */}
+          <HtmlEditor value={compose.body} onChange={(v) => setCompose({ ...compose, body: v })}
+            minHeight={380} testid="mail-body-editor" variant="mail" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div data-testid="page-mail">
@@ -419,29 +476,56 @@ export default function Mail() {
 
       {setup && <AccountSetup accounts={accounts} domain={domain} onClose={() => { setSetup(false); loadAccounts(); }} />}
 
-      {compose && (
-        <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) setCompose(null); }}>
-          <div className="modal mail-modal" data-testid="mail-compose">
-            <div className="modal-h"><b>메일 쓰기</b><button className="btn ghost sm" onClick={() => setCompose(null)}>✕</button></div>
-            <div className="modal-b">
-              <label htmlFor={`${uid}-to`}>받는 사람</label>
-              <input id={`${uid}-to`} value={compose.to} data-testid="mail-to" placeholder="여럿이면 쉼표로 구분"
-                onChange={(e) => setCompose({ ...compose, to: e.target.value })} />
-              <label htmlFor={`${uid}-cc`}>참조(선택)</label>
-              <input id={`${uid}-cc`} value={compose.cc} data-testid="mail-cc"
-                onChange={(e) => setCompose({ ...compose, cc: e.target.value })} />
-              <label htmlFor={`${uid}-subj`}>제목</label>
-              <input id={`${uid}-subj`} value={compose.subject} data-testid="mail-subject"
-                onChange={(e) => setCompose({ ...compose, subject: e.target.value })} />
-              <label>본문</label>
-              <HtmlEditor value={compose.body} onChange={(v) => setCompose({ ...compose, body: v })} minHeight={220} testid="mail-body-editor" />
-              <div className="muted small" style={{ marginTop: 6 }}>보내는 계정: {acc?.address}</div>
-            </div>
-            <div className="modal-f">
-              <button className="btn primary" data-testid="mail-send" disabled={sending} onClick={send}>{sending ? "보내는 중…" : "보내기"}</button>
-              <button className="btn ghost" onClick={() => setCompose(null)}>취소</button>
-            </div>
-          </div>
+    </div>
+  );
+}
+
+/** 받는 사람 칸 — 쉼표로 이어 적되, 마지막으로 적고 있는 주소에만 추천을 띄운다. */
+function AddrInput({ id, value, onChange, book, testid, placeholder }: {
+  id: string; value: string; onChange: (v: string) => void; book: Contact[]; testid: string; placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState(0);
+  const wrap = useRef<HTMLDivElement>(null);
+  const parts = value.split(",");
+  const token = (parts[parts.length - 1] || "").trim().toLowerCase();
+  const hits = token.length < 1 ? [] : book
+    .filter((c) => c.address.toLowerCase().includes(token) || (c.name || "").toLowerCase().includes(token))
+    .filter((c) => !parts.slice(0, -1).some((p) => p.toLowerCase().includes(c.address.toLowerCase())))
+    .slice(0, 8);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  function choose(c: Contact) {
+    const head = parts.slice(0, -1).map((p) => p.trim()).filter(Boolean);
+    onChange([...head, c.address].join(", ") + ", ");
+    setOpen(false); setPick(0);
+  }
+
+  return (
+    <div className="addr-wrap" ref={wrap}>
+      <input id={id} value={value} data-testid={testid} placeholder={placeholder} autoComplete="off"
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setPick(0); }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (!open || !hits.length) return;
+          if (e.key === "ArrowDown") { e.preventDefault(); setPick((i) => (i + 1) % hits.length); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setPick((i) => (i - 1 + hits.length) % hits.length); }
+          else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); choose(hits[pick]); }
+          else if (e.key === "Escape") setOpen(false);
+        }} />
+      {open && hits.length > 0 && (
+        <div className="addr-pop" data-testid={`${testid}-suggest`}>
+          {hits.map((c, i) => (
+            <button type="button" key={c.address} className={"addr-item" + (i === pick ? " on" : "")}
+              onMouseEnter={() => setPick(i)} onClick={() => choose(c)}>
+              <b>{c.name || c.address}</b>{c.name && <span className="muted small"> {c.address}</span>}
+            </button>
+          ))}
         </div>
       )}
     </div>

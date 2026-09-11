@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import io
+import time
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -122,6 +123,22 @@ def test_account(aid: str, user: CurrentUser = Depends(get_current_user), db: Se
 def list_folders(account_id: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
     cfg, a = _cfg(db), _acc(db, user, account_id)
     return _run(mailbox.folders, a, cfg, _pw(a))
+
+
+# 주소록은 메일함을 훑어 만든다 — 비싸므로 계정별로 담아 둔다(10분).
+_CONTACTS: dict[str, tuple[float, list[dict]]] = {}
+CONTACTS_TTL = 600
+
+
+@router.get("/contacts", response_model=list[schemas.ContactOut])
+def list_contacts(account_id: str, user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    cfg, a = _cfg(db), _acc(db, user, account_id)
+    hit = _CONTACTS.get(a.id)
+    if hit and hit[0] > time.time():
+        return hit[1]
+    rows = _run(mailbox.contacts, a, cfg, _pw(a))
+    _CONTACTS[a.id] = (time.time() + CONTACTS_TTL, rows)
+    return rows
 
 
 @router.get("/messages", response_model=list[schemas.MessageBrief])

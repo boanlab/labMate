@@ -329,6 +329,68 @@ def set_flags(acc, cfg: dict, password: str, folder: str, uid: str, seen: bool |
             m.uid("STORE", uid.encode(), "+FLAGS" if want else "-FLAGS", f"({flag})")
 
 
+def contacts(acc, cfg: dict, password: str, scan: int = 200) -> list[dict]:
+    """최근 주고받은 주소록 — 받은편지함의 보낸 사람, 보낸편지함의 받는 사람.
+
+    주소록을 따로 관리하게 하면 아무도 채워 넣지 않는다. 이미 주고받은 메일이 곧 주소록이다.
+    """
+    seen: dict[str, dict] = {}
+    with imap(acc, cfg, password) as m:
+        for folder, fields in (("INBOX", "FROM"), (_sent_path(m), "TO CC")):
+            if not folder:
+                continue
+            typ, _ = m.select(f'"{folder}"', readonly=True)
+            if typ != "OK":
+                continue
+            typ, data = m.uid("SEARCH", None, "ALL")
+            if typ != "OK":
+                continue
+            uids = (data[0] or b"").split()[-scan:]
+            if not uids:
+                continue
+            typ, rows = m.uid("FETCH", b",".join(uids), f"(BODY.PEEK[HEADER.FIELDS ({fields})])")
+            if typ != "OK":
+                continue
+            for row in rows or []:
+                if not isinstance(row, tuple) or len(row) < 2:
+                    continue
+                msg = message_from_bytes(row[1])
+                raw = ", ".join(v for v in (msg.get("From"), msg.get("To"), msg.get("Cc")) if v)
+                for name, addr in getaddresses([raw]):
+                    addr = (addr or "").strip().lower()
+                    if not addr or "@" not in addr or addr == acc.address.lower():
+                        continue
+                    got = seen.get(addr)
+                    nice = _hdr(name).strip()
+                    if not got:
+                        seen[addr] = {"name": nice, "address": addr, "n": 1}
+                    else:
+                        got["n"] += 1
+                        if nice and not got["name"]:
+                            got["name"] = nice
+    # 자주 주고받은 사람이 위로 — 목록에서 먼저 눈에 띄어야 고르기 쉽다
+    return sorted(seen.values(), key=lambda c: (-c["n"], c["address"]))
+
+
+def _sent_path(m) -> str:
+    """보낸편지함 경로 찾기 — 서버마다 이름이 다르다(Sent·보낸편지함·Sent Messages)."""
+    try:
+        typ, rows = m.list()
+        if typ != "OK":
+            return ""
+        for row in rows or []:
+            mt = _LIST_RE.match(row if isinstance(row, bytes) else bytes(row))
+            if not mt:
+                continue
+            flags = mt.group("flags").decode(errors="ignore")
+            name = _mutf7(mt.group("name").decode(errors="ignore").strip().strip('"'))
+            if "\\Sent" in flags or _NAME_KIND.get(name.split("/")[-1].lower()) == "sent":
+                return name
+    except Exception:                                        # noqa: BLE001
+        pass
+    return ""
+
+
 def unseen_briefs(acc, cfg: dict, password: str, limit: int = 5, timeout: int = 8) -> list[dict]:
     """안 읽은 메일 몇 통(알림용). 종이 45초마다 묻는 자리라 짧은 제한시간을 쓴다."""
     with imap(acc, cfg, password, "INBOX", timeout=timeout) as m:

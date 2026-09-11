@@ -54,6 +54,7 @@ const CONFIG: any = {
     ],
     shouldNotGroupWhenFull: false,   // 넘치는 버튼은 에디터 폭 기준 ⋮ 메뉴로 접힘
   },
+
   heading: {
     options: [
       { model: "paragraph", title: "본문", class: "ck-heading_paragraph" },
@@ -70,18 +71,31 @@ const CONFIG: any = {
   htmlSupport: { allow: [{ name: /.*/, attributes: true, classes: true, styles: true }] },   // 붙여넣은 서식 보존
 };
 
+// 메일용 툴바 — 받는 사람의 메일 앱에서 살아남는 서식만 남긴다.
+// 표·이미지·동영상·코드블록은 메일 앱마다 깨지거나 아예 지워져서 뺐다.
+const MAIL_TOOLBAR = [
+  "undo", "redo", "|",
+  "bold", "italic", "underline", "strikethrough", "removeFormat", "|",
+  "fontColor", "fontBackgroundColor", "|",
+  "bulletedList", "numberedList", "outdent", "indent", "|",
+  "link", "blockQuote", "horizontalLine", "|",
+  "alignment",
+];
+const MAIL_CONFIG: any = { ...CONFIG, toolbar: { ...CONFIG.toolbar, items: MAIL_TOOLBAR } };
+
 /**
  * 공용 HTML 에디터(CKEditor 5). HTML 문자열을 value/onChange로 다룸.
  * - fill: 부모 높이를 채우고 내부 스크롤(연구노트용)
  * - minHeight: 폼용 최소 높이(px, 기본 140)
  */
-export default function HtmlEditor({ value, editable = true, onChange, fill = false, minHeight = 140, testid }: {
+export default function HtmlEditor({ value, editable = true, onChange, fill = false, minHeight = 140, testid, variant }: {
   value: string;
   editable?: boolean;
   onChange: (html: string) => void;
   fill?: boolean;
   minHeight?: number;
   testid?: string;
+  variant?: "mail";              // 메일 쓰기 — 서식 도구를 메일에서 통하는 것만 남긴다
 }) {
   return (
     <div className={"ck-host" + (fill ? " fill" : "")} data-testid={testid} style={fill ? undefined : ({ ["--ck-min-h" as any]: `${minHeight}px` })}>
@@ -89,7 +103,7 @@ export default function HtmlEditor({ value, editable = true, onChange, fill = fa
         editor={ClassicEditor}
         data={value}
         disabled={!editable}
-        config={CONFIG}
+        config={variant === "mail" ? MAIL_CONFIG : CONFIG}
         onChange={(_e: any, editor: any) => onChange(editor.getData())}
       />
     </div>

@@ -605,6 +605,19 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .mail-body-text { flex: 1; margin: 0; padding: 16px 18px; overflow: auto; white-space: pre-wrap; font-family: inherit; font-size: 13.5px; line-height: 1.6;
   overflow-wrap: anywhere; }   /* 인증 링크처럼 긴 주소가 가로 스크롤을 만들지 않도록 */
 .mail-modal { width: 760px; }
+
+/* 메일 쓰기 — 화면 하나를 다 쓴다 */
+.compose-card { padding: 14px 16px 16px; }
+.compose-row { display: grid; grid-template-columns: 84px 1fr; align-items: center; gap: 10px; margin-bottom: 8px; }
+.compose-row label { margin: 0; }
+.compose-row input { margin: 0; }
+/* 받는 사람 추천 — 지금 적고 있는 주소에만 뜬다 */
+.addr-wrap { position: relative; }
+.addr-pop { position: absolute; left: 0; right: 0; top: calc(100% + 3px); z-index: 40; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,.16); padding: 4px; max-height: 260px; overflow: auto; }
+.addr-item { display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--ink);
+  padding: 7px 9px; border-radius: 7px; font-size: 13px; }
+.addr-item.on { background: var(--soft); }
 @media (max-width: 1100px) {
   .mail-layout { grid-template-columns: 1fr; height: auto; }
   .mail-layout > .card { height: auto; max-height: 60vh; }
