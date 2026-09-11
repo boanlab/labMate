@@ -155,10 +155,46 @@ def folders(acc, cfg: dict, password: str) -> list[dict]:
         return out or [{"path": "INBOX", "label": "받은편지함", "kind": "inbox", "unread": 0}]
 
 
-_HEAD = "(UID FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS (SUBJECT FROM TO DATE)])"
+# 목록 한 줄에 필요한 것만 — 헤더, 크기, 플래그, 본문 앞머리(미리보기), 구조(첨부 유무).
+# 본문 전체를 끌어오면 30통에 수십 MB 가 되므로 첫 400바이트만 떼어 온다.
+_HEAD = ("(UID FLAGS RFC822.SIZE BODYSTRUCTURE "
+         "BODY.PEEK[HEADER.FIELDS (SUBJECT FROM TO DATE)] BODY.PEEK[1]<0.400>)")
 _UID_RE = re.compile(rb"UID (\d+)")
 _SIZE_RE = re.compile(rb"RFC822\.SIZE (\d+)")
 _FLAG_RE = re.compile(rb"FLAGS \(([^)]*)\)")
+
+
+_B64ISH = re.compile(rb"^[A-Za-z0-9+/=\r\n]{200,}$")
+_TAG = re.compile(r"<[^>]+>")
+
+
+def _preview(chunk: bytes) -> str:
+    """목록에 한 줄로 보일 본문 앞머리.
+
+    부분만 떼어 온 조각이라 인코딩을 정확히는 알 수 없다. 알아볼 수 없으면 빈 문자열로
+    돌려주고 만다 — 깨진 글자를 보여 주느니 없는 편이 낫다.
+    """
+    if not chunk or _B64ISH.match(chunk.strip()):            # base64 본문은 풀 수 없다(조각이라)
+        return ""
+    try:
+        if re.search(rb"=[0-9A-F]{2}", chunk):               # quoted-printable 로 보이면 풀어 본다
+            import quopri
+            chunk = quopri.decodestring(chunk)
+        text = chunk.decode("utf-8", errors="replace")
+    except Exception:                                        # noqa: BLE001
+        return ""
+    text = _TAG.sub(" ", text).replace("\ufffd", "")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:120]
+
+
+def _attach_count(bodystructure: bytes) -> int:
+    """첨부 개수 — BODYSTRUCTURE 를 파싱하지 않고 disposition 만 센다.
+
+    목록에 클립 표시를 붙이는 용도라 정확한 파싱까지는 필요 없다. 실제 첨부 목록은
+    메일을 열 때 본문을 받아 제대로 훑는다.
+    """
+    return bodystructure.lower().count(b'"attachment"')
 
 
 def _iso(raw: str | None) -> str:
@@ -188,11 +224,23 @@ def list_messages(acc, cfg: dict, password: str, folder: str, limit: int, offset
         typ, rows = m.uid("FETCH", b",".join(page), _HEAD)
         if typ != "OK":
             return []
+        # 서버는 한 메일의 여러 조각(헤더·본문 앞머리)을 따로 보내므로 UID 로 다시 모은다.
         out: dict[str, dict] = {}
+        chunks: dict[str, bytes] = {}
+        last_uid = ""
         for row in rows or []:
             if not isinstance(row, tuple) or len(row) < 2:
                 continue
             meta, raw = row[0], row[1]
+            uid_only = _UID_RE.search(meta)
+            if b"HEADER.FIELDS" not in meta:                 # 본문 앞머리 조각
+                # UID 를 다시 적어 주지 않는 서버도 있다 — 그럴 땐 방금 읽은 메일 것으로 본다.
+                key = uid_only.group(1).decode() if uid_only else last_uid
+                if key:
+                    chunks[key] = raw or b""
+                continue
+            if uid_only:
+                last_uid = uid_only.group(1).decode()
             uid_m, size_m, flag_m = _UID_RE.search(meta), _SIZE_RE.search(meta), _FLAG_RE.search(meta)
             if not uid_m:
                 continue
@@ -208,8 +256,11 @@ def list_messages(acc, cfg: dict, password: str, folder: str, limit: int, offset
                 "size": int(size_m.group(1)) if size_m else 0,
                 "seen": "\\Seen" in flags, "flagged": "\\Flagged" in flags,
                 "answered": "\\Answered" in flags,
-                "attachments": 0, "preview": "",
+                "attachments": _attach_count(meta), "preview": "",
             }
+        for uid, chunk in chunks.items():
+            if uid in out:
+                out[uid]["preview"] = _preview(chunk)
         return [out[u.decode()] for u in page if u.decode() in out]
 
 

@@ -21,7 +21,7 @@ interface Account {
 interface Folder { path: string; label: string; kind: string; unread: number }
 interface Brief {
   uid: string; subject: string; from_name: string; from_addr: string; to: string;
-  date: string; size: number; seen: boolean; flagged: boolean; answered: boolean; attachments: number;
+  date: string; size: number; seen: boolean; flagged: boolean; answered: boolean; attachments: number; preview: string;
 }
 interface Full extends Brief { html: string; text: string; cc: string; files: { index: number; name: string; size: number; mime: string }[] }
 
@@ -32,11 +32,38 @@ const emptyAcc = {
 const FOLDER_ICON: Record<string, string> = {
   inbox: "mail", sent: "doc", drafts: "clipboard", trash: "folder", junk: "shield", archive: "folder",
 };
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const shiftDay = (day: string, n: number) => { const d = new Date(day + "T00:00:00"); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+/** 목록 오른쪽 시각 — 오늘은 시:분, 그 전은 날짜. 메일 앱의 오랜 관습이다. */
 const when = (iso: string) => {
   if (!iso) return "";
-  const d = iso.slice(0, 10), hm = iso.slice(11, 16);
-  return d === new Date().toISOString().slice(0, 10) ? hm : `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
+  const d = iso.slice(0, 10);
+  if (d === todayStr()) return iso.slice(11, 16);
+  return `${Number(d.slice(5, 7))}.${Number(d.slice(8, 10))}`;
 };
+const WD = ["일", "월", "화", "수", "목", "금", "토"];
+/** 목록 사이에 끼우는 날짜 머리 — 오늘·어제는 이름으로 부른다. */
+const daySep = (iso: string) => {
+  const d = iso.slice(0, 10);
+  if (!d) return "날짜 없음";
+  const t = todayStr();
+  if (d === t) return "오늘";
+  if (d === shiftDay(t, -1)) return "어제";
+  const wd = WD[new Date(d + "T00:00:00").getDay()];
+  return d.slice(0, 4) === t.slice(0, 4)
+    ? `${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일 (${wd})`
+    : `${d.slice(0, 4)}년 ${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
+};
+// 보낸 사람마다 늘 같은 색 — 목록을 훑을 때 누가 보냈는지 글자보다 먼저 눈에 들어온다.
+const HUES = [212, 259, 340, 12, 32, 152, 190, 280];
+function avatar(name: string, addr: string) {
+  const key = (addr || name || "?").toLowerCase();
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  const src = (name || addr || "?").trim();
+  const initial = /^[A-Za-z]/.test(src) ? src.slice(0, 1).toUpperCase() : src.slice(0, 1);
+  return { bg: `hsl(${HUES[h % HUES.length]} 62% 47%)`, initial };
+}
 const size = (n: number) => (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`);
 
 export default function Mail() {
@@ -203,17 +230,35 @@ export default function Mail() {
             </div>
             <div className="mail-rows" data-testid="mail-rows">
               {loading && <div className="muted small" style={{ padding: 14 }}>불러오는 중…</div>}
-              {!loading && shown.map((m) => (
-                <button key={m.uid} className={"mail-row" + (sel?.uid === m.uid ? " on" : "") + (m.seen ? "" : " unseen")}
-                  data-testid={`mail-row-${m.uid}`} onClick={() => open(m)}>
-                  <span className="mail-star" data-testid={`mail-star-${m.uid}`} onClick={(e) => { e.stopPropagation(); star(m); }}>{m.flagged ? "★" : "☆"}</span>
-                  <span className="mail-row-main">
-                    <span className="mail-from">{m.from_name || m.from_addr}</span>
-                    <span className="mail-subject">{m.subject}</span>
-                  </span>
-                  <span className="mail-when">{when(m.date)}{m.attachments ? " 📎" : ""}</span>
-                </button>
-              ))}
+              {!loading && shown.map((m, i) => {
+                const av = avatar(m.from_name, m.from_addr);
+                const sep = daySep(m.date);
+                const head = i === 0 || daySep(shown[i - 1].date) !== sep;
+                return (
+                  <div key={m.uid}>
+                    {head && <div className="mail-daysep">{sep}</div>}
+                    <button className={"mail-row" + (sel?.uid === m.uid ? " on" : "") + (m.seen ? "" : " unseen")}
+                      data-testid={`mail-row-${m.uid}`} onClick={() => open(m)}>
+                      <span className="mail-av" style={{ background: av.bg }} aria-hidden>{av.initial}</span>
+                      <span className="mail-row-main">
+                        <span className="mail-line">
+                          <span className="mail-from">{m.from_name || m.from_addr}</span>
+                          <span className="mail-when">{when(m.date)}</span>
+                        </span>
+                        <span className="mail-subject">
+                          {!m.seen && <span className="mail-dot" aria-label="안 읽음" />}
+                          {m.answered && <span className="mail-re" title="답장함">↩ </span>}
+                          {m.subject}
+                          {m.attachments > 0 && <span className="mail-clip" title="첨부 있음"> 📎</span>}
+                        </span>
+                        {m.preview && <span className="mail-preview">{m.preview}</span>}
+                      </span>
+                      <span className={"mail-star" + (m.flagged ? " on" : "")} role="button" tabIndex={-1}
+                        data-testid={`mail-star-${m.uid}`} onClick={(e) => { e.stopPropagation(); star(m); }}>{m.flagged ? "★" : "☆"}</span>
+                    </button>
+                  </div>
+                );
+              })}
               {!loading && !shown.length && (
                 <div className="mail-empty">
                   <Icon name="mail" size={26} />
@@ -237,14 +282,20 @@ export default function Mail() {
             {!opening && sel && (
               <>
                 <div className="mail-view-head">
-                  <h2 style={{ margin: "0 0 6px", fontSize: 17 }}>{sel.subject}</h2>
-                  <div className="muted small">
-                    <b>{sel.from_name || sel.from_addr}</b> &lt;{sel.from_addr}&gt; · {sel.date.replace("T", " ")}
+                  <h2 className="mail-title">{sel.subject}</h2>
+                  <div className="mail-sender">
+                    <span className="mail-av lg" style={{ background: avatar(sel.from_name, sel.from_addr).bg }} aria-hidden>
+                      {avatar(sel.from_name, sel.from_addr).initial}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <div><b>{sel.from_name || sel.from_addr}</b> <span className="muted small">&lt;{sel.from_addr}&gt;</span></div>
+                      <div className="muted small">받는 사람 {sel.to}{sel.cc ? ` · 참조 ${sel.cc}` : ""}</div>
+                    </span>
+                    <span className="muted small" style={{ whiteSpace: "nowrap" }}>{sel.date.replace("T", " ")}</span>
                   </div>
-                  <div className="muted small">받는 사람: {sel.to}{sel.cc ? ` · 참조: ${sel.cc}` : ""}</div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
                     <button className="btn ghost sm" data-testid="mail-reply" onClick={reply}>답장</button>
-                    <button className="btn ghost sm" onClick={() => star(sel)}>{sel.flagged ? "별표 해제" : "별표"}</button>
+                    <button className="btn ghost sm" onClick={() => star(sel)}>{sel.flagged ? "★ 별표 해제" : "☆ 별표"}</button>
                   </div>
                 </div>
                 {!!sel.files.length && (

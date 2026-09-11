@@ -49,7 +49,7 @@ export function MailServerPanel() {
         <input id="mail-domain" value={cfg.mail_domain} placeholder="boanlab.com" data-testid="mail-domain"
           onChange={(e) => setCfg({ ...cfg, mail_domain: e.target.value })} onBlur={(e) => put("mail_domain", e.target.value.trim())} />
         <div className="muted small">계정을 추가할 때 주소 예시로만 씁니다.</div>
-        <label htmlFor="mail-size">목록 한 번에 가져올 통수</label>
+        <label htmlFor="mail-size">목록 한 번에 가져올 메일 수</label>
         <input id="mail-size" value={String(cfg.mail_list_size)} data-testid="mail-list-size"
           onChange={(e) => setCfg({ ...cfg, mail_list_size: num(e.target.value, 30) })}
           onBlur={(e) => put("mail_list_size", num(e.target.value, 30))} />

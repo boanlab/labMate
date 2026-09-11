@@ -14,5 +14,5 @@ DEFAULTS: dict = {
     "mail_smtp_port": 587,
     "mail_smtp_tls": "starttls",    # starttls | ssl | none
     "mail_domain": "",              # 계정 추가 때 보여 줄 기본 도메인(예: boanlab.com)
-    "mail_list_size": 30,           # 목록 한 번에 가져올 통수
+    "mail_list_size": 30,           # 목록 한 번에 가져올 메일 수
 }
