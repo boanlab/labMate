@@ -139,6 +139,28 @@ export default function Daily() {
     } catch (e) { setErr(apiError(e)); }
   }
 
+  /** 개선안을 항목 제목에 넣는다 — 번호로 되짚어 바뀐 것만, 한 번 보여 주고 묻는다. */
+  async function applyTitles(text: string) {
+    const next = new Map<number, string>();
+    for (const line of text.split("\n")) {
+      const m = line.match(/^\s*(\d+)\s*[.)]\s*(.+?)\s*$/);
+      if (!m) continue;
+      const i = Number(m[1]) - 1;
+      const title = m[2]
+        .replace(/\*\*/g, "")                        // 굵게 표기
+        .replace(/\s*\((완료|진행 중)\)\s*$/, "")     // 우리가 붙여 보낸 상태
+        .replace(/\s*—\s*.*$/, "")                    // 우리가 붙여 보낸 '한 일·결과'
+        .replace(/\s*\[[^\]]*\]\s*/g, (s) => (/미정/.test(s) ? s : " "))   // 과제 코드는 떼고 [미정: …] 은 남긴다
+        .trim();
+      if (title && ofDay[i] && title !== ofDay[i].title) next.set(i, title);
+    }
+    if (!next.size) { setErr("바꿀 항목을 찾지 못했습니다 — 개선안을 복사해 직접 고쳐 주세요"); return; }
+    const preview = [...next.entries()].map(([i, t]) => `· ${ofDay[i].title}\n   → ${t}`).join("\n");
+    if (!await confirmDialog(`${next.size}개 항목의 제목을 바꿉니다.\n\n${preview}`)) return;
+    setErr("");
+    for (const [i, t] of next) await save(ofDay[i], { title: t });
+  }
+
   // ── 보고서 초안 — 결재의 주간·월간보고 서식에 맞춰 만든다(사실만, AI 없이) ──
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   /** 09-07 / 09-07~09-11 */
@@ -277,11 +299,13 @@ export default function Daily() {
             <span className="muted small">적어 둔 일이 '무엇을 어디까지' 분명한지 봐 줍니다</span>
             {/* 제목을 보내지 않는다 — 날짜를 제목으로 주면 멘토가 그 '제목'부터 고치려 든다.
                 날짜는 부가 정보로만 넘긴다. */}
-            <MentorButton feature="daily" label="할 일 점검" testid="daily-mentor" collect={() => ({
+            <MentorButton feature="daily" label="할 일 점검" testid="daily-mentor"
+              applyLabel="항목 제목에 반영" onApply={applyTitles} collect={() => ({
               title: "",
-              body: ofDay.map((l) => {
+              // 번호를 붙여 보낸다 — 고쳐 온 항목을 어느 줄에 넣을지 이 번호로 되짚는다.
+              body: ofDay.map((l, i) => {
                 const code = codeOf(l.project_id);
-                return `- ${l.title}${code ? ` [${code}]` : ""}${l.note ? ` — ${l.note}` : ""} (${l.done ? "완료" : "진행 중"})`;
+                return `${i + 1}. ${l.title}${code ? ` [${code}]` : ""}${l.note ? ` — ${l.note}` : ""} (${l.done ? "완료" : "진행 중"})`;
               }).join("\n"),
               context: { 날짜: day, 적은_일: ofDay.length, 완료: doneN },
             })} />

@@ -261,6 +261,18 @@ REVISE_SYSTEM = (
 )
 
 
+# 업무일지는 고쳐 쓴 결과를 화면이 그대로 항목에 집어넣는다. 그래서 모양이 정해져 있어야 한다.
+REVISE_FORMAT: dict[str, str] = {
+    "daily": (
+        "\n[이 문서의 출력 형식]\n"
+        "번호 목록만 출력합니다. 받은 번호를 그대로 유지하고, 한 줄에 '번호. 할 일' 하나만 씁니다.\n"
+        "항목을 더하거나 빼거나 순서를 바꾸지 않습니다. 해설·머리말·꼬리말을 붙이지 않습니다.\n"
+        "완료 조건은 따로 줄을 만들지 말고 할 일 문장 안에 녹여 씁니다.\n"
+        "예: '1. AI중심대학 사업계획서 초안 A4 [미정: 쪽수]쪽 작성 완료'\n"
+    ),
+}
+
+
 def revise_messages(feature: str, title: str, body: str, review: str, context: dict) -> list[dict[str, str]]:
     kind = KIND.get(feature, "문서")
     ctx = "\n".join(f"- {k}: {v}" for k, v in (context or {}).items())
@@ -271,7 +283,7 @@ def revise_messages(feature: str, title: str, body: str, review: str, context: d
         parts.append(f"[앞서 받은 지적사항]\n{review.strip()}")
     parts.append(f"[초안]\n{body}")
     return [
-        {"role": "system", "content": REVISE_SYSTEM + today_line()},
+        {"role": "system", "content": REVISE_SYSTEM + REVISE_FORMAT.get(feature, "") + today_line()},
         {"role": "user", "content": "\n\n".join(parts)},
     ]
 
