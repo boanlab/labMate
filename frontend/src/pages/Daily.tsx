@@ -156,7 +156,8 @@ export default function Daily() {
     }
     if (!next.size) { setErr("바꿀 항목을 찾지 못했습니다 — 개선안을 복사해 직접 고쳐 주세요"); return; }
     const preview = [...next.entries()].map(([i, t]) => `· ${ofDay[i].title}\n   → ${t}`).join("\n");
-    if (!await confirmDialog(`${next.size}개 항목의 제목을 바꿉니다.\n\n${preview}`)) return;
+    // 한 줄에 한 항목이 보여야 바뀌는 내용을 눈으로 대조할 수 있다 — 팝업을 넓게 연다.
+    if (!await confirmDialog(`${next.size}개 항목의 제목을 바꿉니다.\n\n${preview}`, { wide: true })) return;
     setErr("");
     for (const [i, t] of next) await save(ofDay[i], { title: t });
   }
