@@ -544,6 +544,12 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .dash-ev-div { display: flex; align-items: center; gap: 6px; margin: 5px 0 3px; color: var(--sub); font-size: 10px; }
 .dash-ev-div::before, .dash-ev-div::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
+/* 새 배포 알림 — 화면을 가리지 않게 아래쪽에 얹는다 */
+.update-bar { position: fixed; right: 16px; bottom: 16px; z-index: 120; display: flex; align-items: center; gap: 8px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 13px;
+  box-shadow: 0 10px 30px rgba(15,23,42,.18); max-width: calc(100vw - 32px); }
+@media (max-width: 520px) { .update-bar { left: 16px; right: 16px; flex-wrap: wrap; } }
+
 /* 아주 좁은 폰(≤380px) — 앱바 우측 그룹이 넘치지 않도록 브랜드 글자를 접고 간격을 줄인다 */
 @media (max-width: 380px) {
   .appbar { padding: 0 6px 0 8px; }
