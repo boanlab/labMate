@@ -275,8 +275,10 @@ export default function Daily() {
         {!!ofDay.length && (
           <div className="field-head">
             <span className="muted small">적어 둔 일이 '무엇을 어디까지' 분명한지 봐 줍니다</span>
-            <MentorButton feature="task" label="할 일 점검" testid="daily-mentor" collect={() => ({
-              title: `${label(day)} 할 일`,
+            {/* 제목을 보내지 않는다 — 날짜를 제목으로 주면 멘토가 그 '제목'부터 고치려 든다.
+                날짜는 부가 정보로만 넘긴다. */}
+            <MentorButton feature="daily" label="할 일 점검" testid="daily-mentor" collect={() => ({
+              title: "",
               body: ofDay.map((l) => {
                 const code = codeOf(l.project_id);
                 return `- ${l.title}${code ? ` [${code}]` : ""}${l.note ? ` — ${l.note}` : ""} (${l.done ? "완료" : "진행 중"})`;
