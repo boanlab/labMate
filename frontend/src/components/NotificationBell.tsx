@@ -12,10 +12,10 @@ interface Noti { id: string; title: string; sub: string; link: string; icon: str
 // 데스크톱 알림 중복 방지용 — 이것만은 기기별이어야 한다(PC 마다 한 번씩 떠야 하므로 계정에 두지 않는다).
 const SEEN_KEY = "labmate.notif.seen";
 // 영구 알림을 조회할 서비스와 kind→아이콘 매핑
-const NOTIF_SVCS = ["projects", "boards", "attendance"];
+const NOTIF_SVCS = ["projects", "boards", "attendance", "mail"];
 const KIND_ICON: Record<string, string> = {
   project: "folder", task: "clipboard", note: "book", notice: "bell", meeting: "users",
-  comment: "chat", event: "calendar", approval: "doc", leave: "sun", attendance: "clock",
+  comment: "chat", event: "calendar", approval: "doc", leave: "sun", attendance: "clock", mail: "mail",
 };
 
 export function NotificationBell() {

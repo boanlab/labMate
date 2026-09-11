@@ -72,11 +72,11 @@ def smtp_conf(acc, cfg: dict) -> tuple[str, int, str]:
 
 
 @contextmanager
-def imap(acc, cfg: dict, password: str, folder: str = ""):
+def imap(acc, cfg: dict, password: str, folder: str = "", timeout: int = TIMEOUT):
     host, port, ssl = imap_conf(acc, cfg)
     if not host:
         raise RuntimeError("메일 서버(IMAP)가 설정되지 않았습니다 — 관리자 › 환경설정 › 메일서버")
-    m = imaplib.IMAP4_SSL(host, port, timeout=TIMEOUT) if ssl else imaplib.IMAP4(host, port, timeout=TIMEOUT)
+    m = imaplib.IMAP4_SSL(host, port, timeout=timeout) if ssl else imaplib.IMAP4(host, port, timeout=timeout)
     try:
         if not ssl:
             try:
@@ -345,6 +345,35 @@ def set_flags(acc, cfg: dict, password: str, folder: str, uid: str, seen: bool |
             if want is None:
                 continue
             m.uid("STORE", uid.encode(), "+FLAGS" if want else "-FLAGS", f"({flag})")
+
+
+def unseen_briefs(acc, cfg: dict, password: str, limit: int = 5, timeout: int = 8) -> list[dict]:
+    """안 읽은 메일 몇 통(알림용). 종이 45초마다 묻는 자리라 짧은 제한시간을 쓴다."""
+    with imap(acc, cfg, password, "INBOX", timeout=timeout) as m:
+        typ, data = m.uid("SEARCH", None, "UNSEEN")
+        if typ != "OK":
+            return []
+        uids = (data[0] or b"").split()
+        uids.reverse()
+        page = uids[:limit]
+        if not page:
+            return []
+        typ, rows = m.uid("FETCH", b",".join(page),
+                          "(UID BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])")
+        if typ != "OK":
+            return []
+        out = []
+        for row in rows or []:
+            if not isinstance(row, tuple) or len(row) < 2:
+                continue
+            uid_m = _UID_RE.search(row[0])
+            if not uid_m:
+                continue
+            msg = message_from_bytes(row[1])
+            name, addr = _first_addr(msg.get("From"))
+            out.append({"uid": uid_m.group(1).decode(), "from_name": name or addr,
+                        "subject": _hdr(msg.get("Subject")) or "(제목 없음)", "date": _iso(msg.get("Date"))})
+        return out
 
 
 # ── 보내기 ────────────────────────────────────────────────────────────

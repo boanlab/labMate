@@ -4,6 +4,7 @@
 // 가져온다(원본이 늘 메일 서버에 있으므로 어긋날 일이 없고, 남의 메일이 우리 DB 에
 // 쌓이지도 않는다). 대신 느릴 수 있어 화면은 "불러오는 중"을 분명히 보여 준다.
 import { useEffect, useId, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { api, apiError } from "../api/client";
 import { useConfig } from "../api/config";
@@ -84,6 +85,8 @@ export default function Mail() {
   const [compose, setCompose] = useState<null | { to: string; cc: string; subject: string; body: string; reply: string }>(null);
   const [sending, setSending] = useState(false);
   const qRef = useRef("");
+  const [params, setParams] = useSearchParams();       // 알림에서 눌러 들어온 메일(account·uid)
+  const wanted = useRef({ acc: params.get("account") || "", uid: params.get("uid") || "" });
 
   const acc = accounts.find((a) => a.id === accId) || null;
 
@@ -92,7 +95,8 @@ export default function Mail() {
     try {
       const { data } = await api.get<Account[]>("/mail/accounts");
       setAccounts(data);
-      setAccId((cur) => cur || data.find((a) => a.is_default)?.id || data[0]?.id || "");
+      const want = wanted.current.acc && data.some((a) => a.id === wanted.current.acc) ? wanted.current.acc : "";
+      setAccId((cur) => want || cur || data.find((a) => a.is_default)?.id || data[0]?.id || "");
     } catch (e) { setErr(apiError(e)); }
   }
   useEffect(() => { loadAccounts(); }, []);
@@ -115,6 +119,17 @@ export default function Mail() {
     } catch (e) { setErr(apiError(e)); setList([]); } finally { setLoading(false); }
   }
   useEffect(() => { qRef.current = ""; setQ(""); setSel(null); loadList(""); /* eslint-disable-next-line */ }, [accId, folder]);
+
+  // 알림에서 들어왔다면 그 메일을 펼쳐 준다 — 목록만 띄워 놓고 찾게 하지 않는다.
+  useEffect(() => {
+    const want = wanted.current;
+    if (!want.uid || !list.length || accId !== (want.acc || accId)) return;
+    const hit = list.find((m) => m.uid === want.uid);
+    wanted.current = { acc: "", uid: "" };
+    setParams({}, { replace: true });                  // 주소창을 정리해 새로고침 때 다시 열리지 않게
+    if (hit) open(hit);
+    /* eslint-disable-next-line */
+  }, [list, accId]);
 
   async function open(m: Brief) {
     setOpening(true); setErr("");
