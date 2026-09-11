@@ -56,6 +56,24 @@ const daySep = (iso: string) => {
     : `${d.slice(0, 4)}년 ${Number(d.slice(5, 7))}월 ${Number(d.slice(8, 10))}일`;
 };
 // 보낸 사람마다 늘 같은 색 — 목록을 훑을 때 누가 보냈는지 글자보다 먼저 눈에 들어온다.
+// 줄글 메일의 주소를 눌러 갈 수 있게 — 태그를 만들어 넣지 않고 조각내어 링크로 바꾼다
+// (남이 보낸 글이라 HTML 로 해석하지 않는다).
+const LINKISH = /(https?:\/\/[^\s<>"')\]]+|www\.[^\s<>"')\]]+|[\w.+-]+@[\w-]+\.[\w.-]+)/g;
+function linkify(text: string) {
+  const out: (string | JSX.Element)[] = [];
+  let at = 0, i = 0;
+  for (const m of text.matchAll(LINKISH)) {
+    const raw = m[0], start = m.index ?? 0;
+    if (start > at) out.push(text.slice(at, start));
+    const mail = raw.includes("@") && !/^https?:/i.test(raw);
+    const href = mail ? `mailto:${raw}` : /^https?:/i.test(raw) ? raw : `https://${raw}`;
+    out.push(<a key={i++} href={href} target="_blank" rel="noopener noreferrer nofollow">{raw}</a>);
+    at = start + raw.length;
+  }
+  if (at < text.length) out.push(text.slice(at));
+  return out;
+}
+
 const HUES = [212, 259, 340, 12, 32, 152, 190, 280];
 function avatar(name: string, addr: string) {
   const key = (addr || name || "?").toLowerCase();
@@ -323,8 +341,11 @@ export default function Mail() {
                 )}
                 {/* 남이 보낸 HTML 이라 격리해서 그린다 — sandbox 로 스크립트·폼을 막는다 */}
                 {sel.html
-                  ? <iframe className="mail-body" title="메일 본문" sandbox="" data-testid="mail-body" srcDoc={sel.html} />
-                  : <pre className="mail-body-text" data-testid="mail-body">{sel.text}</pre>}
+                  // 링크는 새 탭으로만 열리게 한다(base target). 스크립트·폼은 sandbox 가 계속 막는다.
+                  ? <iframe className="mail-body" title="메일 본문" data-testid="mail-body"
+                      sandbox="allow-popups allow-popups-to-escape-sandbox"
+                      srcDoc={`<base target="_blank"><meta name="referrer" content="no-referrer">${sel.html}`} />
+                  : <pre className="mail-body-text" data-testid="mail-body">{linkify(sel.text)}</pre>}
               </>
             )}
           </div>

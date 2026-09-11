@@ -592,7 +592,8 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .mail-files { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 18px; border-bottom: 1px solid var(--line2); }
 /* 남이 보낸 HTML 은 격리해 그린다(sandbox) — 배경은 흰색 고정, 다크에서도 원문 그대로 */
 .mail-body { flex: 1; width: 100%; border: none; background: #fff; }
-.mail-body-text { flex: 1; margin: 0; padding: 16px 18px; overflow: auto; white-space: pre-wrap; font-family: inherit; font-size: 13.5px; line-height: 1.6; }
+.mail-body-text { flex: 1; margin: 0; padding: 16px 18px; overflow: auto; white-space: pre-wrap; font-family: inherit; font-size: 13.5px; line-height: 1.6;
+  overflow-wrap: anywhere; }   /* 인증 링크처럼 긴 주소가 가로 스크롤을 만들지 않도록 */
 .mail-modal { width: 760px; }
 @media (max-width: 1100px) {
   .mail-layout { grid-template-columns: 1fr; height: auto; }
