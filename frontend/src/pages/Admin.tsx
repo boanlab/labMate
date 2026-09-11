@@ -7,6 +7,7 @@ import { confirmDialog } from "../ui/dialog";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { SheetImport } from "../ui/SheetImport";
 import { AiSettingsPanel } from "./AiSettings";
+import { MailServerPanel } from "./MailServerSettings";
 import { SHEETS } from "../ui/sheets";
 import { saveConfig, clearConfigCache, CONFIG_SERVICE, fileUrl } from "../api/config";
 import JSZip from "jszip";
@@ -359,7 +360,7 @@ function BrandingPanel() {
 export default function Admin() {
   const { me } = useAuth();
   const isAdmin = me?.role === "admin";
-  const [tab, setTab] = useState<"perm" | "config" | "brand" | "data" | "sheet" | "ai">("brand");
+  const [tab, setTab] = useState<"perm" | "config" | "brand" | "data" | "sheet" | "ai" | "mail">("brand");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const SERVICES = ["members", "projects", "funds", "attendance", "boards", "resource"];
@@ -442,6 +443,7 @@ export default function Admin() {
         <button className={"chip" + (tab === "config" ? " on" : "")} data-testid="admin-tab-config" onClick={() => setTab("config")}>마스터데이터</button>
         <button className={"chip" + (tab === "sheet" ? " on" : "")} data-testid="admin-tab-sheet" onClick={() => setTab("sheet")}>시트 가져오기</button>
         <button className={"chip" + (tab === "ai" ? " on" : "")} data-testid="admin-tab-ai" onClick={() => setTab("ai")}>AI 멘토</button>
+        <button className={"chip" + (tab === "mail" ? " on" : "")} data-testid="admin-tab-mail" onClick={() => setTab("mail")}>메일서버</button>
         <button className={"chip" + (tab === "data" ? " on" : "")} data-testid="admin-tab-data" onClick={() => setTab("data")}>데이터 백업·복구</button>
         <button className={"chip" + (tab === "perm" ? " on" : "")} data-testid="admin-tab-perm" onClick={() => setTab("perm")}>권한 매트릭스</button>
       </div>
@@ -458,6 +460,13 @@ export default function Admin() {
         <>
           {!isAdmin && <div className="form-err">관리자만 AI 멘토를 설정할 수 있습니다.</div>}
           {isAdmin && <AiSettingsPanel />}
+        </>
+      )}
+
+      {tab === "mail" && (
+        <>
+          {!isAdmin && <div className="form-err">관리자만 메일서버를 설정할 수 있습니다.</div>}
+          {isAdmin && <MailServerPanel />}
         </>
       )}
 

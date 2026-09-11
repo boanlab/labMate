@@ -21,6 +21,7 @@ const P: Record<string, ReactNode> = {
   book: <><path d="M5 4h11a2 2 0 0 1 2 2v15H7a2 2 0 0 1-2-2z" /><path d="M18 17H7a2 2 0 0 0-2 2" /></>,
   desktop: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>,
   server: <><rect x="3" y="4" width="18" height="7" rx="2" /><rect x="3" y="13" width="18" height="7" rx="2" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
+  mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3.5 6.5l8.5 6 8.5-6" /></>,
   shield: <><path d="M12 3l8 3v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" /></>,
 };
 

@@ -49,6 +49,8 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/board", label: "게시판", icon: "chat", roles: NO_STAFF },
     { to: "/meetings", label: "회의록", icon: "clipboard", roles: NO_STAFF },
     { to: "/approvals", label: "전자결재", icon: "doc", roles: NO_STAFF },
+    // 관리자가 메일서버를 설정해야 보인다(visible 에서 거른다) — 쓰지 않는 메뉴를 남기지 않는다.
+    { to: "/mail", label: "전자메일", icon: "mail", roles: ALL },
   ] },
   { title: "연구비", items: [
     { to: "/budget", label: "예산", icon: "wallet", roles: ["prof", "staff"] },
@@ -85,6 +87,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { dark, toggle } = useTheme();
   const brandLogo = useConfig<string>("brand_logo", "");
   const labName = useConfig<string>("lab_name", "");
+  const mailOn = useConfig<boolean>("mail_enabled", false);
   const [drawer, setDrawer] = useState(false);
   // 사이드바 접힘도 계정에 저장 — PC 를 옮겨도 같은 상태로 시작한다
   const [collapsed, setCollapsed] = usePref<boolean>("sidebar_collapsed", false, { hint: true });
@@ -178,6 +181,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   // 위임자는 본인 역할 + staff 권한을 함께 보유
   const effRoles = me.delegated_admin ? [me.role, "staff"] : [me.role];
   function visible(it: MenuItem) {
+    if (it.to === "/mail" && !mailOn) return false;      // 메일서버 미설정 = 없는 기능
     return it.roles.some((r) => effRoles.includes(r));
   }
 

@@ -28,6 +28,7 @@ import Notes from "./pages/Notes";
 import Meetings from "./pages/Meetings";
 import CalendarPage from "./pages/Calendar";
 import Approvals from "./pages/Approvals";
+import Mail from "./pages/Mail";
 import Assets from "./pages/Assets";
 import Infra from "./pages/Infra";
 import Booking from "./pages/Booking";
@@ -86,6 +87,7 @@ function App() {
           <Route path="/board" element={<Protected roles={NO_STAFF}><Board /></Protected>} />
           <Route path="/meetings" element={<Protected roles={NO_STAFF}><Meetings /></Protected>} />
           <Route path="/approvals" element={<Protected roles={NO_STAFF}><Approvals /></Protected>} />
+          <Route path="/mail" element={<Protected roles={STUDENT5}><Mail /></Protected>} />
           <Route path="/assets" element={<Protected><Assets /></Protected>} />
           <Route path="/infra" element={<Protected><Infra /></Protected>} />
           <Route path="/booking" element={<Protected roles={NO_STAFF}><Booking /></Protected>} />

@@ -544,6 +544,39 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .dash-ev-div { display: flex; align-items: center; gap: 6px; margin: 5px 0 3px; color: var(--sub); font-size: 10px; }
 .dash-ev-div::before, .dash-ev-div::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
+/* ── 전자메일 ── 메일함 · 목록 · 본문 3단. 화면 높이를 채우고 각 칸이 따로 구른다. */
+.mail-layout { display: grid; grid-template-columns: 190px 330px 1fr; gap: 12px; height: calc(100vh - 150px); min-height: 420px; }
+.mail-layout > .card { margin: 0; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.mail-folders { padding: 8px 6px; gap: 2px; overflow: auto; }
+.mail-folder { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; background: transparent; border: none;
+  color: var(--ink); padding: 8px 10px; border-radius: 8px; font-size: 13.5px; }
+.mail-folder:hover { background: var(--soft); }
+.mail-folder.on { background: var(--bsoft); color: var(--brand); font-weight: 700; }
+.mail-folder-ico { opacity: .75; display: inline-flex; }
+.mail-list-head { padding: 10px 10px 8px; border-bottom: 1px solid var(--line2); flex-shrink: 0; }
+.mail-rows { overflow: auto; flex: 1; }
+.mail-row { display: flex; gap: 8px; align-items: flex-start; width: 100%; text-align: left; background: transparent;
+  border: none; border-bottom: 1px solid var(--line2); padding: 9px 10px; color: var(--ink); }
+.mail-row:hover { background: var(--soft); }
+.mail-row.on { background: var(--bsoft); }
+.mail-row.unseen .mail-from, .mail-row.unseen .mail-subject { font-weight: 700; }
+.mail-row-main { flex: 1; min-width: 0; }
+.mail-from { display: block; font-size: 13px; }
+.mail-subject { display: block; font-size: 12.5px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-when { font-size: 11.5px; color: var(--sub); white-space: nowrap; flex-shrink: 0; }
+.mail-star { color: var(--warn-text); font-size: 14px; line-height: 1.2; }
+.mail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; color: var(--sub); padding: 30px 12px; text-align: center; }
+.mail-view-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line2); flex-shrink: 0; }
+.mail-files { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--line2); }
+/* 남이 보낸 HTML 은 격리해 그린다(sandbox) — 배경은 흰색 고정, 다크에서도 원문 그대로 */
+.mail-body { flex: 1; width: 100%; border: none; background: #fff; }
+.mail-body-text { flex: 1; margin: 0; padding: 14px 16px; overflow: auto; white-space: pre-wrap; font-family: inherit; font-size: 13.5px; line-height: 1.6; }
+.mail-modal { width: 760px; }
+@media (max-width: 1100px) {
+  .mail-layout { grid-template-columns: 1fr; height: auto; }
+  .mail-layout > .card { height: auto; max-height: 60vh; }
+}
+
 /* 새 배포 알림 — 화면을 가리지 않게 아래쪽에 얹는다 */
 .update-bar { position: fixed; right: 16px; bottom: 16px; z-index: 120; display: flex; align-items: center; gap: 8px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 13px;

@@ -9,6 +9,7 @@
 | 첨부 다운로드 | 로그인 필수 — gateway 가 `auth_request` 로 httpOnly 쿠키를 확인. 무인증으로 열리는 경로 없음 |
 | 첨부 응답 | `nosniff` · `Content-Security-Policy: default-src 'none'; sandbox` · 이미지·PDF 외에는 `Content-Disposition: attachment` |
 | AI 키 | 암호화 저장, 평문 미노출, 관리자 전용 — [AI 멘토](ai-mentor.md#키-취급) |
+| 메일 계정 | 비밀번호는 `JWT_SECRET` 파생 키로 암호화 보관, 평문 미노출(마스킹만). 메일 본문은 저장하지 않고 볼 때마다 IMAP 서버에서 가져온다 |
 | 감사 로그 | 서비스별 `audit_logs` 기록, 관리자 화면에서 전 서비스 집계 조회 |
 
 첨부는 앱과 같은 출처(`/uploads/...`)에서 서빙되므로 업로드(형식 제한)와 다운로드(인증·응답 헤더)
