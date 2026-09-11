@@ -101,9 +101,16 @@ export default function Layout({ children }: { children: ReactNode }) {
   }
 
   // 접어 둔 메뉴 그룹 — 계정에 남긴다(PC 를 바꿔도 같은 화면).
-  const [shutGroups, setShutGroups] = usePref<string[]>("nav_groups_shut", []);
+  // 처음 열면 접혀 있는 그룹 — 매일 쓰는 메뉴가 먼저 눈에 들어오게 한다.
+  // 접힘 상태는 {shut:[...]} 로 담는다. 빈 배열로 두면 설정 저장소가 '값 없음'으로 보고
+  // 지워 버려, 모두 펼쳐 둔 사람이 다음 접속 때 기본값(접힘)으로 되돌아간다.
+  const NAV_SHUT_DEFAULT = ["연구비", "자원", "인사", "지도"];
+  const [navPref, setNavPref] = usePref<any>("nav_groups_shut", null);
+  const shutGroups: string[] = Array.isArray(navPref) ? navPref            // 예전에 저장해 둔 모양
+    : navPref && Array.isArray(navPref.shut) ? navPref.shut
+    : NAV_SHUT_DEFAULT;
   const toggleGroup = (title: string) =>
-    setShutGroups(shutGroups.includes(title) ? shutGroups.filter((t) => t !== title) : [...shutGroups, title]);
+    setNavPref({ shut: shutGroups.includes(title) ? shutGroups.filter((t) => t !== title) : [...shutGroups, title] });
 
   // 라우트 이동 시 모바일 드로어 닫기
   useEffect(() => { setDrawer(false); setMenu(false); }, [loc.pathname]);
