@@ -18,7 +18,7 @@ interface Account {
   imap_host: string; imap_port: number; imap_ssl: boolean;
   smtp_host: string; smtp_port: number; smtp_tls: string; is_default: boolean;
 }
-interface Folder { path: string; label: string; kind: string }
+interface Folder { path: string; label: string; kind: string; unread: number }
 interface Brief {
   uid: string; subject: string; from_name: string; from_addr: string; to: string;
   date: string; size: number; seen: boolean; flagged: boolean; answered: boolean; attachments: number;
@@ -84,6 +84,7 @@ export default function Mail() {
       const { data } = await api.get<Brief[]>(
         `/mail/messages?account_id=${accId}&folder=${encodeURIComponent(folder)}&q=${encodeURIComponent(query)}`);
       setList(data);
+      api.get<Folder[]>(`/mail/folders?account_id=${accId}`).then((r) => setFolders(r.data)).catch(() => { /* 목록이 우선 */ });
     } catch (e) { setErr(apiError(e)); setList([]); } finally { setLoading(false); }
   }
   useEffect(() => { qRef.current = ""; setQ(""); setSel(null); loadList(""); /* eslint-disable-next-line */ }, [accId, folder]);
@@ -94,6 +95,7 @@ export default function Mail() {
       const { data } = await api.get<Full>(
         `/mail/messages/${m.uid}?account_id=${accId}&folder=${encodeURIComponent(folder)}`);
       setSel(data);
+      if (!m.seen) setFolders((fs) => fs.map((f) => (f.path === folder ? { ...f, unread: Math.max(0, f.unread - 1) } : f)));
       setList((ls) => ls.map((x) => (x.uid === m.uid ? { ...x, seen: true } : x)));
     } catch (e) { setErr(apiError(e)); } finally { setOpening(false); }
   }
@@ -175,7 +177,9 @@ export default function Mail() {
             {folders.map((f) => (
               <button key={f.path} className={"mail-folder" + (f.path === folder ? " on" : "")}
                 data-testid={`mail-folder-${f.kind || f.path}`} onClick={() => setFolder(f.path)}>
-                <span className="mail-folder-ico"><Icon name={FOLDER_ICON[f.kind] || "folder"} size={16} /></span>{f.label}
+                <span className="mail-folder-ico"><Icon name={FOLDER_ICON[f.kind] || "folder"} size={16} /></span>
+                <span className="mail-folder-name">{f.label}</span>
+                {f.unread > 0 && <span className="mail-unread" data-testid={`mail-unread-${f.kind || f.path}`}>{f.unread > 99 ? "99+" : f.unread}</span>}
               </button>
             ))}
             {!folders.length && <div className="muted small" style={{ padding: 10 }}>메일함을 불러오는 중…</div>}

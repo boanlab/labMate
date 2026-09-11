@@ -109,11 +109,26 @@ _ORDER = ["inbox", "sent", "drafts", "archive", "junk", "trash"]
 _LIST_RE = re.compile(rb'\((?P<flags>[^)]*)\) "(?P<delim>[^"]*)" (?P<name>.+)')
 
 
+_UNSEEN_RE = re.compile(rb"UNSEEN (\d+)")
+
+
+def _unseen(m, path: str) -> int:
+    """그 메일함의 안 읽은 통수. STATUS 는 메일함을 열지 않아 가볍다."""
+    try:
+        typ, data = m.status(f'"{path}"', "(UNSEEN)")
+        if typ != "OK" or not data:
+            return 0
+        hit = _UNSEEN_RE.search(data[0] if isinstance(data[0], bytes) else bytes(data[0]))
+        return int(hit.group(1)) if hit else 0
+    except Exception:                                        # noqa: BLE001 — 한 메일함이 막혀도 목록은 나와야 한다
+        return 0
+
+
 def folders(acc, cfg: dict, password: str) -> list[dict]:
     with imap(acc, cfg, password) as m:
         typ, rows = m.list()
         if typ != "OK":
-            return [{"path": "INBOX", "label": "받은편지함", "kind": "inbox"}]
+            return [{"path": "INBOX", "label": "받은편지함", "kind": "inbox", "unread": 0}]
         out: list[dict] = []
         for row in rows or []:
             mt = _LIST_RE.match(row if isinstance(row, bytes) else bytes(row))
@@ -128,10 +143,16 @@ def folders(acc, cfg: dict, password: str) -> list[dict]:
             kind = kind or _NAME_KIND.get(path.split("/")[-1].lower(), "")
             if path.upper() == "INBOX":
                 kind = "inbox"
-            out.append({"path": path, "label": _KIND_LABEL.get(kind) or path.split("/")[-1], "kind": kind})
+            out.append({"path": path, "label": _KIND_LABEL.get(kind) or path.split("/")[-1],
+                        "kind": kind, "unread": 0})
+        # 안 읽은 통수는 접속 하나로 몰아서 묻는다 — 메일함마다 새로 접속하면 화면이 느려진다.
+        # 보낸편지함·휴지통의 '안 읽음'은 뜻이 없어 세지 않는다.
+        for f in out:
+            if f["kind"] not in ("sent", "trash", "drafts"):
+                f["unread"] = _unseen(m, f["path"])
         # 아는 메일함을 앞에, 나머지는 이름순 — 화면 왼쪽 목록 순서가 그대로 된다
         out.sort(key=lambda f: (_ORDER.index(f["kind"]) if f["kind"] in _ORDER else 99, f["label"]))
-        return out or [{"path": "INBOX", "label": "받은편지함", "kind": "inbox"}]
+        return out or [{"path": "INBOX", "label": "받은편지함", "kind": "inbox", "unread": 0}]
 
 
 _HEAD = "(UID FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS (SUBJECT FROM TO DATE)])"

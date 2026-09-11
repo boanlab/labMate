@@ -41,6 +41,7 @@ class FolderOut(BaseModel):
     path: str                     # IMAP 경로(그대로 다시 넘긴다)
     label: str                    # 화면에 보일 이름
     kind: str = ""                # inbox·sent·drafts·trash·junk·archive(아는 것만)
+    unread: int = 0
 
 
 class MessageBrief(BaseModel):
