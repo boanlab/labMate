@@ -133,7 +133,7 @@ export default function Mail() {
       const { data } = await api.get<Brief[]>(
         `/mail/messages?account_id=${accId}&folder=${encodeURIComponent(folder)}&q=${encodeURIComponent(query)}`);
       setList(data);
-      api.get<Folder[]>(`/mail/folders?account_id=${accId}`).then((r) => setFolders(r.data)).catch(() => { /* 목록이 우선 */ });
+      refreshFolders();
     } catch (e) { setErr(apiError(e)); setList([]); } finally { setLoading(false); }
   }
   useEffect(() => { qRef.current = ""; setQ(""); setSel(null); loadList(""); /* eslint-disable-next-line */ }, [accId, folder]);
@@ -168,6 +168,37 @@ export default function Mail() {
     } catch (e) { setErr(apiError(e)); }
   }
 
+  const path = (kind: string) => folders.find((f) => f.kind === kind)?.path || "";
+
+  function refreshFolders() {
+    api.get<Folder[]>(`/mail/folders?account_id=${accId}`).then((r) => setFolders(r.data)).catch(() => { /* 목록이 우선 */ });
+  }
+
+  /** 보관·삭제·스팸 신고 — 다른 메일함으로 옮긴다. 옮긴 메일은 지금 목록에서 사라진다. */
+  async function moveTo(kind: string, label: string) {
+    if (!sel) return;
+    const to = path(kind);
+    if (!to) { setErr(`${label}이(가) 없는 메일 서버입니다`); return; }
+    setErr("");
+    try {
+      await api.post(`/mail/messages/${sel.uid}/move?account_id=${accId}&folder=${encodeURIComponent(folder)}`, { to });
+      setList((ls) => ls.filter((m) => m.uid !== sel.uid));
+      setSel(null);
+      refreshFolders();
+    } catch (e) { setErr(apiError(e)); }
+  }
+
+  /** 읽지 않음으로 되돌리기 — 나중에 다시 보겠다는 표시로 흔히 쓴다. */
+  async function markUnread() {
+    if (!sel) return;
+    try {
+      await api.post(`/mail/messages/${sel.uid}/flags?account_id=${accId}&folder=${encodeURIComponent(folder)}`, { seen: false });
+      setList((ls) => ls.map((m) => (m.uid === sel.uid ? { ...m, seen: false } : m)));
+      setFolders((fs) => fs.map((f) => (f.path === folder ? { ...f, unread: f.unread + 1 } : f)));
+      setSel(null);
+    } catch (e) { setErr(apiError(e)); }
+  }
+
   async function download(f: { index: number; name: string }) {
     if (!sel) return;
     try {
@@ -182,13 +213,31 @@ export default function Mail() {
 
   // ── 보내기 ──
   function newMail() { setCompose({ to: "", cc: "", subject: "", body: "", reply: "" }); }
-  function reply() {
+  const quoted = (m: Full) =>
+    `<br><br><blockquote>${m.from_name} 님이 ${m.date} 에 쓴 글:<br>${m.html || (m.text || "").replace(/\n/g, "<br>")}</blockquote>`;
+
+  /** 답장 — 보낸 사람에게만. 전체답장이면 원래 받는 사람·참조도 데려가되 나는 뺀다. */
+  function reply(all = false) {
     if (!sel) return;
-    const quoted = `<br><br><blockquote>${sel.from_name} 님이 ${sel.date} 에 쓴 글:<br>${sel.html || (sel.text || "").replace(/\n/g, "<br>")}</blockquote>`;
+    const mine = (acc?.address || "").toLowerCase();
+    const others = [...sel.to.split(","), ...sel.cc.split(",")]
+      .map((x) => x.trim())
+      .filter((x) => x && x.toLowerCase() !== mine && x.toLowerCase() !== sel.from_addr.toLowerCase());
     setCompose({
-      to: sel.from_addr, cc: "", reply: sel.uid,
+      to: sel.from_addr, cc: all ? [...new Set(others)].join(", ") : "", reply: sel.uid,
       subject: /^re:/i.test(sel.subject) ? sel.subject : `Re: ${sel.subject}`,
-      body: quoted,
+      body: quoted(sel),
+    });
+  }
+
+  /** 전달 — 받는 사람은 비우고 원문을 그대로 담는다. */
+  function forward() {
+    if (!sel) return;
+    setCompose({
+      to: "", cc: "", reply: "",
+      subject: /^fwd:/i.test(sel.subject) ? sel.subject : `Fwd: ${sel.subject}`,
+      body: `<br><br>---------- 전달된 메일 ----------<br>보낸 사람: ${sel.from_name} &lt;${sel.from_addr}&gt;<br>`
+        + `날짜: ${sel.date}<br>받는 사람: ${sel.to}<br><br>${sel.html || (sel.text || "").replace(/\n/g, "<br>")}`,
     });
   }
   async function send() {
@@ -313,6 +362,21 @@ export default function Mail() {
             )}
             {!opening && sel && (
               <>
+                {/* 메일을 어떻게 할 것인가(보관·삭제·스팸·읽지 않음·별표)는 위,
+                    무엇을 쓸 것인가(답장·전달)는 본문을 다 읽은 아래에 둔다. */}
+                <div className="mail-bar">
+                  <button className="mail-icon" title="보관" aria-label="보관" data-testid="mail-archive"
+                    disabled={!path("archive")} onClick={() => moveTo("archive", "보관함")}><Icon name="archive" size={17} /></button>
+                  <button className="mail-icon" title="삭제" aria-label="삭제" data-testid="mail-trash"
+                    disabled={!path("trash")} onClick={() => moveTo("trash", "휴지통")}><Icon name="trash" size={17} /></button>
+                  <button className="mail-icon" title="스팸으로 신고" aria-label="스팸으로 신고" data-testid="mail-junk"
+                    disabled={!path("junk")} onClick={() => moveTo("junk", "스팸함")}><Icon name="shield" size={17} /></button>
+                  <span className="mail-bar-sep" />
+                  <button className="mail-icon" title="읽지 않음으로" aria-label="읽지 않음으로" data-testid="mail-unread"
+                    onClick={markUnread}><Icon name="mail" size={17} /></button>
+                  <button className={"mail-icon star" + (sel.flagged ? " on" : "")} title={sel.flagged ? "별표 해제" : "별표"}
+                    aria-label="별표" data-testid="mail-flag" onClick={() => star(sel)}>{sel.flagged ? "★" : "☆"}</button>
+                </div>
                 <div className="mail-view-head">
                   <h2 className="mail-title">{sel.subject}</h2>
                   <div className="mail-sender">
@@ -324,10 +388,6 @@ export default function Mail() {
                       <div className="muted small">받는 사람 {sel.to}{sel.cc ? ` · 참조 ${sel.cc}` : ""}</div>
                     </span>
                     <span className="muted small" style={{ whiteSpace: "nowrap" }}>{sel.date.replace("T", " ")}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                    <button className="btn ghost sm" data-testid="mail-reply" onClick={reply}>답장</button>
-                    <button className="btn ghost sm" onClick={() => star(sel)}>{sel.flagged ? "★ 별표 해제" : "☆ 별표"}</button>
                   </div>
                 </div>
                 {!!sel.files.length && (
@@ -346,6 +406,11 @@ export default function Mail() {
                       sandbox="allow-popups allow-popups-to-escape-sandbox"
                       srcDoc={`<base target="_blank"><meta name="referrer" content="no-referrer">${sel.html}`} />
                   : <pre className="mail-body-text" data-testid="mail-body">{linkify(sel.text)}</pre>}
+                <div className="mail-dock">
+                  <button className="btn ghost sm" data-testid="mail-reply" onClick={() => reply(false)}>↩ 답장</button>
+                  <button className="btn ghost sm" data-testid="mail-reply-all" onClick={() => reply(true)}>↩ 전체답장</button>
+                  <button className="btn ghost sm" data-testid="mail-forward" onClick={forward}>↪ 전달</button>
+                </div>
               </>
             )}
           </div>

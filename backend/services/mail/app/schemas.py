@@ -83,6 +83,10 @@ class SendIn(BaseModel):
     in_reply_to: str = ""                 # 답장일 때 원본 Message-ID
 
 
+class MoveIn(BaseModel):
+    to: str = Field(min_length=1, max_length=200)     # 옮길 메일함 경로
+
+
 class FlagIn(BaseModel):
     seen: bool | None = None
     flagged: bool | None = None

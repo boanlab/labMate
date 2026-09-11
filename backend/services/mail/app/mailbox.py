@@ -301,6 +301,26 @@ def attachment(acc, cfg: dict, password: str, folder: str, uid: str, index: int)
         raise RuntimeError("첨부를 찾지 못했습니다")
 
 
+def move(acc, cfg: dict, password: str, folder: str, uid: str, dest: str) -> None:
+    """메일을 다른 메일함으로 옮긴다(보관·삭제·스팸 신고).
+
+    MOVE 를 아는 서버면 한 번에, 모르는 서버면 복사 뒤 원본에 삭제 표시를 하고 비운다.
+    """
+    with imap(acc, cfg, password, folder) as m:
+        if "MOVE" in (m.capabilities or ()):
+            typ, _ = m.uid("MOVE", uid.encode(), f'"{dest}"')
+            if typ == "OK":
+                return
+        typ, _ = m.uid("COPY", uid.encode(), f'"{dest}"')
+        if typ != "OK":
+            raise RuntimeError(f"옮기지 못했습니다: {dest}")
+        m.uid("STORE", uid.encode(), "+FLAGS", "(\\Deleted)")
+        try:
+            m.expunge()
+        except Exception:                                    # noqa: BLE001 — 비우기를 막는 서버도 있다
+            pass
+
+
 def set_flags(acc, cfg: dict, password: str, folder: str, uid: str, seen: bool | None, flagged: bool | None) -> None:
     with imap(acc, cfg, password, folder) as m:
         for flag, want in (("\\Seen", seen), ("\\Flagged", flagged)):

@@ -586,6 +586,16 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .mail-star.on, .mail-row:hover .mail-star.on { color: #e8a33d; }
 .mail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; color: var(--sub); padding: 30px 12px; text-align: center; }
 
+/* 읽는 화면 위쪽 도구줄 — 이 메일을 어떻게 할 것인가(보관·삭제·스팸·읽지 않음·별표) */
+.mail-bar { display: flex; align-items: center; gap: 2px; padding: 7px 10px; border-bottom: 1px solid var(--line2); flex-shrink: 0; }
+.mail-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px;
+  border: none; background: transparent; color: var(--sub); border-radius: 7px; font-size: 15px; }
+.mail-icon:hover:not(:disabled) { background: var(--soft); color: var(--ink); }
+.mail-icon:disabled { opacity: .35; cursor: default; }
+.mail-icon.star.on { color: #e8a33d; }
+.mail-bar-sep { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
+/* 답장·전체답장·전달은 본문을 다 읽은 자리, 아래에 붙여 둔다 */
+.mail-dock { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line2); background: var(--panel); flex-shrink: 0; }
 .mail-view-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--line2); flex-shrink: 0; }
 .mail-title { margin: 0 0 12px; font-size: 19px; font-weight: 650; line-height: 1.32; word-break: break-word; }
 .mail-sender { display: flex; gap: 11px; align-items: flex-start; }

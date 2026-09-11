@@ -155,6 +155,14 @@ def flag_message(uid: str, body: schemas.FlagIn, account_id: str, folder: str = 
     return schemas.MessageOut(detail="표시했습니다")
 
 
+@router.post("/messages/{uid}/move", response_model=schemas.MessageOut)
+def move_message(uid: str, body: schemas.MoveIn, account_id: str, folder: str = "INBOX",
+                 user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    cfg, a = _cfg(db), _acc(db, user, account_id)
+    _run(mailbox.move, a, cfg, _pw(a), folder, uid, body.to)
+    return schemas.MessageOut(detail="옮겼습니다")
+
+
 @router.get("/messages/{uid}/attachments/{index}")
 def download_attachment(uid: str, index: int, account_id: str, folder: str = "INBOX",
                         user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
