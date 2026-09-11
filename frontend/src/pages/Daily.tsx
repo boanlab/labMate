@@ -275,7 +275,10 @@ export default function Daily() {
             {projects.map((p) => <option key={p.id} value={p.id}>{p.code}</option>)}
           </select>
           <button className="btn primary sm" data-testid="daily-add" type="submit">추가</button>
-          <button className="btn ghost sm" type="button" data-testid="daily-carry" title="지난 날들에서 아직 못 끝낸 일을 이 날로 가져옵니다" onClick={carryOver}>남은 일 가져오기</button>
+          {/* 지난 날로 남은 일을 옮기면 그날 실제로 한 일이 아니게 된다 — 오늘에만 연다. */}
+          <button className="btn ghost sm" type="button" data-testid="daily-carry" disabled={day !== today}
+            title={day !== today ? "오늘 날짜에서만 가져올 수 있습니다" : "지난 날들에서 아직 못 끝낸 일을 오늘로 가져옵니다"}
+            onClick={carryOver}>남은 일 가져오기</button>
         </form>
 
         {ofDay.map((l) => (
