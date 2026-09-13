@@ -226,6 +226,43 @@ def list_messages(acc, cfg: dict, password: str, folder: str, limit: int, offset
         return [out[u.decode()] for u in page if u.decode() in out]
 
 
+# 잘못 읽었을 때 쏟아지는 글자들(UTF-8 을 라틴으로 읽으면 이 대역이 가득 찬다).
+# 한국어·영어 메일에 라틴 보조 문자가 이렇게 많을 일은 없다.
+_LATIN1 = re.compile(r"[\u0080-\u00ff]")
+# 메일에서 실제로 만나는 순서대로. 선언된 charset 을 먼저 믿되, 결과가 이상하면 다음을 본다.
+_CHARSETS = ("utf-8", "cp949", "euc-kr", "iso-8859-1")
+
+
+def _garble(text: str) -> float:
+    """0 에 가까울수록 제대로 읽힌 글. 깨진 글은 라틴 보조 문자로 뒤덮인다."""
+    return len(_LATIN1.findall(text)) / max(len(text), 1)
+
+
+def _decode(payload: bytes, charset: str | None) -> str:
+    """본문 글자 풀기.
+
+    메일 헤더가 적어 둔 charset 이 틀리는 일이 흔하다(보내는 쪽이 기본값을 그대로 두거나,
+    중계 서버가 바꿔 적는다). 선언을 먼저 믿되, 읽어 놓고 보니 깨졌으면 다른 것으로 읽는다.
+    """
+    if not payload:
+        return ""
+    tried: list[tuple[float, str]] = []
+    for cs in ([charset] if charset else []) + list(_CHARSETS):
+        if not cs:
+            continue
+        try:
+            text = payload.decode(cs)
+        except (LookupError, UnicodeDecodeError, ValueError):
+            continue
+        score = _garble(text)
+        if score < 0.02:                                     # 충분히 깨끗하면 더 볼 것 없다
+            return text
+        tried.append((score, text))
+    if tried:
+        return min(tried, key=lambda x: x[0])[1]
+    return payload.decode("utf-8", errors="replace")
+
+
 def _bodies(msg) -> tuple[str, str, list[dict]]:
     """본문(html·text)과 첨부 목록. 첨부는 순서대로 번호를 매겨 내려받을 때 쓴다."""
     html, text, files = "", "", []
@@ -242,11 +279,7 @@ def _bodies(msg) -> tuple[str, str, list[dict]]:
             idx += 1
             continue
         idx += 1
-        charset = part.get_content_charset() or "utf-8"
-        try:
-            body = payload.decode(charset, errors="replace")
-        except LookupError:
-            body = payload.decode("utf-8", errors="replace")
+        body = _decode(payload, part.get_content_charset())
         if part.get_content_type() == "text/html" and not html:
             html = body
         elif part.get_content_type() == "text/plain" and not text:
