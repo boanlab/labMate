@@ -180,6 +180,14 @@ def move_message(uid: str, body: schemas.MoveIn, account_id: str, folder: str = 
     return schemas.MessageOut(detail="옮겼습니다")
 
 
+@router.delete("/messages/{uid}", status_code=204)
+def purge_message(uid: str, account_id: str, folder: str = "INBOX",
+                  user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    """완전 삭제 — 휴지통·스팸함에서만 쓰는 자리. 메일 서버에서도 사라진다."""
+    cfg, a = _cfg(db), _acc(db, user, account_id)
+    _run(mailbox.purge, a, cfg, _pw(a), folder, uid)
+
+
 @router.get("/messages/{uid}/attachments/{index}")
 def download_attachment(uid: str, index: int, account_id: str, folder: str = "INBOX",
                         user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):

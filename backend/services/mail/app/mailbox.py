@@ -183,13 +183,15 @@ def _iso(raw: str | None) -> str:
 
 def list_messages(acc, cfg: dict, password: str, folder: str, limit: int, offset: int, query: str) -> list[dict]:
     with imap(acc, cfg, password, folder) as m:
+        # 지운 표시가 붙은 메일은 빼고 센다. 서버가 아직 비우지 않았을 뿐 이미 치운 메일이라,
+        # 목록에 남겨 두면 눌렀을 때 "메일을 찾지 못했습니다"가 된다.
         if query.strip():
             try:
-                typ, data = m.uid("SEARCH", "CHARSET", "UTF-8", "TEXT", f'"{query.strip()}"'.encode())
+                typ, data = m.uid("SEARCH", "CHARSET", "UTF-8", "NOT", "DELETED", "TEXT", f'"{query.strip()}"'.encode())
             except Exception:                                # noqa: BLE001 — 검색을 못 하는 서버는 전체로
-                typ, data = m.uid("SEARCH", None, "ALL")
+                typ, data = m.uid("SEARCH", None, "NOT", "DELETED")
         else:
-            typ, data = m.uid("SEARCH", None, "ALL")
+            typ, data = m.uid("SEARCH", None, "NOT", "DELETED")
         if typ != "OK":
             return []
         uids = (data[0] or b"").split()
@@ -291,7 +293,7 @@ def get_message(acc, cfg: dict, password: str, folder: str, uid: str) -> dict:
     with imap(acc, cfg, password, folder) as m:
         typ, rows = m.uid("FETCH", uid.encode(), "(UID FLAGS RFC822.SIZE BODY.PEEK[])")
         if typ != "OK" or not rows or not isinstance(rows[0], tuple):
-            raise RuntimeError("메일을 찾지 못했습니다")
+            raise RuntimeError("이 메일은 더 이상 여기에 없습니다 — 옮겨졌거나 지워졌습니다")
         meta, raw = rows[0][0], rows[0][1]
         flags = (_FLAG_RE.search(meta).group(1).decode(errors="ignore") if _FLAG_RE.search(meta) else "")
         size_m = _SIZE_RE.search(meta)
@@ -349,9 +351,23 @@ def move(acc, cfg: dict, password: str, folder: str, uid: str, dest: str) -> Non
             raise RuntimeError(f"옮기지 못했습니다: {dest}")
         m.uid("STORE", uid.encode(), "+FLAGS", "(\\Deleted)")
         try:
-            m.expunge()
+            # UID EXPUNGE 가 있으면 그 메일만 비운다(남의 삭제 표시까지 건드리지 않도록).
+            if "UIDPLUS" in (m.capabilities or ()):
+                m.uid("EXPUNGE", uid.encode())
+            else:
+                m.expunge()
         except Exception:                                    # noqa: BLE001 — 비우기를 막는 서버도 있다
             pass
+
+
+def purge(acc, cfg: dict, password: str, folder: str, uid: str) -> None:
+    """완전 삭제 — 휴지통에서 한 번 더 지우는 자리. 되돌릴 수 없다."""
+    with imap(acc, cfg, password, folder) as m:
+        m.uid("STORE", uid.encode(), "+FLAGS", "(\\Deleted)")
+        if "UIDPLUS" in (m.capabilities or ()):
+            m.uid("EXPUNGE", uid.encode())
+        else:
+            m.expunge()
 
 
 def set_flags(acc, cfg: dict, password: str, folder: str, uid: str, seen: bool | None, flagged: bool | None) -> None:
@@ -427,7 +443,7 @@ def _sent_path(m) -> str:
 def unseen_briefs(acc, cfg: dict, password: str, limit: int = 5, timeout: int = 8) -> list[dict]:
     """안 읽은 메일 몇 통(알림용). 종이 45초마다 묻는 자리라 짧은 제한시간을 쓴다."""
     with imap(acc, cfg, password, "INBOX", timeout=timeout) as m:
-        typ, data = m.uid("SEARCH", None, "UNSEEN")
+        typ, data = m.uid("SEARCH", None, "UNSEEN", "NOT", "DELETED")
         if typ != "OK":
             return []
         uids = (data[0] or b"").split()

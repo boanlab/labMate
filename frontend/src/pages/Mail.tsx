@@ -176,7 +176,12 @@ export default function Mail() {
       setSel(data);
       if (!m.seen) setFolders((fs) => fs.map((f) => (f.path === folder ? { ...f, unread: Math.max(0, f.unread - 1) } : f)));
       setList((ls) => ls.map((x) => (x.uid === m.uid ? { ...x, seen: true } : x)));
-    } catch (e) { setErr(apiError(e)); } finally { setOpening(false); }
+    } catch (e) {
+      // 이미 옮겨졌거나 지워진 메일이면 목록이 낡은 것이다 — 목록을 다시 받아 그 줄을 치운다.
+      setErr(apiError(e));
+      setList((ls) => ls.filter((x) => x.uid !== m.uid));
+      loadList();
+    } finally { setOpening(false); }
   }
 
   async function star(m: Brief) {
@@ -188,6 +193,8 @@ export default function Mail() {
   }
 
   const path = (kind: string) => folders.find((f) => f.kind === kind)?.path || "";
+  const folderKind = folders.find((f) => f.path === folder)?.kind || "";
+  const kept = ["trash", "junk", "archive"].includes(folderKind);   // 이미 치워 둔 메일함인가
 
   function refreshFolders() {
     api.get<Folder[]>(`/mail/folders?account_id=${accId}`).then((r) => setFolders(r.data)).catch(() => { /* 목록이 우선 */ });
@@ -196,11 +203,23 @@ export default function Mail() {
   /** 보관·삭제·스팸 신고 — 다른 메일함으로 옮긴다. 옮긴 메일은 지금 목록에서 사라진다. */
   async function moveTo(kind: string, label: string) {
     if (!sel) return;
-    const to = path(kind);
+    const to = kind === "inbox" ? (path("inbox") || "INBOX") : path(kind);
     if (!to) { setErr(`${label}이(가) 없는 메일 서버입니다`); return; }
     setErr("");
     try {
       await api.post(`/mail/messages/${sel.uid}/move?account_id=${accId}&folder=${encodeURIComponent(folder)}`, { to });
+      setList((ls) => ls.filter((m) => m.uid !== sel.uid));
+      setSel(null);
+      refreshFolders();
+    } catch (e) { setErr(apiError(e)); }
+  }
+
+  /** 완전 삭제 — 휴지통·스팸함에서만. 메일 서버에서도 사라지므로 한 번 묻는다. */
+  async function purge() {
+    if (!sel) return;
+    if (!await confirmDialog(`"${sel.subject}"을(를) 완전히 지울까요? 메일 서버에서도 사라져 되돌릴 수 없습니다.`, { danger: true })) return;
+    try {
+      await api.delete(`/mail/messages/${sel.uid}?account_id=${accId}&folder=${encodeURIComponent(folder)}`);
       setList((ls) => ls.filter((m) => m.uid !== sel.uid));
       setSel(null);
       refreshFolders();
@@ -422,12 +441,27 @@ export default function Mail() {
                 {/* 메일을 어떻게 할 것인가(보관·삭제·스팸·읽지 않음·별표)는 위,
                     무엇을 쓸 것인가(답장·전달)는 본문을 다 읽은 아래에 둔다. */}
                 <div className="mail-bar">
-                  <button className="mail-icon" title="보관" aria-label="보관" data-testid="mail-archive"
-                    disabled={!path("archive")} onClick={() => moveTo("archive", "보관함")}><Icon name="archive" size={17} /></button>
-                  <button className="mail-icon" title="삭제" aria-label="삭제" data-testid="mail-trash"
-                    disabled={!path("trash")} onClick={() => moveTo("trash", "휴지통")}><Icon name="trash" size={17} /></button>
-                  <button className="mail-icon" title="스팸으로 신고" aria-label="스팸으로 신고" data-testid="mail-junk"
-                    disabled={!path("junk")} onClick={() => moveTo("junk", "스팸함")}><Icon name="shield" size={17} /></button>
+                  {/* 치워 둔 메일함(휴지통·스팸·보관)에서는 되돌리기가 먼저다.
+                      휴지통에서 '삭제'는 다시 휴지통으로 옮기는 꼴이라 완전 삭제로 바꾼다. */}
+                  {kept ? (
+                    <>
+                      <button className="btn ghost sm" data-testid="mail-restore" onClick={() => moveTo("inbox", "받은편지함")}>
+                        받은편지함으로</button>
+                      {folderKind !== "archive" && (
+                        <button className="mail-icon" title="완전 삭제" aria-label="완전 삭제" data-testid="mail-purge"
+                          onClick={purge}><Icon name="trash" size={17} /></button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <button className="mail-icon" title="보관" aria-label="보관" data-testid="mail-archive"
+                        disabled={!path("archive")} onClick={() => moveTo("archive", "보관함")}><Icon name="archive" size={17} /></button>
+                      <button className="mail-icon" title="삭제" aria-label="삭제" data-testid="mail-trash"
+                        disabled={!path("trash")} onClick={() => moveTo("trash", "휴지통")}><Icon name="trash" size={17} /></button>
+                      <button className="mail-icon" title="스팸으로 신고" aria-label="스팸으로 신고" data-testid="mail-junk"
+                        disabled={!path("junk")} onClick={() => moveTo("junk", "스팸함")}><Icon name="shield" size={17} /></button>
+                    </>
+                  )}
                   <span className="mail-bar-sep" />
                   <button className="mail-icon" title="읽지 않음으로" aria-label="읽지 않음으로" data-testid="mail-unread"
                     onClick={markUnread}><Icon name="mail" size={17} /></button>
