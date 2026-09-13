@@ -103,6 +103,7 @@ export default function Mail() {
   const [setup, setSetup] = useState(false);          // 계정 설정 모달
   const [compose, setCompose] = useState<null | { to: string; cc: string; subject: string; body: string; reply: string }>(null);
   const [sending, setSending] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);      // 이동 메뉴(어느 메일함으로 옮길지)
   const [book, setBook] = useState<Contact[]>([]);      // 받는 사람 추천(주고받은 주소 + 연구실 구성원)
   const qRef = useRef("");
   const [params, setParams] = useSearchParams();       // 알림에서 눌러 들어온 메일(account·uid)
@@ -120,6 +121,13 @@ export default function Mail() {
     } catch (e) { setErr(apiError(e)); }
   }
   useEffect(() => { loadAccounts(); }, []);
+
+  useEffect(() => {
+    if (!moveOpen) return;
+    const h = () => setMoveOpen(false);
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [moveOpen]);
 
   // 주소록 — 주고받은 주소(서버가 메일함을 훑어 만든다)에 연구실 구성원을 얹는다.
   // 구성원은 바로 오고 메일 쪽은 조금 걸리므로, 오는 대로 합친다.
@@ -205,6 +213,13 @@ export default function Mail() {
     if (!sel) return;
     const to = kind === "inbox" ? (path("inbox") || "INBOX") : path(kind);
     if (!to) { setErr(`${label}이(가) 없는 메일 서버입니다`); return; }
+    return movePath(to);
+  }
+
+  /** 메일함 경로로 바로 옮긴다(이동 메뉴에서 고른 경우). */
+  async function movePath(to: string) {
+    if (!sel) return;
+    setMoveOpen(false);
     setErr("");
     try {
       await api.post(`/mail/messages/${sel.uid}/move?account_id=${accId}&folder=${encodeURIComponent(folder)}`, { to });
@@ -445,8 +460,6 @@ export default function Mail() {
                       휴지통에서 '삭제'는 다시 휴지통으로 옮기는 꼴이라 완전 삭제로 바꾼다. */}
                   {kept ? (
                     <>
-                      <button className="btn ghost sm" data-testid="mail-restore" onClick={() => moveTo("inbox", "받은편지함")}>
-                        받은편지함으로</button>
                       {folderKind !== "archive" && (
                         <button className="mail-icon" title="완전 삭제" aria-label="완전 삭제" data-testid="mail-purge"
                           onClick={purge}><Icon name="trash" size={17} /></button>
@@ -462,6 +475,20 @@ export default function Mail() {
                         disabled={!path("junk")} onClick={() => moveTo("junk", "스팸함")}><Icon name="shield" size={17} /></button>
                     </>
                   )}
+                  {/* 어디로 옮길지는 메일함마다 다르다 — 목록에서 고르게 한다 */}
+                  <span className="mail-move" onMouseDown={(e) => e.stopPropagation()}>
+                    <button className="mail-icon" title="이동" aria-label="이동" aria-expanded={moveOpen}
+                      data-testid="mail-move" onClick={() => setMoveOpen((v) => !v)}><Icon name="move" size={17} /></button>
+                    {moveOpen && (
+                      <div className="menu-pop mail-move-pop" role="menu" data-testid="mail-move-pop">
+                        <div className="menu-head"><b className="small">어디로 옮길까요</b></div>
+                        {folders.filter((f) => f.path !== folder).map((f) => (
+                          <button key={f.path} role="menuitem" data-testid={`mail-move-${f.kind || f.path}`}
+                            onClick={() => movePath(f.path)}>{f.label}</button>
+                        ))}
+                      </div>
+                    )}
+                  </span>
                   <span className="mail-bar-sep" />
                   <button className="mail-icon" title="읽지 않음으로" aria-label="읽지 않음으로" data-testid="mail-unread"
                     onClick={markUnread}><Icon name="mail" size={17} /></button>

@@ -593,6 +593,8 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .mail-icon:hover:not(:disabled) { background: var(--soft); color: var(--ink); }
 .mail-icon:disabled { opacity: .35; cursor: default; }
 .mail-icon.star.on { color: #e8a33d; }
+.mail-move { position: relative; display: inline-flex; }
+.mail-move-pop { width: 200px; top: calc(100% + 4px); left: 0; right: auto; }
 .mail-bar-sep { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
 /* 답장·전체답장·전달은 본문을 다 읽은 자리, 아래에 붙여 둔다 */
 .mail-dock { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line2); background: var(--panel); flex-shrink: 0; }
