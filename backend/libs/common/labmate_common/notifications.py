@@ -168,4 +168,14 @@ def make_notifications_router(derive: DeriveFn | None = None) -> APIRouter:
             n.read_at = now
         db.commit()
 
+    @router.delete("/notifications", status_code=204)
+    def clear_notifications(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+        """저장 알림 비우기 — 종의 '모두 지우기'.
+
+        조회 시점에 계산하는 항목(승인 대기 등)은 지울 대상이 아니다. 일이 남아 있는 한
+        다시 계산되므로, 그쪽은 프론트에서 '닫아 둔 것'으로 기록한다.
+        """
+        db.execute(delete(Notification).where(Notification.user_id == user.id))
+        db.commit()
+
     return router

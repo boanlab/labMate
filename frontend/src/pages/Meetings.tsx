@@ -4,6 +4,7 @@ import { richHtml } from "../ui/richHtml";
 import { htmlToPlain, plainToHtml } from "../ui/html";
 import { useAutoPageSize, Pager } from "../ui/pageTable";
 import { todayKST } from "../lib/date";
+import { selectable } from "../lib/members";
 import { api, apiError } from "../api/client";
 import { useDetailParam } from "../lib/useDetailParam";
 import { confirmDialog } from "../ui/dialog";
@@ -170,7 +171,7 @@ export default function Meetings() {
           <label>참석자</label>
           <div className="field-head">
             <div className="fchips" data-testid="mt-attendees">
-              {users.filter((u) => u.role !== "admin" && u.active !== false).map((u) => <button type="button" key={u.id} className={"chip" + (form.attendees.includes(u.id) ? " on" : "")} onClick={() => toggleAttendee(u.id)}>{u.name}</button>)}
+              {selectable(users, form.attendees).filter((u) => u.role !== "admin").map((u) => <button type="button" key={u.id} className={"chip" + (form.attendees.includes(u.id) ? " on" : "")} onClick={() => toggleAttendee(u.id)}>{u.name}</button>)}
             </div>
             <MentorButton feature="meeting" collect={() => ({
               title: form.title,
@@ -192,7 +193,7 @@ export default function Meetings() {
             <div key={i} data-testid={`mt-action-${i}`} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
               <input placeholder="할 일" value={a.title} onChange={(e) => setAction(i, { title: e.target.value })} style={{ flex: 1, margin: 0, minWidth: 0 }} />
               <select value={a.assignee_id} onChange={(e) => setAction(i, { assignee_id: e.target.value })} style={{ flex: "0 0 130px", margin: 0, minWidth: 0 }}>
-                <option value="">담당자</option>{users.filter((u) => u.role !== "admin" && u.active !== false).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                <option value="">담당자</option>{selectable(users, form.actions.map((x: any) => x.assignee_id)).filter((u) => u.role !== "admin").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
               <input type="date" value={a.due} onChange={(e) => setAction(i, { due: e.target.value })} style={{ flex: "0 0 150px", margin: 0 }} />
               <button type="button" className="btn ghost sm" onClick={() => delAction(i)}>✕</button>

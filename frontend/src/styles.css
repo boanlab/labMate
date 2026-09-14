@@ -38,7 +38,9 @@ body { margin: 0; font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-
 a { color: var(--brand); }
 
 button { font-family: inherit; cursor: pointer; }
-.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 8px 14px; font-size: 14px; white-space: nowrap; transition: background .12s, border-color .12s, box-shadow .12s, opacity .12s; }
+/* line-height 를 고정한다 — 이모지(✨·✕)는 글자보다 위아래로 큰 글꼴에서 나오므로,
+   기본값(normal)이면 그 버튼만 옆 버튼보다 높아진다. */
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 8px 14px; font-size: 14px; line-height: 1.35; white-space: nowrap; transition: background .12s, border-color .12s, box-shadow .12s, opacity .12s; }
 .btn:not(:disabled):hover { border-color: #cdd5df; }
 body.dark .btn:not(:disabled):hover { border-color: #2f3a4c; }
 .btn.primary { background: var(--brand-solid); color: #fff; border-color: var(--brand-solid); box-shadow: 0 1px 2px rgba(63,93,125,.28); }
@@ -263,28 +265,36 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 .wk-head { border-bottom: 1px solid var(--line); background: var(--soft); }
 .wk-dow { padding: 8px 6px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--sub); cursor: pointer; border-left: 1px solid var(--line2); }
 .wk-dow.today { color: var(--brand); background: var(--bsoft); }
+/* 높이를 묶지 않는다 — 하루 종일 일정이 여럿인 날은 칸이 늘어나야 한다.
+   높이를 자르고 스크롤을 두면 가려진 일정을 아무도 보지 않는다. */
 .wk-allday { border-bottom: 1px solid var(--line); min-height: 34px; }
 .wk-allday .wk-gut { font-size: 11px; color: var(--sub); padding: 7px 8px; text-align: right; }
 .wk-allday .wk-col { padding: 5px 4px; display: flex; flex-direction: column; gap: 3px; }
+/* 하루 종일 일정은 제목을 다 보여 준다 — 주간은 칸이 넓어 접을 이유가 없다.
+   아래 '.cal .ev, .wk .ev' 와 특이도가 같으면 뒤에 오는 그쪽이 이기므로 한 단계 더 준다. */
+.wk .wk-allday .ev { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
 .wk-col { border-left: 1px solid var(--line2); cursor: pointer; }
 .wk-body { position: relative; }
 .wk-body .wk-gut { position: relative; }
-.wk-hour { height: var(--wk-h); font-size: 11px; color: var(--sub); text-align: right; padding: 0 8px; transform: translateY(-6px); }
+/* 시각은 그 시간대 칸 안쪽 위에 둔다. 눈금선 위로 끌어올리면 첫 시각이 위 테두리와 겹친다. */
+.wk-hour { height: var(--wk-h); font-size: 11px; color: var(--sub); text-align: right; padding: 3px 8px 0; }
 /* 시간 눈금 — 요소를 늘어놓는 대신 배경으로 그린다(칸마다 DOM 을 만들 이유가 없다) */
 .wk-day { position: relative; background-image: repeating-linear-gradient(to bottom, var(--line2) 0 1px, transparent 1px var(--wk-h)); }
 .wk-day.today { background-color: var(--bsoft); }
-.wk-ev { position: absolute; overflow: hidden; text-overflow: ellipsis; padding: 2px 6px; line-height: 1.35; }
+.wk-ev { position: absolute; white-space: normal; line-height: 1.3; box-shadow: 0 1px 3px rgba(15,23,42,.18); }
+.wk-day:hover { background-color: var(--soft); }
+body.dark .wk-day:hover { background-color: #202634; }
 
 .cal .dow { font-size: 12px; color: var(--sub); font-weight: 700; text-align: center; padding: 4px 0 8px; }
 .cal .day { min-height: 78px; border: 1px solid var(--line); border-radius: 10px; padding: 7px 8px; background: var(--panel); display: flex; flex-direction: column; gap: 3px; overflow: hidden; cursor: pointer; }
-.cal .day.off { background: var(--soft); border-color: transparent; cursor: default; }
+.cal .day.off { background: var(--soft); border-color: transparent; }   /* 흐리게만 — 눌러서 그 날 일정을 볼 수 있다 */
 .cal .day.today { border-color: var(--brand); box-shadow: 0 0 0 2px rgba(63,93,125,.16); background: var(--bsoft); }
 .cal .dn { font-weight: 700; font-size: 12.5px; color: var(--ink); margin-bottom: 2px; }
 .cal .day:hover { border-color: #c7d2e0; background: var(--soft); }
 body.dark .cal .day:hover { border-color: #33415a; }
 .cal .today .dn { color: var(--brand); }
-.cal .ev { display: block; border-radius: 6px; padding: 2px 7px; font-size: 11px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
-.cal .more { font-size: 10.5px; color: var(--sub); font-weight: 600; }
+.cal .ev, .wk .ev { display: block; border-radius: 6px; padding: 2px 7px; font-size: 11px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.cal .more, .wk .more { font-size: 10.5px; color: var(--sub); font-weight: 600; }
 /* 달력이 폭을 다 쓰도록 세로로 쌓는다 — 레이어 표시는 달력 아래에서 가로로 편다 */
 .callayout { display: block; }
 .layer-rows { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 22px; }
@@ -455,10 +465,15 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .lnk { color: var(--brand); cursor: pointer; }
 .lnk:hover { text-decoration: underline; }
 
+/* 알림 머리글 — 제목 옆으로 '모두 읽음·모두 지우기'. .menu-pop button 의 전체폭 규칙을 되돌린다. */
+.notif-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.notif-acts { margin-left: auto; display: inline-flex; gap: 4px; }
+.menu-pop .notif-acts button { display: inline-flex; width: auto; padding: 3px 8px; font-size: 11.5px; border: 1px solid var(--line); border-radius: 7px; }
+.notif-dot { flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 999px; background: #c0392f; }
 .notif-badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 999px; background: #c0392f; color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 
 /* 연구노트 — 트리 사이드바 + 에디터 (뷰포트 높이 채움, 내부 스크롤) */
-[data-testid="page-notes"], [data-testid="page-archive"] { display: flex; flex-direction: column; height: calc(100vh - 86px); }
+[data-testid="page-notes"] { display: flex; flex-direction: column; height: calc(100vh - 86px); }
 .notes-layout { display: grid; grid-template-columns: 260px 1fr; gap: 14px; flex: 1; min-height: 0; }
 .notes-tree { padding: 8px 4px; overflow: auto; }
 .notes-editor { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }   /* grid 아이템 가로 넘침 방지 */
@@ -521,7 +536,7 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .note-meta input[type=checkbox] { width: auto; margin: 0; }
 .note-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .note-tag-in { width: 72px; margin: 0; padding: 4px 7px; font-size: 12px; }
-@media (max-width: 860px) { [data-testid="page-notes"], [data-testid="page-archive"] { height: auto; } .notes-layout { grid-template-columns: 1fr !important; } .notes-tree { max-height: 300px; } .notes-editor { overflow: visible; } .notes-editor-doc { min-height: 60vh; } }
+@media (max-width: 860px) { [data-testid="page-notes"] { height: auto; } .notes-layout { grid-template-columns: 1fr !important; } .notes-tree { max-height: 300px; } .notes-editor { overflow: visible; } .notes-editor-doc { min-height: 60vh; } }
 
 /* 대시보드 오늘 일정 — 클릭 가능 행 + 오늘/다가오는 구분선 */
 .dash-ev { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--line2); cursor: pointer; }
@@ -529,11 +544,92 @@ blockquote { border-left: 3px solid var(--line); padding-left: 12px; margin: 8px
 .dash-ev-div { display: flex; align-items: center; gap: 6px; margin: 5px 0 3px; color: var(--sub); font-size: 10px; }
 .dash-ev-div::before, .dash-ev-div::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
-/* 자료실 첨부파일 — 에디터 하단 고정 */
-.notes-arch-files { flex-shrink: 0; border-top: 1px solid var(--line2); padding: 8px 18px; max-height: 140px; overflow: auto; }
-.arch-files-h { display: flex; align-items: center; font-size: 12px; font-weight: 600; color: var(--sub); margin-bottom: 6px; }
-.arch-files-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.arch-file { padding: 5px 10px; }
+/* ── 전자메일 ── 메일함 · 목록 · 본문 3단. 화면 높이를 채우고 각 칸이 따로 구른다. */
+.mail-layout { display: grid; grid-template-columns: 196px 344px 1fr; gap: 12px; height: calc(100vh - 150px); min-height: 420px; }
+.mail-layout > .card { margin: 0; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.mail-folders { padding: 8px 6px; gap: 2px; overflow: auto; }
+.mail-folder { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; background: transparent; border: none;
+  color: var(--ink); padding: 8px 10px; border-radius: 8px; font-size: 13.5px; }
+.mail-folder:hover { background: var(--soft); }
+.mail-folder.on { background: var(--brand-solid); color: #fff; font-weight: 600; }
+.mail-folder.on .mail-unread { background: rgba(255,255,255,.26); color: #fff; }
+.mail-folder-ico { opacity: .75; display: inline-flex; }
+.mail-folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 안 읽은 메일 수 — 메일함 이름 오른쪽. 0 이면 아예 그리지 않는다(눈에 걸릴 이유가 없다). */
+.mail-unread { flex: none; min-width: 19px; padding: 0 6px; height: 18px; border-radius: 9px;
+  background: var(--bsoft); color: var(--brand); font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; }
+
+.mail-list-head { padding: 10px 10px 8px; border-bottom: 1px solid var(--line2); flex-shrink: 0; }
+.mail-rows { overflow: auto; flex: 1; }
+/* 날짜 머리 — 목록을 구르는 동안 위에 붙어 지금 보는 날이 어디인지 알려 준다 */
+.mail-daysep { position: sticky; top: 0; z-index: 2; padding: 6px 14px 5px; background: var(--soft);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .04em; color: var(--sub); border-bottom: 1px solid var(--line2); }
+.mail-row { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: transparent;
+  border: none; border-bottom: 1px solid var(--line2); padding: 9px 10px 10px; color: var(--ink); }
+.mail-row:hover { background: var(--soft); }
+.mail-row.on { background: var(--bsoft); }
+.mail-row.unseen .mail-from, .mail-row.unseen .mail-subject { font-weight: 700; }
+.mail-av { flex: none; width: 28px; height: 28px; border-radius: 50%; color: #fff; font-size: 11.5px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; user-select: none; }
+.mail-av.lg { width: 36px; height: 36px; font-size: 14px; }
+.mail-row-main { flex: 1; min-width: 0; }
+.mail-line { display: flex; align-items: baseline; gap: 8px; }
+.mail-from { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-when { flex: none; font-size: 11px; color: var(--sub); }
+.mail-subject { display: block; font-size: 12.5px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--brand-solid); margin-right: 5px; vertical-align: middle; }
+.mail-re { color: var(--brand); }
+.mail-clip { color: var(--sub); }
+.mail-star { flex: none; color: var(--line); font-size: 14px; line-height: 1.4; padding: 0 2px; }
+.mail-row:hover .mail-star { color: var(--sub); }
+.mail-star.on, .mail-row:hover .mail-star.on { color: #e8a33d; }
+.mail-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; color: var(--sub); padding: 30px 12px; text-align: center; }
+
+/* 읽는 화면 위쪽 도구줄 — 이 메일을 어떻게 할 것인가(보관·삭제·스팸·읽지 않음·별표) */
+.mail-bar { display: flex; align-items: center; gap: 2px; padding: 7px 10px; border-bottom: 1px solid var(--line2); flex-shrink: 0; }
+.mail-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px;
+  border: none; background: transparent; color: var(--sub); border-radius: 7px; font-size: 15px; }
+.mail-icon:hover:not(:disabled) { background: var(--soft); color: var(--ink); }
+.mail-icon:disabled { opacity: .35; cursor: default; }
+.mail-icon.star.on { color: #e8a33d; }
+.mail-move { position: relative; display: inline-flex; }
+.mail-move-pop { width: 200px; top: calc(100% + 4px); left: 0; right: auto; }
+.mail-bar-sep { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
+/* 답장·전체답장·전달은 본문을 다 읽은 자리, 아래에 붙여 둔다 */
+.mail-dock { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line2); background: var(--panel); flex-shrink: 0; }
+.mail-view-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--line2); flex-shrink: 0; }
+.mail-title { margin: 0 0 12px; font-size: 19px; font-weight: 650; line-height: 1.32; word-break: break-word; }
+.mail-sender { display: flex; gap: 11px; align-items: flex-start; }
+.mail-files { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 18px; border-bottom: 1px solid var(--line2); }
+/* 남이 보낸 HTML 은 격리해 그린다(sandbox) — 배경은 흰색 고정, 다크에서도 원문 그대로 */
+.mail-body { flex: 1; width: 100%; border: none; background: #fff; }
+.mail-body-text { flex: 1; margin: 0; padding: 16px 18px; overflow: auto; white-space: pre-wrap; font-family: inherit; font-size: 13.5px; line-height: 1.6;
+  overflow-wrap: anywhere; }   /* 인증 링크처럼 긴 주소가 가로 스크롤을 만들지 않도록 */
+.mail-modal { width: 760px; }
+
+/* 메일 쓰기 — 화면 하나를 다 쓴다 */
+.compose-card { padding: 14px 16px 16px; }
+.compose-row { display: grid; grid-template-columns: 84px 1fr; align-items: center; gap: 10px; margin-bottom: 8px; }
+.compose-row label { margin: 0; }
+.compose-row input { margin: 0; }
+/* 받는 사람 추천 — 지금 적고 있는 주소에만 뜬다 */
+.addr-wrap { position: relative; }
+.addr-pop { position: absolute; left: 0; right: 0; top: calc(100% + 3px); z-index: 40; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,.16); padding: 4px; max-height: 260px; overflow: auto; }
+.addr-item { display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--ink);
+  padding: 7px 9px; border-radius: 7px; font-size: 13px; }
+.addr-item.on { background: var(--soft); }
+@media (max-width: 1100px) {
+  .mail-layout { grid-template-columns: 1fr; height: auto; }
+  .mail-layout > .card { height: auto; max-height: 60vh; }
+}
+
+/* 새 배포 알림 — 화면을 가리지 않게 아래쪽에 얹는다 */
+.update-bar { position: fixed; right: 16px; bottom: 16px; z-index: 120; display: flex; align-items: center; gap: 8px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 13px;
+  box-shadow: 0 10px 30px rgba(15,23,42,.18); max-width: calc(100vw - 32px); }
+@media (max-width: 520px) { .update-bar { left: 16px; right: 16px; flex-wrap: wrap; } }
 
 /* 아주 좁은 폰(≤380px) — 앱바 우측 그룹이 넘치지 않도록 브랜드 글자를 접고 간격을 줄인다 */
 @media (max-width: 380px) {

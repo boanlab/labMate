@@ -75,8 +75,9 @@ make restore FILE=data/backups/labmate_<시각>.tar.gz   # 현재 데이터를 �
 `restore` 는 앱 정지 → DB 재적재 → 첨부파일 복원 → 재기동 순으로 돕니다.
 
 관리자 화면(환경설정 › 데이터 백업)에서도 ZIP(`data.json` + `uploads/`)으로 백업·복구할 수 있습니다.
-**범위가 한 곳에서 다릅니다** — mentor 서비스는 화면 백업에 들어가지 않습니다(OpenRouter 키가 백업
-파일로 새지 않도록). CLI `make backup` 은 `pg_dumpall` 이라 포함되며, 키는 암호화된 상태입니다.
+**범위가 두 곳에서 다릅니다** — mentor·mail 서비스는 화면 백업에 들어가지 않습니다(OpenRouter 키와
+메일 계정 비밀번호가 백업 파일로 새지 않도록). CLI `make backup` 은 `pg_dumpall` 이라 포함되며,
+둘 다 암호화된 상태입니다.
 
 ## 트러블슈팅
 

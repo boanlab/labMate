@@ -39,12 +39,13 @@ nginx 게이트웨이 · Docker Compose.
 | 서비스 | 라우트 | 담당 |
 |---|---|---|
 | members | `/api/members` | 인증·계정·구성원·권한위임 |
-| projects | `/api/projects` | 연구과제·실적·세부업무·목표·연구노트·아카이브 |
+| projects | `/api/projects` | 연구과제·실적·세부업무·목표·연구노트·업무일지 |
 | funds | `/api/funds` | 예산·연구비 집행·인건비 |
 | attendance | `/api/attendance` | 출퇴근·휴가·근태정정 |
 | boards | `/api/boards` | 공지·게시판·회의록·전자결재 |
 | resource | `/api/resource` | 자산·인프라·예약 |
 | mentor | `/api/mentor` | AI 멘토 |
+| mail | `/api/mail` | 전자메일(IMAP·SMTP 중계) |
 
 각 서비스는 독립 DB(`labmate_<service>`)를 쓰고, 서로 직접 호출하지 않습니다 — 공통 JWT 로만 인증을 공유합니다.
 

@@ -51,6 +51,7 @@ class TaskOut(TaskIn):
 class DailyLogIn(BaseModel):
     """개인 업무일지 한 줄."""
     date: _date
+    done_date: _date | None = None
     title: str = Field(max_length=300)
     project_id: str = ""
     done: bool = False
@@ -60,6 +61,8 @@ class DailyLogIn(BaseModel):
 
 class DailyLogPatch(BaseModel):
     date: _date | None = None
+    done_date: _date | None = None
+    clear_done_date: bool = False        # 완료를 풀 때 — None 은 '건드리지 않음'과 구분되지 않는다
     title: str | None = Field(default=None, max_length=300)
     project_id: str | None = None
     done: bool | None = None
@@ -70,6 +73,7 @@ class DailyLogPatch(BaseModel):
 class DailyLogOut(BaseModel):
     id: str
     date: _date
+    done_date: _date | None = None
     title: str
     project_id: str = ""
     done: bool = False
@@ -150,43 +154,6 @@ class NotePageOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ArchiveIn(BaseModel):
-    parent_id: str = ""
-    title: str = "제목 없음"
-    icon: str = "📄"
-    content: str = ""
-    tags: list[str] = Field(default_factory=list)
-    files: list[dict] = Field(default_factory=list)
-    sort: float | None = None
-
-
-class ArchivePatch(BaseModel):
-    parent_id: str | None = None
-    title: str | None = None
-    icon: str | None = None
-    content: str | None = None
-    tags: list[str] | None = None
-    files: list[dict] | None = None
-    sort: float | None = None
-
-
-class ArchiveOut(BaseModel):
-    id: str
-    parent_id: str
-    sort: float
-    title: str
-    icon: str
-    content: str
-    tags: list[str]
-    files: list[dict]
-    owner_id: str
-    updated_by: str = ""
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    model_config = {"from_attributes": True}
-
-
-# ── 목표(OKR) ──
 class KeyResultIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     unit: str = Field(default="건", max_length=20)

@@ -1,7 +1,7 @@
 // 지도 철학 — AI 가 지도교수와 대화하며 연구·교육·실무 철학을 끌어내고,
 // 교수가 승인한 지침만 학생 멘토링의 기준이 된다.
 //
-// 학생은 승인된 지침을 읽기만 한다(무엇을 기준으로 지도받는지 알아야 하므로).
+// 지도교수 전용 화면이다. 지침은 멘토가 조언할 때 쓰는 근거이지 공개 문서가 아니다.
 import { useEffect, useId, useRef, useState } from "react";
 
 import { api, apiError } from "../api/client";
@@ -106,19 +106,6 @@ export default function Philosophy() {
           );
         })}
       </div>
-
-      {!isProf && (
-        <Card title={`${CAT_LABEL[cat]} — 지도 기준`}>
-          <p className="muted small" style={{ marginTop: 0 }}>
-            AI 멘토가 여러분의 글을 볼 때 이 기준을 근거로 조언합니다.
-          </p>
-          {approved.length
-            ? <ol className="ph-list">{approved.map((p) => (
-                <li key={p.id}><b>{p.text}</b>{p.rationale && <div className="muted small">{p.rationale}</div>}</li>
-              ))}</ol>
-            : <div className="muted">아직 등록된 지침이 없습니다.</div>}
-        </Card>
-      )}
 
       {isProf && (
         <>

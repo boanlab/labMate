@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 import { api, apiError, silent } from "../api/client";
 
-export type MentorFeature = "meeting" | "note" | "task" | "report" | "post" | "schedule" | "review" | "nudge" | "philosophy" | "chat";
+export type MentorFeature = "meeting" | "note" | "task" | "daily" | "report" | "post" | "schedule" | "review" | "nudge" | "philosophy" | "chat";
 
 interface Status { enabled: boolean; features: Record<string, boolean>; labels: Record<string, string> }
 
@@ -60,13 +60,14 @@ export function useMentorEnabled(feature: MentorFeature): boolean {
  * @param feature 점검 유형(관리자가 기능별로 켠다)
  * @param collect 누른 시점의 제목·본문·부가정보를 모아 주는 함수
  */
-export function MentorButton({ feature, collect, label = "멘토 점검", testid, onApply }: {
+export function MentorButton({ feature, collect, label = "멘토 점검", testid, onApply, applyLabel }: {
   feature: MentorFeature;
   collect: () => { title?: string; body?: string; context?: Record<string, unknown> };
   label?: string;
   testid?: string;
   /** 주면 개선안을 본문에 바로 넣을 수 있다. 없으면 보여 주고 복사만 한다. */
   onApply?: (text: string) => void;
+  applyLabel?: string;            // 반영 버튼 문구(기본 '본문에 반영')
 }) {
   const on = useMentorEnabled(feature);
   const [busy, setBusy] = useState(false);
@@ -127,7 +128,7 @@ export function MentorButton({ feature, collect, label = "멘토 점검", testid
               <b className="small">개선안</b>
               <div className="mentor-body"><Marked text={revised} /></div>
               <div className="mentor-acts">
-                {onApply && <button type="button" className="btn primary sm" data-testid={`mentor-apply-${feature}`} onClick={() => onApply(revised)}>본문에 반영</button>}
+                {onApply && <button type="button" className="btn primary sm" data-testid={`mentor-apply-${feature}`} onClick={() => onApply(revised)}>{applyLabel || "본문에 반영"}</button>}
                 <button type="button" className="btn ghost sm" onClick={copy}>{copied ? "복사됨 ✓" : "복사"}</button>
                 <button type="button" className="btn ghost sm" onClick={() => setRevised("")}>개선안 닫기</button>
               </div>

@@ -105,6 +105,8 @@ export default function Dashboard() {
   }
 
   const [pfShut, setPfShut] = usePref<boolean>("dash_portfolio_shut", false);   // 과제 포트폴리오 접힘
+  const [evShut, setEvShut] = usePref<boolean>("dash_today_shut", false);      // 오늘 일정 접힘
+  const [rsShut, setRsShut] = usePref<boolean>("dash_members_shut", false);    // 연구원 현황 접힘
   const [selEv, setSelEv] = useState<any>(null);
   const [myAppr, setMyAppr] = useState<any[]>([]);
   const [myMeetings, setMyMeetings] = useState<any[]>([]);
@@ -349,8 +351,17 @@ export default function Dashboard() {
           </div>
         )}
         <div className="kpi dash-today" style={{ gridColumn: "span 2" }} data-testid="dash-today">
-          <div className="l" style={{ marginBottom: 6 }}>오늘 일정 <a className="lnk" style={{ float: "right", fontSize: 11, fontWeight: 400 }} onClick={() => nav("/calendar")}>캘린더 →</a></div>
-          {(todayEvents.length || futureEvents.length) ? (
+          <div className="l" style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+            오늘 일정
+            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 400 }}>
+              <a className="lnk" style={{ fontSize: 11 }} onClick={() => nav("/calendar")}>캘린더 →</a>
+              <button className="btn ghost sm" data-testid="dash-today-toggle" aria-expanded={!evShut}
+                onClick={() => setEvShut(!evShut)}>{evShut ? "펼치기" : "접기"}</button>
+            </span>
+          </div>
+          {evShut ? (
+            <div className="muted small">오늘 {todayEvents.length}건{futureEvents.length ? ` · 다가오는 일정 ${futureEvents.length}건` : ""}</div>
+          ) : (todayEvents.length || futureEvents.length) ? (
             <>
               {todayEvents.length ? todayEvents.map((e: any, i: number) => (
                 <div key={"t" + i} className="small dash-ev" onClick={() => setSelEv(e)} data-testid={`dash-ev-${i}`}>
@@ -379,15 +390,21 @@ export default function Dashboard() {
 
         {isMgr ? (
           <div className="dash-rs" style={{ gridColumn: "span 6" }}>
-            <Card title="연구원 현황" extra={<a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/members")}>구성원 →</a>} testid="dash-members">
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 18px", marginBottom: 8 }} data-testid="dash-attdist">
+            <Card title="연구원 현황" extra={
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                <a style={{ cursor: "pointer", fontSize: 12 }} onClick={() => nav("/members")}>구성원 →</a>
+                <button className="btn ghost sm" data-testid="dash-members-toggle" aria-expanded={!rsShut}
+                  onClick={() => setRsShut(!rsShut)}>{rsShut ? "펼치기" : "접기"}</button>
+              </span>} testid="dash-members">
+              {/* 접어 두어도 지금 몇 명이 나와 있는지는 보인다 — 그것 때문에 여는 카드라서 */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 18px", marginBottom: rsShut ? 0 : 8 }} data-testid="dash-attdist">
                 {attSegs.map((s) => (
                   <span key={s.label} className="small"><b style={{ color: s.color }}>●</b> {s.label} <b>{s.value}명</b></span>
                 ))}
                 {uncheckCount > 0 && <span className="small"><b style={{ color: "var(--sub)" }}>●</b> 미체크 <b>{uncheckCount}명</b></span>}
                 {!attSegs.length && uncheckCount === 0 && <span className="muted small">근태 데이터 없음</span>}
               </div>
-              <div className="memgrid" data-testid="dash-member-cards">
+              {!rsShut && <div className="memgrid" data-testid="dash-member-cards">
                 {members.filter((u) => u.id !== me?.id).map((u) => {
                   const a = attBy(u.id); const st = a?.status || "미체크";
                   return (
@@ -398,7 +415,7 @@ export default function Dashboard() {
                   );
                 })}
                 {!members.length && <div className="muted">구성원 없음</div>}
-              </div>
+              </div>}
             </Card>
           </div>
         ) : (

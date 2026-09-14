@@ -2,10 +2,11 @@
 import { useEffect, useState } from "react";
 
 type Kind = "confirm" | "alert" | "prompt";
-interface Req { kind: Kind; message: string; title?: string; def?: string; danger?: boolean; resolve: (v: any) => void; }
+interface Req { kind: Kind; message: string; title?: string; def?: string; danger?: boolean; wide?: boolean; resolve: (v: any) => void; }
 let _push: ((r: Req) => void) | null = null;
 
-export function confirmDialog(message: string, opts?: { title?: string; danger?: boolean }): Promise<boolean> {
+/** wide: 목록처럼 한 줄이 긴 내용을 접지 않고 보여 줄 때 */
+export function confirmDialog(message: string, opts?: { title?: string; danger?: boolean; wide?: boolean }): Promise<boolean> {
   return new Promise((resolve) => _push ? _push({ kind: "confirm", message, ...opts, resolve }) : resolve(window.confirm(message)));
 }
 export function alertDialog(message: string, opts?: { title?: string }): Promise<void> {
@@ -27,7 +28,7 @@ export function DialogHost() {
   const ok = () => finish(cur.kind === "confirm" ? true : cur.kind === "prompt" ? val : undefined);
   return (
     <div className="modal-ovl" onClick={(e) => { if (e.target === e.currentTarget) cancel(); }}>
-      <div className="modal" style={{ width: 420, maxWidth: "92%" }} data-testid="app-dialog">
+      <div className="modal" style={{ width: cur.wide ? 860 : 420, maxWidth: "92%" }} data-testid="app-dialog">
         <div className="modal-h"><b>{cur.title || (cur.kind === "alert" ? "알림" : cur.kind === "prompt" ? "입력" : "확인")}</b></div>
         <div className="modal-b">
           <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{cur.message}</div>

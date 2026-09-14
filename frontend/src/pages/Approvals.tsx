@@ -1,5 +1,6 @@
 import { useEffect, useState, useId } from "react";
 import { useDirectory } from "../api/directory";
+import { selectable } from "../lib/members";
 import { Pager } from "../ui/pageTable";
 import { richHtml } from "../ui/richHtml";
 import { api, apiError } from "../api/client";
@@ -71,7 +72,7 @@ export default function Approvals() {
   const inboxSort = useTableSort({ key: "created", dir: -1 }, "appr-inbox");
   const mineSort = useTableSort({ key: "created", dir: -1 }, "appr-mine");
 
-  const approverPool = users.filter((u) => ["prof", "staff"].includes(u.role) || u.delegated_admin || u.role === "admin");
+  const approverPool = selectable(users, form.approver_ids).filter((u) => ["prof", "staff"].includes(u.role) || u.delegated_admin || u.role === "admin");
   const uname = useDirectory("?");
   const ROLE_KO: Record<string, string> = { prof: "교수", staff: "행정", admin: "관리", phd: "박사과정", master: "석사과정", under: "학사과정" };
   const urole = (id: string) => { const r = users.find((u) => u.id === id)?.role; return ROLE_KO[r] || r; };

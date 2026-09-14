@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, silent } from "../api/client";
-import { usePref } from "../api/prefs";
+import { usePref, peekPref } from "../api/prefs";
+import { confirmDialog } from "../ui/dialog";
 import { useAuth } from "../auth/AuthContext";
 import { Icon } from "../ui/icons";
 import { registerPush, pushActive } from "../lib/push";
@@ -11,10 +12,10 @@ interface Noti { id: string; title: string; sub: string; link: string; icon: str
 // 데스크톱 알림 중복 방지용 — 이것만은 기기별이어야 한다(PC 마다 한 번씩 떠야 하므로 계정에 두지 않는다).
 const SEEN_KEY = "labmate.notif.seen";
 // 영구 알림을 조회할 서비스와 kind→아이콘 매핑
-const NOTIF_SVCS = ["projects", "boards", "attendance"];
+const NOTIF_SVCS = ["projects", "boards", "attendance", "mail"];
 const KIND_ICON: Record<string, string> = {
   project: "folder", task: "clipboard", note: "book", notice: "bell", meeting: "users",
-  comment: "chat", event: "calendar", approval: "doc", leave: "sun", attendance: "clock",
+  comment: "chat", event: "calendar", approval: "doc", leave: "sun", attendance: "clock", mail: "mail",
 };
 
 export function NotificationBell() {
@@ -23,17 +24,38 @@ export function NotificationBell() {
   const [items, setItems] = useState<Noti[]>([]);
   const [open, setOpen] = useState(false);
   // 파생 리마인더를 종에서 닫은 기록도 계정에 둔다 — 노트북에서 닫은 것이 데스크톱에서 되살아나지 않도록
-  const [read, setRead] = usePref<string[]>("notif_read", []);
-  // 딥워크 시간에는 데스크톱 알림을 띄우지 않는다(종 배지는 그대로 — 놓치면 안 되므로).
-  const [deep] = usePref<{ on: boolean; from: string; to: string }>("deep_work", { on: false, from: "", to: "" });
+  const [read, setRead] = usePref<string[]>("notif_read", []);        // 읽음(배지에서만 빠진다)
+  const [hidden, setHidden] = usePref<string[]>("notif_hidden", []);  // 지움(목록에서도 빠진다)
+  // 딥워크 시간에는 데스크톱 알림을 띄우지 않는다(종 배지는 그대로 — 놓치면 안 되므로) → inDeepWork()
   // 읽음 판정 — 저장 알림은 서버 read_at, 파생 리마인더는 계정 설정(임시로 닫아 둘 수 있게).
   const isRead = (i: Noti) => (i.derived ? read.includes(i.id) : !!i.read);
-  const unread = items.filter((i) => !isRead(i));
+  const shown = items.filter((i) => !(i.derived && hidden.includes(i.id)));
+  const unread = shown.filter((i) => !isRead(i));
   const ref = useRef<HTMLDivElement>(null);
+
+  /** 모두 읽음 — 배지만 지운다. 처리해야 할 일은 목록에 그대로 남는다. */
   function markAllRead() {
-    const ids = items.map((i) => i.id); setRead(ids);
+    setRead([...new Set([...read, ...shown.map((i) => i.id)])]);
     setItems((list) => list.map((i) => (i.derived ? i : { ...i, read: true })));   // 저장 알림 낙관적 읽음
     NOTIF_SVCS.forEach((s) => { api.post(`/${s}/notifications/read`, {}).catch(() => { /* */ }); });
+  }
+
+  /** 하나만 읽음 — 눌러서 들어간 항목. */
+  function markRead(n: Noti) {
+    if (n.derived) { if (!read.includes(n.id)) setRead([...read, n.id]); return; }
+    setItems((list) => list.map((i) => (i.id === n.id ? { ...i, read: true } : i)));
+    if (n.svc) api.post(`/${n.svc}/notifications/read`, { ids: [n.id.slice(2)] }).catch(() => { /* */ });
+  }
+
+  /** 모두 지우기 — 저장 알림은 서버에서 지우고, 계산해서 나오는 항목은 닫아 둔 것으로 기록한다.
+   *  (닫아 둔 항목은 그 일이 끝나 목록에서 사라질 때 기록도 함께 정리된다.) */
+  async function clearAll() {
+    if (!await confirmDialog("알림을 모두 지울까요? 처리해야 할 일 자체는 각 화면에 그대로 남습니다.")) return;
+    setHidden([...new Set([...hidden, ...items.filter((i) => i.derived).map((i) => i.id)])]);
+    setItems((list) => list.filter((i) => i.derived));
+    setOpen(false);
+    await Promise.all(NOTIF_SVCS.map((s) => api.delete(`/${s}/notifications`).catch(() => { /* */ })));
+    poll();
   }
 
   useEffect(() => {
@@ -65,7 +87,16 @@ export function NotificationBell() {
       }));
     }
     setItems(out);
-    setRead(read.filter((id) => out.some((o) => o.id === id)));      // 처리된 항목은 read 목록에서도 제거
+    // 처리된 항목은 읽음 목록에서도 뺀다. 45초 폴링은 화면이 처음 그려질 때의 함수를 그대로
+    // 다시 부르므로, 여기서 read 상태변수를 쓰면 "종을 열어 읽음 처리 → 잠시 뒤 폴링이
+    // 옛 목록으로 덮어씀 → 새로고침하면 배지가 되살아남" 이 된다. 저장된 최신 값을 직접 읽는다.
+    const prune = (key: string, put: (v: string[]) => void) => {
+      const cur = peekPref<string[]>(key) ?? [];
+      const keep = cur.filter((id) => out.some((o) => o.id === id));
+      if (keep.length !== cur.length) put(keep);
+    };
+    prune("notif_read", setRead);
+    prune("notif_hidden", setHidden);
     // 새 항목 → 데스크톱 알림
     let seen: string[] = [];
     try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); } catch { /* */ }
@@ -93,6 +124,7 @@ export function NotificationBell() {
 
   /** 지금이 딥워크 시간인지 — 자정을 넘기는 설정도 처리한다. */
   function inDeepWork(): boolean {
+    const deep = peekPref<{ on: boolean; from: string; to: string }>("deep_work");   // 폴링이 옛 설정을 쥐고 있지 않도록
     if (!deep?.on || !deep.from || !deep.to) return false;
     const now = new Date().toTimeString().slice(0, 5);
     return deep.from <= deep.to ? now >= deep.from && now < deep.to : now >= deep.from || now < deep.to;
@@ -102,20 +134,32 @@ export function NotificationBell() {
 
   return (
     <div className="usermenu" ref={ref}>
-      <button className="appbar-icon" data-testid="notif-bell" aria-label="알림" onClick={() => setOpen((v) => { if (!v) markAllRead(); return !v; })} style={{ position: "relative" }}>
+      <button className="appbar-icon" data-testid="notif-bell" aria-label="알림" onClick={() => setOpen((v) => !v)} style={{ position: "relative" }}>
         <Icon name="bell" size={17} />
         {unread.length > 0 && <span className="notif-badge" data-testid="notif-count">{unread.length > 9 ? "9+" : unread.length}</span>}
       </button>
       {open && (
         <div className="menu-pop" role="menu" data-testid="notif-pop" style={{ width: 320 }}>
-          <div className="menu-head"><b>알림</b><span className="muted small"> {items.length}건 처리 대기</span></div>
-          {items.map((n) => (
-            <button key={n.id} role="menuitem" onClick={() => go(n)} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+          <div className="menu-head notif-head">
+            <b>알림</b><span className="muted small"> {shown.length}건 처리 대기</span>
+            {shown.length > 0 && (
+              <span className="notif-acts">
+                <button type="button" className="btn ghost sm" data-testid="notif-read-all" disabled={!unread.length} onClick={markAllRead}>모두 읽음</button>
+                <button type="button" className="btn ghost sm" data-testid="notif-clear-all" onClick={clearAll}>모두 지우기</button>
+              </span>
+            )}
+          </div>
+          {shown.map((n) => (
+            <button key={n.id} role="menuitem" onClick={() => { markRead(n); go(n); }} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
               <span style={{ opacity: .7, marginTop: 1 }}><Icon name={n.icon} size={15} /></span>
-              <span style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600 }}>{n.title}</div><div className="muted small" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{n.sub}</div></span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: isRead(n) ? 400 : 600 }}>{n.title}</div>
+                <div className="muted small" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{n.sub}</div>
+              </span>
+              {!isRead(n) && <span className="notif-dot" aria-label="안 읽음" />}
             </button>
           ))}
-          {!items.length && <div className="muted small" style={{ padding: "10px 12px", textAlign: "center" }}>새 알림이 없습니다 🎉</div>}
+          {!shown.length && <div className="muted small" style={{ padding: "10px 12px", textAlign: "center" }}>새 알림이 없습니다 🎉</div>}
         </div>
       )}
     </div>

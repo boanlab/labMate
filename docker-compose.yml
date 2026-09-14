@@ -22,7 +22,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-labmate}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
       # 서비스별 DB는 init 스크립트가 생성
-      LABMATE_DATABASES: labmate_members,labmate_projects,labmate_funds,labmate_attendance,labmate_boards,labmate_resource,labmate_mentor
+      LABMATE_DATABASES: labmate_members,labmate_projects,labmate_funds,labmate_attendance,labmate_boards,labmate_resource,labmate_mentor,labmate_mail
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -152,6 +152,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     # 빌드 산출물을 nginx로 서빙. 개발 시에는 `npm run dev`(5173) 사용.
+    volumes:
+      - ./data/frontend-keep:/srv/keep       # 지난 배포 자산 보관(열어 둔 화면이 계속 쓴다)
 
   mentor-service:
     image: ${ORG:-boanlab}/labmate-mentor:${VERSION:-latest}
@@ -163,6 +165,20 @@ services:
       <<: *common-env
       SERVICE_NAME: mentor
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-labmate}:${POSTGRES_PASSWORD}@postgres:5432/labmate_mentor
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mail-service:
+    image: ${ORG:-boanlab}/labmate-mail:${VERSION:-latest}
+    build:
+      context: ./backend
+      dockerfile: services/mail/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      SERVICE_NAME: mail
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-labmate}:${POSTGRES_PASSWORD}@postgres:5432/labmate_mail
     depends_on:
       postgres:
         condition: service_healthy
@@ -183,4 +199,5 @@ services:
       - boards-service
       - resource-service
       - mentor-service
+      - mail-service
       - frontend

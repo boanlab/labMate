@@ -7,6 +7,7 @@ import { confirmDialog } from "../ui/dialog";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { SheetImport } from "../ui/SheetImport";
 import { AiSettingsPanel } from "./AiSettings";
+import { MailServerPanel } from "./MailServerSettings";
 import { SHEETS } from "../ui/sheets";
 import { saveConfig, clearConfigCache, CONFIG_SERVICE, fileUrl } from "../api/config";
 import JSZip from "jszip";
@@ -20,7 +21,7 @@ async function downloadBlob(path: string, filename: string) {
 }
 
 // 역할별 모듈 접근 매트릭스(프론트 표현용 — 실제 권한은 각 서비스가 강제)
-const MODULES = ["대시보드", "캘린더", "연구과제", "프로젝트", "세부업무", "연구노트", "전자결재", "자원예약", "공지", "게시판", "회의록", "연구비집행", "예산", "학생인건비", "근태", "근태 관리", "휴가", "구성원", "실적", "아카이브", "자산", "인프라", "환경설정", "감사로그"];
+const MODULES = ["대시보드", "캘린더", "연구과제", "프로젝트", "세부업무", "연구노트", "전자결재", "자원예약", "공지", "게시판", "회의록", "연구비집행", "예산", "학생인건비", "근태", "근태 관리", "휴가", "구성원", "실적", "자산", "인프라", "환경설정", "감사로그"];
 function perm(role: string, mod: string): "rw" | "r" | "-" {
   // 관리자(admin)는 대시보드·구성원·환경설정·감사로그만
   if (role === "admin") {
@@ -38,7 +39,7 @@ function perm(role: string, mod: string): "rw" | "r" | "-" {
     case "연구과제": return role === "prof" ? "rw" : "r";                      // 생성·수정=교수·위임, 그 외 조회
     case "전자결재": case "프로젝트": case "자원예약": case "게시판": case "회의록": case "연구노트":
       return role === "staff" ? "-" : "rw";                                   // 행정 차단(위임 학생은 본인 역할로 접근)
-    case "세부업무": case "아카이브": return "rw";                              // 행정 포함 전원(관리자 제외)
+    case "세부업무": return "rw";                              // 행정 포함 전원(관리자 제외)
     case "실적": case "자산": case "인프라": return manage ? "rw" : "r";       // 관리=교수·행정, 학생 전원 조회
     default: return "rw";
   }
@@ -359,7 +360,7 @@ function BrandingPanel() {
 export default function Admin() {
   const { me } = useAuth();
   const isAdmin = me?.role === "admin";
-  const [tab, setTab] = useState<"perm" | "config" | "brand" | "data" | "sheet" | "ai">("brand");
+  const [tab, setTab] = useState<"perm" | "config" | "brand" | "data" | "sheet" | "ai" | "mail">("brand");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const SERVICES = ["members", "projects", "funds", "attendance", "boards", "resource"];
@@ -442,6 +443,7 @@ export default function Admin() {
         <button className={"chip" + (tab === "config" ? " on" : "")} data-testid="admin-tab-config" onClick={() => setTab("config")}>마스터데이터</button>
         <button className={"chip" + (tab === "sheet" ? " on" : "")} data-testid="admin-tab-sheet" onClick={() => setTab("sheet")}>시트 가져오기</button>
         <button className={"chip" + (tab === "ai" ? " on" : "")} data-testid="admin-tab-ai" onClick={() => setTab("ai")}>AI 멘토</button>
+        <button className={"chip" + (tab === "mail" ? " on" : "")} data-testid="admin-tab-mail" onClick={() => setTab("mail")}>메일서버</button>
         <button className={"chip" + (tab === "data" ? " on" : "")} data-testid="admin-tab-data" onClick={() => setTab("data")}>데이터 백업·복구</button>
         <button className={"chip" + (tab === "perm" ? " on" : "")} data-testid="admin-tab-perm" onClick={() => setTab("perm")}>권한 매트릭스</button>
       </div>
@@ -458,6 +460,13 @@ export default function Admin() {
         <>
           {!isAdmin && <div className="form-err">관리자만 AI 멘토를 설정할 수 있습니다.</div>}
           {isAdmin && <AiSettingsPanel />}
+        </>
+      )}
+
+      {tab === "mail" && (
+        <>
+          {!isAdmin && <div className="form-err">관리자만 메일서버를 설정할 수 있습니다.</div>}
+          {isAdmin && <MailServerPanel />}
         </>
       )}
 
@@ -551,10 +560,9 @@ export default function Admin() {
           )}
           {isAdmin && (
             <Card title="문서 내보내기 (ZIP)" testid="docs-export">
-              <div className="muted small" style={{ marginBottom: 12 }}>연구노트·아카이브는 트리 문서라 시트 대신 <b>ZIP</b>으로 내보냅니다. (트리=폴더, 페이지=HTML, 아카이브는 첨부파일 포함)</div>
+              <div className="muted small" style={{ marginBottom: 12 }}>연구노트는 트리 문서라 시트 대신 <b>ZIP</b>으로 내보냅니다. (트리=폴더, 페이지=HTML)</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button className="btn ghost" data-testid="export-notes-zip" onClick={() => downloadBlob("/projects/notes/export", "labmate-연구노트.zip").catch((e) => setSheetResult({ label: "연구노트", msg: apiError(e), errors: [] }))}>⬇ 연구노트 ZIP</button>
-                <button className="btn ghost" data-testid="export-archive-zip" onClick={() => downloadBlob("/projects/archive/export", "labmate-아카이브.zip").catch((e) => setSheetResult({ label: "아카이브", msg: apiError(e), errors: [] }))}>⬇ 아카이브 ZIP</button>
               </div>
             </Card>
           )}

@@ -35,14 +35,14 @@ T(stillChecked, "완료 체크가 새로고침 뒤에도 남는다");
 
 // 보고서 — 오늘이 든 주를 기준으로 만든다(기본값이 이번 주)
 await page.locator('[data-testid="daily-report"]').click(); await settle(page, 1200);
-const draft = await page.locator('[data-testid="daily-report-out"]').inputValue().catch(() => "");
+const draft = await page.locator('[data-testid="daily-report-out"]').innerText().catch(() => "");
 T(draft.includes(MINE), "보고서 초안에 오늘 적은 일이 들어간다", draft.split("\n")[0] || "(비어 있음)");
 T(/합계: \d+건/.test(draft), "보고서에 합계가 붙는다", (draft.match(/합계:.*/) || [""])[0]);
 
 // 월간으로 바꿔도 같은 기록이 잡힌다(오늘은 이번 달에도 들어 있다)
 await page.locator('[data-testid="daily-span-month"]').click(); await settle(page, 600);
 await page.locator('[data-testid="daily-report"]').click(); await settle(page, 1200);
-const monthly = await page.locator('[data-testid="daily-report-out"]').inputValue().catch(() => "");
+const monthly = await page.locator('[data-testid="daily-report-out"]').innerText().catch(() => "");
 T(monthly.includes("월간") && monthly.includes(MINE), "월간 보고서도 같은 기록으로 만들어진다");
 
 // ── 다른 사람에게는 보이지 않는다 ──

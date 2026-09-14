@@ -113,6 +113,19 @@ FEATURE_PROMPT: dict[str, str] = {
         "3) 완료 조건이 분명한가 — '무엇이 있으면 이 업무는 끝인가'를 반드시 한 줄로 물어 제시하세요.\n"
         "   예: \"완료 조건: A4 ___쪽 초고 + 지도교수 피드백 1회 반영\"\n"
     ),
+    "daily": (
+        "하루 업무일지를 검토합니다. 적어 둔 항목 하나하나가 '무엇을 어디까지' 하면 끝인지 분명해야 합니다.\n"
+        "[점검 범위] 아래 목록의 할 일 항목만 봅니다. 목록에 적힌 문장 외에는 무엇도 지적하지 마세요.\n"
+        "- 제목·날짜·목록 전체의 이름이나 형식은 점검 대상이 아닙니다(날짜는 화면이 붙인 것입니다).\n"
+        "- 문서 구조·문체·보고서 양식도 대상이 아닙니다. 업무일지는 본인이 보는 메모입니다.\n"
+        "- 항목 수가 많다거나 적다는 지적도 하지 마세요.\n"
+        "지적은 반드시 특정 항목을 그대로 인용하며 시작하고, 고쳐 쓴 항목을 화살표로 보여 주세요.\n"
+        "1) 모호한 항목만 골라 다시 쓴 제목을 제안하세요. 이미 분명한 항목은 그대로 두세요.\n"
+        "2) 진행 중인 항목에는 완료 조건을 한 줄로 제시하세요.\n"
+        "   예: \"완료 조건: 사업계획서 A4 ___쪽 초안 작성 완료\"\n"
+        "3) 하루에 담기 어려운 큰 덩어리는 오늘 할 만한 단위로 쪼개 제안하세요.\n"
+        "4) 며칠째 같은 항목이 끝나지 않고 있으면 무엇이 막고 있는지 한 줄로 물으세요.\n"
+    ),
     "report": (
         "보고서·제안서를 검토합니다. 읽는 사람이 결론과 요청사항을 빨리 찾을 수 있어야 합니다.\n"
         "1) 목적 - 주요 내용 - 결론/의견 - 향후 계획 구조가 갖춰졌는가. 빠진 절을 짚어 주세요.\n"
@@ -148,7 +161,7 @@ def _with_days(context: dict) -> dict:
 
 def build(feature: str, title: str, body: str, context: dict, principles: list[str] | None = None) -> list[dict[str, str]]:
     system = COMMON + today_line() + "\n" + FEATURE_PROMPT.get(feature, "작성한 내용을 검토하고 개선점을 제안하세요.\n")
-    if feature in ("meeting", "note", "task", "report", "review", "schedule", "post"):
+    if feature in ("meeting", "note", "task", "daily", "report", "review", "schedule", "post"):
         system += SPECIFIC
     if feature in ("meeting", "note", "task", "report", "review", "post"):
         system += STYLE
@@ -230,7 +243,7 @@ def extract_messages(category: str, history: list[dict[str, str]]) -> list[dict[
 # 없는 사실을 채워 넣으면 안 된다 — 그 순간 초안보다 나쁜 글이 된다.
 # 문서 종류 — 고쳐 쓸 때 말투와 형식을 원문에 맞추기 위한 힌트.
 KIND: dict[str, str] = {
-    "meeting": "회의록", "note": "연구노트", "task": "세부업무",
+    "meeting": "회의록", "note": "연구노트", "task": "세부업무", "daily": "업무일지",
     "report": "보고서·제안서", "post": "공지·게시글", "schedule": "일정 계획", "review": "주간 회고",
 }
 
@@ -248,6 +261,18 @@ REVISE_SYSTEM = (
 )
 
 
+# 업무일지는 고쳐 쓴 결과를 화면이 그대로 항목에 집어넣는다. 그래서 모양이 정해져 있어야 한다.
+REVISE_FORMAT: dict[str, str] = {
+    "daily": (
+        "\n[이 문서의 출력 형식]\n"
+        "번호 목록만 출력합니다. 받은 번호를 그대로 유지하고, 한 줄에 '번호. 할 일' 하나만 씁니다.\n"
+        "항목을 더하거나 빼거나 순서를 바꾸지 않습니다. 해설·머리말·꼬리말을 붙이지 않습니다.\n"
+        "완료 조건은 따로 줄을 만들지 말고 할 일 문장 안에 녹여 씁니다.\n"
+        "예: '1. AI중심대학 사업계획서 초안 A4 [미정: 쪽수]쪽 작성 완료'\n"
+    ),
+}
+
+
 def revise_messages(feature: str, title: str, body: str, review: str, context: dict) -> list[dict[str, str]]:
     kind = KIND.get(feature, "문서")
     ctx = "\n".join(f"- {k}: {v}" for k, v in (context or {}).items())
@@ -258,7 +283,7 @@ def revise_messages(feature: str, title: str, body: str, review: str, context: d
         parts.append(f"[앞서 받은 지적사항]\n{review.strip()}")
     parts.append(f"[초안]\n{body}")
     return [
-        {"role": "system", "content": REVISE_SYSTEM + today_line()},
+        {"role": "system", "content": REVISE_SYSTEM + REVISE_FORMAT.get(feature, "") + today_line()},
         {"role": "user", "content": "\n\n".join(parts)},
     ]
 

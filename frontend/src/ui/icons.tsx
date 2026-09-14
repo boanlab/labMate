@@ -21,6 +21,12 @@ const P: Record<string, ReactNode> = {
   book: <><path d="M5 4h11a2 2 0 0 1 2 2v15H7a2 2 0 0 1-2-2z" /><path d="M18 17H7a2 2 0 0 0-2 2" /></>,
   desktop: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>,
   server: <><rect x="3" y="4" width="18" height="7" rx="2" /><rect x="3" y="13" width="18" height="7" rx="2" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
+  move: <><path d="M3 7a2 2 0 0 1 2-2h4l2 2h5a2 2 0 0 1 2 2v3" /><path d="M3 9v8a2 2 0 0 0 2 2h8" /><path d="M17 15l3 3-3 3" /><path d="M20 18h-6" /></>,
+  trash: <><path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" /><path d="M10 11v6M14 11v6" /></>,
+  archive: <><rect x="3" y="4" width="18" height="4.5" rx="1.5" /><path d="M5 8.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8.5" /><path d="M10 12h4" /></>,
+  reply: <><path d="M9 7L4 12l5 5" /><path d="M4 12h9a6 6 0 0 1 6 6v1" /></>,
+  forward: <><path d="M15 7l5 5-5 5" /><path d="M20 12h-9a6 6 0 0 0-6 6v1" /></>,
+  mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3.5 6.5l8.5 6 8.5-6" /></>,
   shield: <><path d="M12 3l8 3v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" /></>,
 };
 

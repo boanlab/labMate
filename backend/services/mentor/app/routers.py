@@ -126,6 +126,19 @@ async def model_list(_: CurrentUser = Depends(require_roles("admin")), db: Sessi
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e))
 
 
+# 나중에 갈라져 나온 기능은 원래 기능의 스위치를 함께 본다. 관리자가 '세부업무 점검'을
+# 켜 두었는데 '업무일지 점검'만 따로 꺼진 것처럼 보이면, 화면에서는 고장으로 읽힌다.
+FEATURE_FALLBACK = {"daily": "task"}
+
+
+def _feature_on(db, feature: str) -> bool:
+    feats = cfg(db, "ai_features") or {}
+    if feature in feats:
+        return bool(feats[feature])
+    alias = FEATURE_FALLBACK.get(feature)
+    return bool(feats.get(alias)) if alias else False
+
+
 # ── 구성원: 점검 ──
 @router.get("/status")
 def status_for_user(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -136,7 +149,7 @@ def status_for_user(user: CurrentUser = Depends(get_current_user), db: Session =
     allowed = user.role in roles
     return {
         "enabled": enabled and allowed,
-        "features": {k: bool(enabled and allowed and feats.get(k)) for k in FEATURES},
+        "features": {k: bool(enabled and allowed and _feature_on(db, k)) for k in FEATURES},
         "labels": FEATURES,
     }
 
@@ -149,7 +162,7 @@ async def review(body: schemas.ReviewIn, user: CurrentUser = Depends(get_current
         raise HTTPException(status.HTTP_403_FORBIDDEN, "AI 멘토가 꺼져 있습니다. 관리자에게 문의하세요.")
     if user.role not in (cfg(db, "ai_roles") or []):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "이 계정은 AI 멘토를 사용할 수 없습니다.")
-    if not (cfg(db, "ai_features") or {}).get(body.feature):
+    if not _feature_on(db, body.feature):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "이 기능은 관리자가 꺼 두었습니다.")
 
     cap = float(cfg(db, "ai_monthly_cost_cap_usd") or 0)
@@ -190,7 +203,7 @@ async def revise(body: schemas.ReviseIn, user: CurrentUser = Depends(get_current
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "알 수 없는 점검 유형입니다")
     if user.role not in (cfg(db, "ai_roles") or []):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "이 계정은 AI 멘토를 사용할 수 없습니다.")
-    if not (cfg(db, "ai_features") or {}).get(body.feature):
+    if not _feature_on(db, body.feature):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "이 기능은 관리자가 꺼 두었습니다.")
     if not body.body.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "고쳐 쓸 내용이 비어 있습니다.")
@@ -417,12 +430,9 @@ async def philosophy_extract(category: str, user: CurrentUser = Depends(_require
 
 
 @router.get("/philosophy/principles", response_model=list[schemas.PrincipleOut])
-def principles_list(user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """교수·관리자는 초안까지, 학생은 승인된 지침만 본다(무엇을 기준으로 지도받는지 알 수 있어야 한다)."""
-    stmt = select(Principle).order_by(Principle.category, Principle.order)
-    if user.role not in ("prof", "admin"):
-        stmt = stmt.where(Principle.approved.is_(True))
-    return list(db.scalars(stmt))
+def principles_list(_: CurrentUser = Depends(_require_prof), db: Session = Depends(get_db)):
+    """지도 지침 목록 — 지도교수만. 지침은 멘토가 조언할 때 쓰는 근거이지 공개 문서가 아니다."""
+    return list(db.scalars(select(Principle).order_by(Principle.category, Principle.order)))
 
 
 @router.post("/philosophy/principles", response_model=schemas.PrincipleOut, status_code=201)

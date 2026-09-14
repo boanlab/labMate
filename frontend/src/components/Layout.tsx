@@ -10,6 +10,7 @@ import { InstallButton } from "./InstallButton";
 import { TopProgress } from "./TopProgress";
 import { GlobalSearch } from "./GlobalSearch";
 import { MentorChat } from "./MentorChat";
+import { UpdateBanner } from "./UpdateBanner";
 
 const ROLE_LABEL: Record<string, string> = {
   prof: "지도교수", phd: "박사과정", master: "석사과정", under: "학사과정", staff: "행정", admin: "관리자",
@@ -41,7 +42,6 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/grants", label: "연구과제", icon: "award", roles: ALL },
     { to: "/projects", label: "프로젝트", icon: "folder", roles: NO_STAFF },
     { to: "/publications", label: "실적", icon: "award", roles: ALL },
-    { to: "/archive", label: "아카이브", icon: "folder", roles: ALL },
   ] },
   // 남과 주고받는 것. 전자결재도 결국 문서를 넘기는 절차라 여기에 둔다.
   { title: "소통", items: [
@@ -49,6 +49,8 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/board", label: "게시판", icon: "chat", roles: NO_STAFF },
     { to: "/meetings", label: "회의록", icon: "clipboard", roles: NO_STAFF },
     { to: "/approvals", label: "전자결재", icon: "doc", roles: NO_STAFF },
+    // 관리자가 메일서버를 설정해야 보인다(visible 에서 거른다) — 쓰지 않는 메뉴를 남기지 않는다.
+    { to: "/mail", label: "전자메일", icon: "mail", roles: ALL },
   ] },
   { title: "연구비", items: [
     { to: "/budget", label: "예산", icon: "wallet", roles: ["prof", "staff"] },
@@ -68,8 +70,9 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     { to: "/members", label: "구성원", icon: "users", roles: EVERYONE },
   ] },
   { title: "지도", items: [
-    { to: "/philosophy", label: "지도 철학", icon: "book", roles: NO_STAFF },
-    { to: "/coaching", label: "지도 현황", icon: "users", roles: ["prof", "staff"] },
+    // 지도(指導)는 지도교수의 일이다 — 철학도 현황도 교수만 본다.
+    { to: "/philosophy", label: "지도 철학", icon: "book", roles: ["prof"] },
+    { to: "/coaching", label: "지도 현황", icon: "users", roles: ["prof"] },
   ] },
   { title: "관리", items: [
     { to: "/admin", label: "환경설정", icon: "shield", roles: ["admin"] },
@@ -84,6 +87,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { dark, toggle } = useTheme();
   const brandLogo = useConfig<string>("brand_logo", "");
   const labName = useConfig<string>("lab_name", "");
+  const mailOn = useConfig<boolean>("mail_enabled", false);
   const [drawer, setDrawer] = useState(false);
   // 사이드바 접힘도 계정에 저장 — PC 를 옮겨도 같은 상태로 시작한다
   const [collapsed, setCollapsed] = usePref<boolean>("sidebar_collapsed", false, { hint: true });
@@ -97,9 +101,16 @@ export default function Layout({ children }: { children: ReactNode }) {
   }
 
   // 접어 둔 메뉴 그룹 — 계정에 남긴다(PC 를 바꿔도 같은 화면).
-  const [shutGroups, setShutGroups] = usePref<string[]>("nav_groups_shut", []);
+  // 처음 열면 접혀 있는 그룹 — 매일 쓰는 메뉴가 먼저 눈에 들어오게 한다.
+  // 접힘 상태는 {shut:[...]} 로 담는다. 빈 배열로 두면 설정 저장소가 '값 없음'으로 보고
+  // 지워 버려, 모두 펼쳐 둔 사람이 다음 접속 때 기본값(접힘)으로 되돌아간다.
+  const NAV_SHUT_DEFAULT = ["연구비", "자원", "인사", "지도"];
+  const [navPref, setNavPref] = usePref<any>("nav_groups_shut", null);
+  const shutGroups: string[] = Array.isArray(navPref) ? navPref            // 예전에 저장해 둔 모양
+    : navPref && Array.isArray(navPref.shut) ? navPref.shut
+    : NAV_SHUT_DEFAULT;
   const toggleGroup = (title: string) =>
-    setShutGroups(shutGroups.includes(title) ? shutGroups.filter((t) => t !== title) : [...shutGroups, title]);
+    setNavPref({ shut: shutGroups.includes(title) ? shutGroups.filter((t) => t !== title) : [...shutGroups, title] });
 
   // 라우트 이동 시 모바일 드로어 닫기
   useEffect(() => { setDrawer(false); setMenu(false); }, [loc.pathname]);
@@ -177,6 +188,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   // 위임자는 본인 역할 + staff 권한을 함께 보유
   const effRoles = me.delegated_admin ? [me.role, "staff"] : [me.role];
   function visible(it: MenuItem) {
+    if (it.to === "/mail" && !mailOn) return false;      // 메일서버 미설정 = 없는 기능
     return it.roles.some((r) => effRoles.includes(r));
   }
 
@@ -185,6 +197,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       {/* 키보드 사용자가 사이드바 메뉴 전체를 건너뛰고 본문으로 바로 가도록(WCAG 2.4.1 Bypass Blocks) */}
       <a className="skip-link" href="#main" data-testid="skip-link">본문으로 건너뛰기</a>
       <TopProgress />
+      <UpdateBanner />
       <MentorChat />
       <header className="appbar">
         <div className="appbar-l">

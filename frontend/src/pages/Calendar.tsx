@@ -7,6 +7,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageHeader, Card, Req } from "../ui/kit";
 import { useConfig, names } from "../api/config";
 import { todayKST } from "../lib/date";
+import { selectable } from "../lib/members";
 import { usePref } from "../api/prefs";
 import HtmlEditor from "../ui/HtmlEditorLazy";
 import { MentorButton } from "../ui/Mentor";
@@ -96,12 +97,16 @@ export default function Calendar() {
   const uname = useDirectory("");
   // 딥워크 — 평일 같은 시각에 확보해 둔 집중 시간. 일정이 아니라 표시만 한다.
   const [deep] = usePref<{ on: boolean; from: string; to: string }>("deep_work", { on: false, from: "", to: "" });
+  /** 칸에 적는 이름표 — "누가 · 무슨 일" 순서로 맞춘다.
+   *  누구인지는 참석자가 먼저다. 회의·출장은 참석자가 곧 그 일정의 주인이고,
+   *  작성자는 자리만 잡아 준 사람일 수 있다. 참석자가 없으면 작성자로 돌아간다
+   *  (휴가·예약처럼 애초에 한 사람 것인 일정이 그렇다). */
   const evLabel = (e: Item) => {
-    const n = uname(e.by_id || "");
-    if (!n) return e.title;
-    if (e.src === "leave") return `${n} · ${e.title}`;
-    if (e.src === "booking") return `${e.title} · ${n}`;
-    return e.title;
+    const names = (e.attendees || []).map((id) => uname(id)).filter(Boolean);
+    const who = names.length
+      ? (names.length <= 2 ? names.join(", ") : `${names[0]} 외 ${names.length - 1}명`)
+      : uname(e.by_id || "");
+    return who ? `${who} · ${e.title}` : e.title;
   };
   const canSeeLeaveReason = (uid: string) => isMgr || uid === me?.id;
 
@@ -237,7 +242,7 @@ export default function Calendar() {
               <div style={{ gridColumn: "1 / -1" }}>
                 <label>구성원 선택{form.attendees.length ? ` · ${form.attendees.length}명` : ""}</label>
                 <div className="fchips" data-testid="ev-attendees">
-                  {users.filter((u) => u.role !== "admin").map((u) => <button type="button" key={u.id} className={"chip" + (form.attendees.includes(u.id) ? " on" : "")} onClick={() => toggleAttendee(u.id)}>{u.name}</button>)}
+                  {selectable(users, form.attendees).filter((u) => u.role !== "admin").map((u) => <button type="button" key={u.id} className={"chip" + (form.attendees.includes(u.id) ? " on" : "")} onClick={() => toggleAttendee(u.id)}>{u.name}</button>)}
                   {!users.length && <span className="muted small">구성원 목록을 불러오는 중…</span>}
                 </div>
               </div>
@@ -284,7 +289,7 @@ export default function Calendar() {
                 {days.map((d, i) => (
                   <div key={i} className="wk-col" onClick={() => setDayModal(ymd(d))}>
                     {(byDate[ymd(d)] || []).filter((e) => !spanOf(e.time)).map((e) => (
-                      <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={evLabel(e)}>{e.title}</span>
+                      <span key={e.id} className="ev" style={{ background: TCOL[e.type] || "#5a6478" }} title={evLabel(e)}>{e.recurring ? "🔁 " : ""}{evLabel(e)}</span>
                     ))}
                   </div>
                 ))}
@@ -305,7 +310,7 @@ export default function Calendar() {
                             top: (x.s - fromH * 60) / 60 * HOUR_PX,
                             height: Math.max(20, (x.e - x.s) / 60 * HOUR_PX - 2),
                             left: `calc(${(x.lane / x.lanes) * 100}% + 2px)`, width: `calc(${100 / x.lanes}% - 4px)` }}>
-                          {x.ev.time?.slice(0, 5)} {x.ev.title}
+                          {x.ev.recurring ? "🔁 " : ""}{x.ev.time?.slice(0, 5)} {evLabel(x.ev)}
                         </span>
                       ))}
                     </div>
@@ -317,10 +322,11 @@ export default function Calendar() {
           <div className="cal" data-testid="cal-grid">
             {["일", "월", "화", "수", "목", "금", "토"].map((d) => <div className="dow" key={d}>{d}</div>)}
             {days.map((d, i) => {
+              // 이 달이 아닌 칸도 일정이 보이면 눌러 볼 수 있어야 한다(흐리게만 두고 막지 않는다).
               const ds = ymd(d); const inMonth = inRange(d); const evs = byDate[ds] || [];
               const cap = week ? evs.length : 4;      // 주간은 칸이 넓어 다 보여 준다
               return (
-                <div key={i} className={"day" + (!inMonth ? " off" : "") + (ds === todayStr ? " today" : "")} onClick={() => inMonth && setDayModal(ds)}>
+                <div key={i} className={"day" + (!inMonth ? " off" : "") + (ds === todayStr ? " today" : "")} onClick={() => setDayModal(ds)}>
                   <div className="dn">{d.getDate()}</div>
                   {deep?.on && inMonth && d.getDay() !== 0 && d.getDay() !== 6 && (
                     <span className="ev deep" title={`딥워크 ${deep.from}~${deep.to}`}>🎧 {deep.from}~{deep.to}</span>

@@ -32,7 +32,6 @@ export const ROUTES = [
   { p: "/philosophy",   label: "지도 철학" },
   { p: "/coaching",     label: "지도 현황" },
   { p: "/publications", label: "실적" },
-  { p: "/archive",      label: "아카이브" },
   { p: "/assets",       label: "자산" },
   { p: "/infra",        label: "인프라" },
   { p: "/mypage",       label: "마이페이지" },
