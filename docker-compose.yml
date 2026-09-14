@@ -152,6 +152,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     # 빌드 산출물을 nginx로 서빙. 개발 시에는 `npm run dev`(5173) 사용.
+    volumes:
+      - ./data/frontend-keep:/srv/keep       # 지난 배포 자산 보관(열어 둔 화면이 계속 쓴다)
 
   mentor-service:
     image: ${ORG:-boanlab}/labmate-mentor:${VERSION:-latest}
