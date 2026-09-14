@@ -3,6 +3,9 @@
 /data/redis/
 /data/uploads/*
 !/data/uploads/.gitkeep
+/data/backups/
+# 지난 배포 자산 보관 — 컨테이너가 기동할 때 채운다
+/data/frontend-keep/
 
 # env
 .env
