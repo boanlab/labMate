@@ -137,15 +137,19 @@ class KeyResult(OrgScoped, SoftDelete, Base):
 
 
 class DailyLog(OrgScoped, SoftDelete, Base):
-    """개인 업무일지 — 하루치 '할 일'과 '한 일'.
+    """개인 업무일지 — 적어 둔 '할 일' 하나.
 
     남에게 보이지 않는다. 모든 조회는 uid 로 잠근다(라우터에서 강제).
-    세부업무(Task)와 달리 과제에 매이지 않아도 되고, 하루 단위로만 존재한다.
+
+    하루에 한 줄씩 새로 만들지 않는다. 한 번 적은 일은 끝낼 때까지 날마다 따라온다
+    (date = 적은 날, done_date = 끝낸 날. 그 사이의 모든 날에 보인다). 그래서 제목을 고치면
+    어제 것도 내일 것도 함께 고쳐진다 — 같은 일이니 같은 줄이다.
     """
     __tablename__ = "daily_logs"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     uid: Mapped[str] = mapped_column(String(32), index=True)              # 쓴 사람 — 본인만 본다
-    date: Mapped[_date] = mapped_column(Date, index=True)
+    date: Mapped[_date] = mapped_column(Date, index=True)                 # 적은 날(여기서부터 보인다)
+    done_date: Mapped[_date | None] = mapped_column(Date, nullable=True, index=True)   # 끝낸 날(여기까지 보인다)
     title: Mapped[str] = mapped_column(String(300))
     project_id: Mapped[str] = mapped_column(String(32), default="")       # 선택 — 보고서를 과제별로 묶는 데 쓴다
     done: Mapped[bool] = mapped_column(Boolean, default=False)

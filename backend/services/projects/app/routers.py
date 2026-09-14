@@ -567,14 +567,18 @@ def _my_log(db: Session, lid: str, user: CurrentUser) -> DailyLog:
 @router.get("/dailylogs", response_model=list[schemas.DailyLogOut])
 def list_daily(start: date | None = None, end: date | None = None,
                user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
-    """기간(포함) 안의 내 일지. 기간을 주지 않으면 오늘 하루만."""
-    q = select(DailyLog).where(DailyLog.uid == user.id)
-    if start:
-        q = q.where(DailyLog.date >= start)
-    if end:
-        q = q.where(DailyLog.date <= end)
-    if not start and not end:
-        q = q.where(DailyLog.date == date.today())
+    """기간(포함)에 걸치는 내 일지. 기간을 주지 않으면 오늘 하루만.
+
+    한 줄이 여러 날에 걸쳐 있다(적은 날 ~ 끝낸 날). 그래서 '기간 안에 시작한 것'이 아니라
+    '기간과 겹치는 것'을 준다 — 지난달에 적어 아직 안 끝낸 일도 오늘 화면에 보여야 한다.
+    """
+    today = date.today()
+    lo, hi = (start or today), (end or today)
+    q = select(DailyLog).where(
+        DailyLog.uid == user.id,
+        DailyLog.date <= hi,
+        (DailyLog.done_date.is_(None)) | (DailyLog.done_date >= lo),
+    )
     return list(db.scalars(q.order_by(DailyLog.date, DailyLog.order, DailyLog.created_at)))
 
 
@@ -592,8 +596,12 @@ def create_daily(body: schemas.DailyLogIn, user: CurrentUser = Depends(get_curre
 def update_daily(lid: str, body: schemas.DailyLogPatch, user: CurrentUser = Depends(get_current_user),
                  db: Session = Depends(get_db)):
     row = _my_log(db, lid, user)
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    clear = data.pop("clear_done_date", False)
+    for k, v in data.items():
         setattr(row, k, v)
+    if clear:
+        row.done_date = None
     db.commit(); db.refresh(row)
     return row
 

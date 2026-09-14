@@ -14,7 +14,7 @@ import { htmlToPlain, plainToHtml } from "../ui/html";
 import { Card, PageHeader } from "../ui/kit";
 import { MentorButton } from "../ui/Mentor";
 
-interface Log { id: string; date: string; title: string; project_id: string; done: boolean; note: string; order: number }
+interface Log { id: string; date: string; done_date: string | null; title: string; project_id: string; done: boolean; note: string; order: number }
 interface Proj { id: string; code: string; name: string }
 
 /** Date → YYYY-MM-DD. toISOString 은 UTC 로 바꾸므로 한국(UTC+9)에서는 하루가 밀린다 — 지역 시간 그대로 쓴다. */
@@ -87,7 +87,10 @@ export default function Daily() {
   }, []);
 
   const codeOf = (id: string) => projects.find((p) => p.id === id)?.code || "";
-  const ofDay = useMemo(() => logs.filter((l) => l.date === day).sort((a, b) => a.order - b.order), [logs, day]);
+  // 한 번 적은 일은 끝낼 때까지 날마다 따라온다 — 적은 날부터 끝낸 날까지 보인다.
+  const onDay = (l: Log, d: string) => l.date <= d && (!l.done_date || l.done_date >= d);
+  const ofDay = useMemo(() => logs.filter((l) => onDay(l, day))
+    .sort((a, b) => (a.date === b.date ? a.order - b.order : a.date.localeCompare(b.date))), [logs, day]);
   const doneN = ofDay.filter((l) => l.done).length;
 
   async function add(e: React.FormEvent) {
@@ -116,29 +119,6 @@ export default function Daily() {
     try { await api.delete(`/projects/dailylogs/${l.id}`); setLogs((ls) => ls.filter((x) => x.id !== l.id)); }
     catch (e) { setErr(apiError(e)); }
   }
-  /** 지난 날들에서 아직 못 끝낸 일을 이 날로 가져온다 — 매번 다시 적지 않게.
-   *  지난 기록은 그대로 둔다(그 날 못 끝냈다는 사실이 일지의 내용이다).
-   *  같은 제목은 하나만, 이미 이 날에 있는 것은 건너뛴다. */
-  async function carryOver() {
-    // 같은 일이 여러 날에 걸쳐 적히므로 제목별로 '가장 최근에 적은 것'만 본다.
-    // 날마다 따로 보면 8일에 못 끝낸 일이 10일에 끝났어도 8일 기록을 보고 남은 일로 여긴다.
-    const here = new Set(ofDay.map((l) => l.title.trim()));
-    const last = new Map<string, Log>();
-    logs.filter((l) => l.date < day)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .forEach((l) => { const t = l.title.trim(); if (t) last.set(t, l); });
-    const prev = [...last.values()]
-      .filter((l) => !l.done && !here.has(l.title.trim()))
-      .slice(0, 20);      // 한 번에 쏟아지지 않게 상한을 둔다
-    if (!prev.length) return setErr("가져올 남은 일이 없습니다");
-    setErr("");
-    try {
-      const made = await Promise.all(prev.map((l, i) => api.post<Log>("/projects/dailylogs",
-        { date: day, title: l.title, project_id: l.project_id, note: l.note, order: ofDay.length + i })));
-      setLogs((ls) => [...ls, ...made.map((r) => r.data)]);
-    } catch (e) { setErr(apiError(e)); }
-  }
-
   /** 개선안을 항목 제목에 넣는다 — 번호로 되짚어 바뀐 것만, 한 번 보여 주고 묻는다. */
   async function applyTitles(text: string) {
     const next = new Map<number, string>();
@@ -183,16 +163,18 @@ export default function Daily() {
       "</ul></li></ul>").join("");
   }
   function buildReport(): string {
-    const rows = logs.filter((l) => l.date >= range[0] && l.date <= range[1]);
+    // 기간에 걸치는 일 — 지난달에 적어 아직 안 끝낸 일도 이번 주 보고에 들어가야 한다.
+    const rows = logs.filter((l) => l.date <= range[1] && (!l.done_date || l.done_date >= range[0]));
     if (!rows.length) return "";
-    // 같은 일이 여러 날 이어지면 한 줄로 합친다 — 날마다 반복해 적으면 보고서를 읽을 수 없다.
     const merged = new Map<string, Row>();
     rows.forEach((l) => {
       const code = codeOf(l.project_id) || "기타";
       const key = `${code}|${l.title.trim()}`;
       const cur = merged.get(key) || { title: l.title.trim(), code, note: "", done: false, days: [] };
-      cur.days.push(l.date);
-      if (l.done) cur.done = true;
+      // 이 일이 기간 안에서 걸쳐 있던 구간만 적는다
+      cur.days.push(l.date < range[0] ? range[0] : l.date);
+      cur.days.push(!l.done_date || l.done_date > range[1] ? range[1] : l.done_date);
+      if (l.done && l.done_date && l.done_date >= range[0] && l.done_date <= range[1]) cur.done = true;
       if (l.note.trim()) cur.note = l.note.trim();
       merged.set(key, cur);
     });
@@ -275,15 +257,13 @@ export default function Daily() {
             {projects.map((p) => <option key={p.id} value={p.id}>{p.code}</option>)}
           </select>
           <button className="btn primary sm" data-testid="daily-add" type="submit">추가</button>
-          {/* 지난 날로 남은 일을 옮기면 그날 실제로 한 일이 아니게 된다 — 오늘에만 연다. */}
-          <button className="btn ghost sm" type="button" data-testid="daily-carry" disabled={day !== today}
-            title={day !== today ? "오늘 날짜에서만 가져올 수 있습니다" : "지난 날들에서 아직 못 끝낸 일을 오늘로 가져옵니다"}
-            onClick={carryOver}>남은 일 가져오기</button>
         </form>
 
         {ofDay.map((l) => (
           <div key={l.id} data-testid={`daily-row-${l.id}`} className="daily-row">
-            <input type="checkbox" checked={l.done} onChange={(e) => save(l, { done: e.target.checked })}
+            {/* 끝낸 날을 함께 남긴다 — 그 날까지만 보이고 다음 날부터는 따라오지 않는다 */}
+            <input type="checkbox" checked={l.done}
+              onChange={(e) => save(l, e.target.checked ? { done: true, done_date: day } : { done: false, clear_done_date: true } as any)}
               aria-label={`${l.title} 완료`} data-testid={`daily-done-${l.id}`} style={{ margin: 0 }} />
             <input value={l.title} onChange={(e) => setLocal(l.id, { title: e.target.value })} onBlur={(e) => save(l, { title: e.target.value })}
               className={l.done ? "daily-done" : ""} aria-label="할 일" style={{ margin: 0, flex: "2 1 220px" }} />

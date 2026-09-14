@@ -51,6 +51,7 @@ class TaskOut(TaskIn):
 class DailyLogIn(BaseModel):
     """개인 업무일지 한 줄."""
     date: _date
+    done_date: _date | None = None
     title: str = Field(max_length=300)
     project_id: str = ""
     done: bool = False
@@ -60,6 +61,8 @@ class DailyLogIn(BaseModel):
 
 class DailyLogPatch(BaseModel):
     date: _date | None = None
+    done_date: _date | None = None
+    clear_done_date: bool = False        # 완료를 풀 때 — None 은 '건드리지 않음'과 구분되지 않는다
     title: str | None = Field(default=None, max_length=300)
     project_id: str | None = None
     done: bool | None = None
@@ -70,6 +73,7 @@ class DailyLogPatch(BaseModel):
 class DailyLogOut(BaseModel):
     id: str
     date: _date
+    done_date: _date | None = None
     title: str
     project_id: str = ""
     done: bool = False
